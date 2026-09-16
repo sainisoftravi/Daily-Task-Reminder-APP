@@ -10,13 +10,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js Library -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('ticktask_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
     
     <style>
-        :root {
+        :root, [data-theme="dark"] {
             --bg-dark: #080c14;
             --sidebar-width: 260px;
+            --sidebar-bg: rgba(10, 15, 26, 0.95);
+            --header-bg: rgba(8, 12, 20, 0.85);
             --card-bg: rgba(18, 26, 43, 0.75);
             --card-border: rgba(255, 255, 255, 0.08);
             --primary: #6366f1;
@@ -27,9 +33,62 @@
             --accent-rose: #f43f5e;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
+            --nav-text-color: #94a3b8;
+            --nav-hover-color: #ffffff;
+            --nav-hover-bg: rgba(255, 255, 255, 0.05);
+            --form-control-bg: #1e293b;
+            --form-control-border: rgba(255, 255, 255, 0.12);
+            --form-control-text: #ffffff;
+            --clock-bg: rgba(12, 18, 28, 0.85);
+            --clock-border: rgba(255, 255, 255, 0.12);
+            --clock-country-color: #f1f5f9;
+            --clock-time-color: #00f2fe;
+            --btn-sec-bg: rgba(255, 255, 255, 0.08);
+            --btn-sec-hover-bg: rgba(255, 255, 255, 0.12);
+            --th-color: #94a3b8;
+            --th-bg: rgba(255, 255, 255, 0.02);
+            --td-border: rgba(255, 255, 255, 0.04);
+            --tr-hover-bg: rgba(255, 255, 255, 0.02);
+            --link-color: #38bdf8;
+            --code-bg: rgba(255, 255, 255, 0.06);
+            --code-color: #38bdf8;
             --radius-lg: 16px;
             --radius-md: 12px;
             --radius-sm: 8px;
+            --body-gradient: radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                             radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),
+                             radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.1) 0px, transparent 50%);
+        }
+
+        [data-theme="light"] {
+            --bg-dark: #f8fafc;
+            --sidebar-bg: #ffffff;
+            --header-bg: rgba(255, 255, 255, 0.95);
+            --card-bg: #ffffff;
+            --card-border: #cbd5e1;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --nav-text-color: #334155;
+            --nav-hover-color: #0f172a;
+            --nav-hover-bg: #e2e8f0;
+            --form-control-bg: #ffffff;
+            --form-control-border: #94a3b8;
+            --form-control-text: #0f172a;
+            --clock-bg: #ffffff;
+            --clock-border: #cbd5e1;
+            --clock-country-color: #1e293b;
+            --clock-time-color: #0284c7;
+            --btn-sec-bg: #f1f5f9;
+            --btn-sec-hover-bg: #e2e8f0;
+            --th-color: #334155;
+            --th-bg: #f8fafc;
+            --td-border: #e2e8f0;
+            --tr-hover-bg: #f8fafc;
+            --link-color: #0284c7;
+            --code-bg: #f1f5f9;
+            --code-color: #0369a1;
+            --body-gradient: radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+                             radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.08) 0px, transparent 50%);
         }
 
         * {
@@ -37,18 +96,38 @@
             margin: 0;
             padding: 0;
             font-family: 'Inter', sans-serif;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+        }
+
+        /* Sleek Custom Dark Scrollbars (No default white scrollbars) */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
 
         body {
             background-color: var(--bg-dark);
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),
-                radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.1) 0px, transparent 50%);
+            background-image: var(--body-gradient);
             background-attachment: fixed;
             color: var(--text-main);
             min-height: 100vh;
             display: flex;
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         /* Glassmorphism Panel Utility */
@@ -59,12 +138,13 @@
             border: 1px solid var(--card-border);
             border-radius: var(--radius-lg);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         /* Sidebar Navigation */
         .sidebar {
             width: var(--sidebar-width);
-            background: rgba(10, 15, 26, 0.95);
+            background: var(--sidebar-bg);
             border-right: 1px solid var(--card-border);
             display: flex;
             flex-direction: column;
@@ -73,32 +153,33 @@
             top: 0;
             left: 0;
             z-index: 1000;
+            overflow: hidden;
         }
 
         .sidebar-brand {
-            padding: 24px;
+            padding: 16px 20px;
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 12px;
             border-bottom: 1px solid var(--card-border);
         }
 
         .brand-icon {
-            width: 42px;
-            height: 42px;
-            border-radius: 12px;
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
             background: var(--primary-gradient);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            font-size: 18px;
             color: #fff;
             box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
         }
 
         .brand-title {
             font-family: 'Outfit', sans-serif;
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 700;
             background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
             -webkit-background-clip: text;
@@ -112,10 +193,10 @@
 
         .nav-list {
             list-style: none;
-            padding: 20px 14px;
+            padding: 12px 10px;
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 3px;
             flex: 1;
             overflow-y: auto;
         }
@@ -123,29 +204,29 @@
         .nav-item a {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            color: var(--text-muted);
+            gap: 10px;
+            padding: 9px 12px;
+            color: var(--nav-text-color);
             text-decoration: none;
             border-radius: var(--radius-md);
-            font-size: 14px;
-            font-weight: 500;
+            font-size: 13.5px;
+            font-weight: 600;
             transition: all 0.2s;
         }
 
         .nav-item a:hover {
-            color: #fff;
-            background: rgba(255, 255, 255, 0.05);
+            color: var(--nav-hover-color);
+            background: var(--nav-hover-bg);
         }
 
         .nav-item.active a {
             background: var(--primary-gradient);
-            color: #fff;
+            color: #fff !important;
             box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
         }
 
         .sidebar-footer {
-            padding: 16px 20px;
+            padding: 12px 14px;
             border-top: 1px solid var(--card-border);
             font-size: 11px;
             color: var(--text-muted);
@@ -159,6 +240,7 @@
             display: flex;
             flex-direction: column;
             min-height: 100vh;
+            max-width: calc(100% - var(--sidebar-width));
         }
 
         /* Header Bar */
@@ -168,17 +250,19 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--card-border);
-            background: rgba(8, 12, 20, 0.85);
+            background: var(--header-bg);
             position: sticky;
             top: 0;
             z-index: 900;
             backdrop-filter: blur(12px);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
         }
 
         .page-header-title {
             font-family: 'Outfit', sans-serif;
             font-size: 22px;
             font-weight: 700;
+            color: var(--text-main);
         }
 
         .clocks-bar {
@@ -189,20 +273,19 @@
 
         .clock-pill {
             padding: 6px 18px;
-            background: rgba(12, 18, 28, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: var(--clock-bg);
+            border: 1px solid var(--clock-border);
             border-radius: 30px;
             display: flex;
             align-items: center;
             gap: 10px;
             font-size: 13px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
             transition: all 0.25s ease;
         }
 
         .clock-pill:hover {
             border-color: rgba(6, 182, 212, 0.4);
-            background: rgba(15, 23, 42, 0.95);
             box-shadow: 0 4px 20px rgba(6, 182, 212, 0.15);
         }
 
@@ -216,19 +299,18 @@
         }
 
         .clock-country {
-            color: #f1f5f9;
-            font-weight: 500;
+            color: var(--clock-country-color);
+            font-weight: 600;
             font-size: 13px;
             letter-spacing: 0.2px;
         }
 
         .clock-time {
             font-weight: 700;
-            color: #00f2fe;
+            color: var(--clock-time-color);
             font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
             font-size: 13px;
             letter-spacing: 0.5px;
-            text-shadow: 0 0 8px rgba(0, 242, 254, 0.4);
         }
 
         .content-container {
@@ -240,7 +322,7 @@
         .btn {
             padding: 10px 20px;
             border-radius: var(--radius-md);
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
             border: none;
             display: inline-flex;
@@ -253,7 +335,7 @@
 
         .btn-primary {
             background: var(--primary-gradient);
-            color: #fff;
+            color: #fff !important;
             box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
         }
 
@@ -263,23 +345,24 @@
         }
 
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.08);
+            background: var(--btn-sec-bg);
             color: var(--text-main);
             border: 1px solid var(--card-border);
         }
 
         .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.12);
+            background: var(--btn-sec-hover-bg);
         }
 
         .btn-danger {
-            background: rgba(244, 63, 94, 0.2);
-            color: #fda4af;
+            background: rgba(244, 63, 94, 0.15);
+            color: #f43f5e;
             border: 1px solid rgba(244, 63, 94, 0.3);
+            font-weight: 600;
         }
 
         .btn-danger:hover {
-            background: rgba(244, 63, 94, 0.3);
+            background: rgba(244, 63, 94, 0.25);
         }
 
         .table-responsive {
@@ -297,26 +380,41 @@
             font-size: 12px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            color: var(--text-muted);
+            color: var(--th-color);
             border-bottom: 1px solid var(--card-border);
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--th-bg);
+            font-weight: 700;
         }
 
         td {
             padding: 16px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            border-bottom: 1px solid var(--td-border);
             font-size: 14px;
+            color: var(--text-main);
         }
 
         tr:hover td {
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--tr-hover-bg);
+        }
+
+        code {
+            background: var(--code-bg);
+            color: var(--code-color);
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: 600;
+        }
+
+        a {
+            color: var(--link-color);
         }
 
         .badge {
             padding: 5px 12px;
             border-radius: 20px;
             font-size: 12px;
-            font-weight: 500;
+            font-weight: 600;
             display: inline-block;
         }
 
@@ -345,51 +443,60 @@
         }
 
         .modal-box {
-            width: 100%;
-            max-width: 640px;
-            padding: 30px;
+            width: 92%;
+            max-width: 760px;
+            padding: 24px 28px;
             position: relative;
-            max-height: 90vh;
+            max-height: 92vh;
             overflow-y: auto;
+            border-radius: 20px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
         }
 
         .modal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 24px;
+            margin-bottom: 16px;
         }
 
         .close-btn {
             background: none;
             border: none;
             color: var(--text-muted);
-            font-size: 22px;
+            font-size: 24px;
             cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover {
+            color: #fff;
         }
 
         .form-group {
-            margin-bottom: 18px;
+            margin-bottom: 14px;
         }
 
         .form-label {
             display: block;
-            font-size: 13px;
-            margin-bottom: 6px;
+            font-size: 12.5px;
+            margin-bottom: 5px;
             color: var(--text-muted);
+            font-weight: 500;
         }
 
         .form-control {
             width: 100%;
-            padding: 12px 16px;
+            padding: 10px 14px;
             border-radius: var(--radius-md);
-            background-color: #1e293b;
-            border: 1px solid var(--card-border);
-            color: #ffffff;
-            font-size: 14px;
+            background-color: var(--form-control-bg);
+            border: 1px solid var(--form-control-border);
+            color: var(--form-control-text);
+            font-size: 13.5px;
             outline: none;
             appearance: none;
             -webkit-appearance: none;
+            transition: border-color 0.2s, box-shadow 0.2s, background-color 0.3s, color 0.3s;
         }
 
         .form-control:focus {
@@ -398,20 +505,20 @@
         }
 
         select.form-control option {
-            background-color: #0f172a !important;
-            color: #ffffff !important;
+            background-color: var(--form-control-bg) !important;
+            color: var(--form-control-text) !important;
             padding: 12px !important;
         }
 
         .form-row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 16px;
         }
 
         .checkbox-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
             gap: 10px;
             background: rgba(255, 255, 255, 0.03);
             padding: 14px;
@@ -448,27 +555,156 @@
             display: none;
             z-index: 3000;
         }
+
+        /* Mobile & Tablet Responsiveness */
+        .mobile-toggle-btn {
+            display: none;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--card-border);
+            color: var(--text-main);
+            padding: 8px 14px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mobile-nav-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(4px);
+            z-index: 2400;
+        }
+
+        .mobile-nav-overlay.active {
+            display: block;
+        }
+
+        /* Responsive Grid Helper Classes */
+        .dash-grid-responsive {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            margin-bottom: 28px;
+        }
+
+        .templates-grid-responsive {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+                padding: 14px 20px;
+            }
+            .clocks-bar {
+                width: 100%;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+            .dash-grid-responsive {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .templates-grid-responsive {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            :root {
+                --sidebar-width: 0px;
+            }
+            body {
+                flex-direction: column;
+            }
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: -270px;
+                width: 260px;
+                height: 100vh;
+                z-index: 2500;
+                transition: transform 0.3s ease;
+                box-shadow: 4px 0 25px rgba(0, 0, 0, 0.6);
+            }
+            .sidebar.active {
+                transform: translateX(270px);
+            }
+            .workspace {
+                margin-left: 0;
+                max-width: 100%;
+            }
+            header {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                padding: 12px 16px;
+                flex-wrap: wrap;
+            }
+            .mobile-toggle-btn {
+                display: inline-flex;
+            }
+            .page-header-title {
+                font-size: 18px;
+            }
+            .clocks-bar {
+                margin-top: 6px;
+                gap: 6px;
+            }
+            .clock-pill {
+                padding: 4px 10px;
+                font-size: 11.5px;
+            }
+            .content-container {
+                padding: 14px;
+            }
+            .glass-panel {
+                padding: 16px !important;
+            }
+            .modal-box {
+                width: 95%;
+                padding: 18px;
+                max-height: 90vh;
+            }
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
 <body>
 
+    <!-- Mobile Drawer Overlay -->
+    <div class="mobile-nav-overlay" id="mobile-nav-overlay" onclick="toggleMobileSidebar(false)"></div>
+
     <!-- Sidebar Navigation -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="app-sidebar">
         <div class="sidebar-brand">
-            <div class="brand-icon">
-                <i class="fa-solid fa-clock-rotate-left"></i>
-            </div>
-            <div>
-                <div class="brand-title">Daily Task Reminder</div>
-                <div class="brand-subtitle">SQLite & Multi-Team Engine</div>
-            </div>
+            <img src="/static/images/app_logo_dark.png" id="sidebar-brand-logo" alt="TickTask Logo" style="max-height: 42px; max-width: 185px; object-fit: contain;">
+            <button class="close-btn" onclick="toggleMobileSidebar(false)" style="display: none;" id="sidebar-close-btn">&times;</button>
         </div>
 
         <ul class="nav-list" id="sidebar-nav-list">
             <li class="nav-item nav-admin nav-manager nav-employee {% if active_page == 'task_entry' %}active{% endif %}">
                 <a href="/task-entry"><i class="fa-solid fa-list-check"></i> Daily Task Submission</a>
             </li>
+
+            {% if current_role in ['admin', 'manager'] %}
             <li class="nav-item nav-admin nav-manager {% if active_page == 'dashboard' %}active{% endif %}">
                 <a href="/dashboard"><i class="fa-solid fa-chart-pie"></i> Realtime Dashboard</a>
             </li>
@@ -481,6 +717,12 @@
             <li class="nav-item nav-admin nav-manager {% if active_page == 'teams' %}active{% endif %}">
                 <a href="/teams"><i class="fa-solid fa-sitemap"></i> Teams Management</a>
             </li>
+            <li class="nav-item nav-admin nav-manager {% if active_page == 'settings' %}active{% endif %}">
+                <a href="/settings"><i class="fa-solid fa-sliders"></i> System SMTP Config</a>
+            </li>
+            {% endif %}
+
+            {% if current_role == 'admin' %}
             <li class="nav-item nav-admin {% if active_page == 'locations' %}active{% endif %}">
                 <a href="/locations"><i class="fa-solid fa-earth-americas"></i> Locations Management</a>
             </li>
@@ -493,46 +735,70 @@
             <li class="nav-item nav-admin {% if active_page == 'quotes' %}active{% endif %}">
                 <a href="/quotes"><i class="fa-solid fa-lightbulb"></i> Thought of the Day</a>
             </li>
-            <li class="nav-item nav-admin nav-manager {% if active_page == 'settings' %}active{% endif %}">
-                <a href="/settings"><i class="fa-solid fa-sliders"></i> System SMTP Config</a>
-            </li>
             <li class="nav-item nav-admin {% if active_page == 'logs' %}active{% endif %}">
                 <a href="/logs"><i class="fa-solid fa-terminal"></i> Daemon Logs & Audit</a>
             </li>
+            {% endif %}
         </ul>
 
         <div class="sidebar-footer">
             <div id="user-profile-badge" style="margin-bottom: 8px; text-align: left; padding: 6px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--card-border);">
-                <!-- User Info Populated by JS -->
+                {% if current_user and current_user.name %}
+                    <div style="font-size:12px; font-weight:700; color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ current_user.name }}</div>
+                    <div style="font-size:11px; color:{% if current_role == 'admin' %}#f43f5e{% elif current_role == 'manager' %}#c084fc{% else %}#34d399{% endif %}; margin-top:2px;">
+                        {% if current_role == 'admin' %}🛡️ Admin{% elif current_role == 'manager' %}👔 Manager{% else %}👤 Employee{% endif %}
+                    </div>
+                {% endif %}
             </div>
-            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px; width: 100%;" onclick="handleLogout()">
-                <i class="fa-solid fa-right-from-bracket"></i> Sign Out
-            </button>
+            <div style="display: flex; gap: 6px;">
+                <button class="btn btn-secondary theme-toggle-btn" style="padding: 6px 8px; font-size: 11px; flex: 1;" onclick="toggleAppTheme()" title="Toggle Dark / Light Mode">
+                    <i class="fa-solid fa-moon"></i> <span class="theme-label-text">Theme</span>
+                </button>
+                <button class="btn btn-secondary" style="padding: 6px 8px; font-size: 11px; flex: 1;" onclick="openChangePasswordModal()" title="Change Account Password">
+                    <i class="fa-solid fa-key"></i> Password
+                </button>
+                <button class="btn btn-secondary" style="padding: 6px 8px; font-size: 11px; flex: 1;" onclick="handleLogout()" title="Sign Out of System">
+                    <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+                </button>
+            </div>
         </div>
     </aside>
 
     <!-- Workspace Area -->
     <div class="workspace">
         <header>
-            <div class="page-header-title">{% block page_title %}Dashboard{% endblock %}</div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button class="mobile-toggle-btn" onclick="toggleMobileSidebar(true)" title="Toggle Navigation Menu">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="page-header-title">{% block page_title %}Dashboard{% endblock %}</div>
+            </div>
 
-            <!-- Timezone Clocks Bar -->
-            <div class="clocks-bar">
-                <div class="clock-pill">
-                    <img src="https://flagcdn.com/w40/in.png" alt="India" class="clock-flag" onerror="this.outerHTML='🇮🇳'">
-                    <span class="clock-country">India</span>
-                    <span class="clock-time" id="clock-ist">--:--:-- --</span>
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <!-- Timezone Clocks Bar -->
+                <div class="clocks-bar">
+                    <div class="clock-pill">
+                        <img src="https://flagcdn.com/w40/in.png" alt="India" class="clock-flag" onerror="this.outerHTML='🇮🇳'">
+                        <span class="clock-country">India</span>
+                        <span class="clock-time" id="clock-ist">--:--:-- --</span>
+                    </div>
+                    <div class="clock-pill">
+                        <img src="https://flagcdn.com/w40/ae.png" alt="UAE" class="clock-flag" onerror="this.outerHTML='🇦🇪'">
+                        <span class="clock-country">UAE</span>
+                        <span class="clock-time" id="clock-gst">--:--:-- --</span>
+                    </div>
+                    <div class="clock-pill">
+                        <img src="https://flagcdn.com/w40/sa.png" alt="Saudi" class="clock-flag" onerror="this.outerHTML='🇸🇦'">
+                        <span class="clock-country">Saudi</span>
+                        <span class="clock-time" id="clock-ast">--:--:-- --</span>
+                    </div>
                 </div>
-                <div class="clock-pill">
-                    <img src="https://flagcdn.com/w40/ae.png" alt="UAE" class="clock-flag" onerror="this.outerHTML='🇦🇪'">
-                    <span class="clock-country">UAE</span>
-                    <span class="clock-time" id="clock-gst">--:--:-- --</span>
-                </div>
-                <div class="clock-pill">
-                    <img src="https://flagcdn.com/w40/sa.png" alt="Saudi" class="clock-flag" onerror="this.outerHTML='🇸🇦'">
-                    <span class="clock-country">Saudi</span>
-                    <span class="clock-time" id="clock-ast">--:--:-- --</span>
-                </div>
+
+                <!-- Theme Switcher Button -->
+                <button class="btn btn-secondary theme-toggle-btn" onclick="toggleAppTheme()" title="Toggle Dark / Light Theme" style="padding: 6px 14px; border-radius: 30px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-moon" id="header-theme-icon" style="color: #c084fc;"></i>
+                    <span id="header-theme-text">Dark</span>
+                </button>
             </div>
         </header>
 
@@ -541,10 +807,102 @@
         </div>
     </div>
 
+    <!-- Modal: Change Password -->
+    <div class="modal-overlay" id="change-password-modal">
+        <div class="glass-panel modal-box" style="max-width: 440px;">
+            <div class="modal-header">
+                <div style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600;">Change Account Password</div>
+                <button class="close-btn" onclick="closeModal('change-password-modal')">&times;</button>
+            </div>
+            
+            <form onsubmit="handleChangePasswordSubmit(event)">
+                <div class="form-group">
+                    <label class="form-label">Current Password</label>
+                    <input type="password" id="cp-current-password" class="form-control" required placeholder="Enter current password">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">New Password</label>
+                    <input type="password" id="cp-new-password" class="form-control" required placeholder="Enter new password">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Confirm New Password</label>
+                    <input type="password" id="cp-confirm-password" class="form-control" required placeholder="Re-enter new password">
+                </div>
+
+                <div id="cp-error-box" style="color: #fca5a5; font-size: 13px; margin-bottom: 14px; display: none;"></div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('change-password-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="cp-submit-btn"><i class="fa-solid fa-key"></i> Update Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Notification Toast -->
     <div class="toast" id="toast-msg">Action Completed Successfully</div>
 
     <script>
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('ticktask_theme', theme);
+
+            const headerIcon = document.getElementById('header-theme-icon');
+            const headerText = document.getElementById('header-theme-text');
+            if (headerIcon && headerText) {
+                if (theme === 'light') {
+                    headerIcon.className = 'fa-solid fa-sun';
+                    headerIcon.style.color = '#f59e0b';
+                    headerText.innerText = 'Light';
+                } else {
+                    headerIcon.className = 'fa-solid fa-moon';
+                    headerIcon.style.color = '#c084fc';
+                    headerText.innerText = 'Dark';
+                }
+            }
+
+            const logoImg = document.getElementById('sidebar-brand-logo');
+            if (logoImg) {
+                logoImg.src = theme === 'light' ? '/static/images/app_logo.png' : '/static/images/app_logo_dark.png';
+            }
+        }
+
+        function toggleAppTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(nextTheme);
+            if (typeof showToast === 'function') {
+                showToast(`Switched to ${nextTheme === 'light' ? 'Light' : 'Dark'} Theme`);
+            }
+        }
+
+        // Apply theme state on DOM load
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('ticktask_theme') || 'dark';
+            applyTheme(savedTheme);
+        });
+
+        function toggleMobileSidebar(open) {
+            const sidebar = document.getElementById('app-sidebar');
+            const overlay = document.getElementById('mobile-nav-overlay');
+            if (!sidebar || !overlay) return;
+            
+            if (typeof open === 'boolean') {
+                if (open) {
+                    sidebar.classList.add('active');
+                    overlay.classList.add('active');
+                } else {
+                    sidebar.classList.remove('active');
+                    overlay.classList.remove('active');
+                }
+            } else {
+                sidebar.classList.toggle('active');
+                overlay.classList.toggle('active');
+            }
+        }
+
         function updateClocks() {
             const now = new Date();
             const opts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
@@ -571,54 +929,69 @@
             setTimeout(() => { t.style.display = 'none'; }, 3000);
         }
 
-        async function fetchCurrentUser() {
+        function openChangePasswordModal() {
+            document.getElementById('cp-current-password').value = '';
+            document.getElementById('cp-new-password').value = '';
+            document.getElementById('cp-confirm-password').value = '';
+            document.getElementById('cp-error-box').style.display = 'none';
+            document.getElementById('change-password-modal').classList.add('active');
+        }
+
+        async function handleChangePasswordSubmit(e) {
+            e.preventDefault();
+            const currentPassword = document.getElementById('cp-current-password').value;
+            const newPassword = document.getElementById('cp-new-password').value;
+            const confirmPassword = document.getElementById('cp-confirm-password').value;
+            const errorBox = document.getElementById('cp-error-box');
+            errorBox.style.display = 'none';
+
+            if (newPassword !== confirmPassword) {
+                errorBox.innerText = "New password and confirmation do not match.";
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            if (newPassword.length < 4) {
+                errorBox.innerText = "Password must be at least 4 characters long.";
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            const btn = document.getElementById('cp-submit-btn');
+            btn.innerText = "Updating...";
+            btn.disabled = true;
+
             try {
-                const res = await fetch('/api/me');
+                const res = await fetch('/api/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentPassword, newPassword })
+                });
+
                 const data = await res.json();
-                if (data.success && data.user) {
-                    window.currentUser = data.user;
-                    const u = data.user;
-                    const badge = document.getElementById('user-profile-badge');
-                    
-                    let roleIcon = '👤';
-                    let roleLabel = 'Employee';
-                    let roleColor = '#34d399';
-                    if (u.role === 'admin') { roleIcon = '🛡️'; roleLabel = 'Admin'; roleColor = '#f43f5e'; }
-                    if (u.role === 'manager') { roleIcon = '👔'; roleLabel = 'Manager'; roleColor = '#c084fc'; }
-
-                    if (badge) {
-                        badge.innerHTML = `
-                            <div style="font-size:12px; font-weight:700; color:#f8fafc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${u.name}</div>
-                            <div style="font-size:11px; color:${roleColor}; margin-top:2px;">${roleIcon} ${roleLabel}</div>
-                        `;
-                    }
-
-                    // Role-based sidebar filtering
-                    if (u.role === 'employee') {
-                        document.querySelectorAll('.nav-item').forEach(el => {
-                            if (!el.classList.contains('nav-employee')) {
-                                el.style.display = 'none';
-                            }
-                        });
-                    } else if (u.role === 'manager') {
-                        document.querySelectorAll('.nav-item').forEach(el => {
-                            if (!el.classList.contains('nav-manager')) {
-                                el.style.display = 'none';
-                            }
-                        });
-                    }
+                if (data.success) {
+                    closeModal('change-password-modal');
+                    showToast('Password updated successfully!');
+                } else {
+                    errorBox.innerText = data.error || 'Failed to update password.';
+                    errorBox.style.display = 'block';
                 }
             } catch (err) {
-                console.error("Auth check failed:", err);
+                errorBox.innerText = 'Server error. Please try again.';
+                errorBox.style.display = 'block';
+            } finally {
+                btn.innerHTML = `<i class="fa-solid fa-key"></i> Update Password`;
+                btn.disabled = false;
             }
         }
+
+        // Set current user object from Jinja template context synchronously
+        window.currentUser = {{ current_user|tojson|safe }};
 
         async function handleLogout() {
             await fetch('/api/logout', { method: 'POST' });
             window.location.href = '/login';
         }
-
-        fetchCurrentUser();
     </script>
     {% block scripts %}{% endblock %}
 </body>

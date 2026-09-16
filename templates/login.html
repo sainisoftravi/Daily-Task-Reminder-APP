@@ -199,15 +199,26 @@
 
         /* Responsive Layout */
         @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
             .login-card-wrapper {
                 flex-direction: column;
+                padding: 12px;
+                min-height: auto;
+            }
+            .login-left-col {
+                padding: 24px 16px;
+            }
+            .welcome-title {
+                font-size: 26px;
             }
             .login-right-col {
-                min-height: 260px;
-                padding: 24px;
+                min-height: 220px;
+                padding: 20px;
             }
             .banner-img {
-                max-height: 200px;
+                max-height: 180px;
             }
         }
     </style>
@@ -217,6 +228,10 @@
     <div class="login-card-wrapper">
         <!-- Left Side: Login Form -->
         <div class="login-left-col">
+            <div style="margin-bottom: 20px;">
+                <img src="/static/images/app_logo.png" alt="TICKTASK - Daily Task Updater" style="max-height: 56px; max-width: 240px; object-fit: contain;">
+            </div>
+
             <h1 class="welcome-title">Welcome Back!</h1>
             <p class="welcome-subtitle">Please enter login details below</p>
 

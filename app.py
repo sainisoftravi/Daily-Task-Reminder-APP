@@ -46,6 +46,11 @@ def check_authentication():
             return jsonify({"success": False, "error": "Authentication required", "redirect": "/login"}), 401
         return redirect(url_for("login_page"))
 
+@app.context_processor
+def inject_user_context():
+    user = session.get("user") or {}
+    return dict(current_user=user, current_role=user.get("role", "employee"))
+
 # --- CORS (Cross-Origin Resource Sharing) Middleware ---
 @app.after_request
 def add_cors_headers(response):
@@ -220,10 +225,71 @@ def manage_employees():
     
     elif request.method == "POST":
         data = request.json or {}
+        emp_id = data.get("id")
+        is_new = not emp_id or emp_id == ""
+
         database.save_employee_record(data)
-        log_event(f"Updated Employee in SQLite: {data.get('name')}")
+        log_event(f"Saved Member Record in SQLite: {data.get('name')}")
+
+        # Send Welcome Email upon creation or if requested
+        emp_email = (data.get("email") or "").strip()
+        pwd_raw = (data.get("password") or "").strip()
+        role_str = (data.get("role") or "employee").lower()
+        pwd = pwd_raw if pwd_raw else ("admin123" if role_str == "admin" else ("mgr123" if role_str == "manager" else "emp123"))
+
+        # Determine Manager Email (from form managerCc or logged-in user)
+        mgr_email = (data.get("managerCc") or "").strip()
+        if not mgr_email and session.get("user") and session["user"].get("email"):
+            mgr_email = session["user"].get("email").strip()
+
+        if emp_email and (is_new or data.get("sendWelcomeEmail")):
+            try:
+                portal_url = request.host_url.rstrip('/') + '/login'
+                role_label = role_str.capitalize()
+                subject = f"Welcome to Daily Task Reminder System - Your Login Credentials"
+                body = f"""Hello {data.get('name')},
+
+Welcome to the Daily Task Reminder & Multi-Role Task Management System!
+
+Your employee account has been created by your Manager ({mgr_email if mgr_email else 'System Administrator'}). Below are your official login details:
+
+- Portal Login URL: {portal_url}
+- Assigned Role: {role_label}
+- Username (Email): {emp_email}
+- Password: {pwd}
+
+Please log in to the portal using your Username ({emp_email}) and Password to submit your daily tasks and track your work logs.
+
+Best regards,
+Daily Task Reminder System Team
+"""
+                daily_reminder.send_email(emp_email, mgr_email, subject, body)
+                log_event(f"Dispatched Welcome Email to '{emp_email}' from Manager '{mgr_email}'.")
+            except Exception as err:
+                log_event(f"[WARN] Welcome Email dispatch error for '{emp_email}': {err}")
+
         employees = database.get_all_employees()
         return jsonify({"success": True, "employees": employees})
+
+@app.route("/api/change-password", methods=["POST"])
+def change_password():
+    user = session.get("user")
+    if not user:
+        return jsonify({"success": False, "error": "Not authenticated."}), 401
+    
+    data = request.json or {}
+    curr_pass = data.get("currentPassword", "")
+    new_pass = data.get("newPassword", "")
+
+    if not curr_pass or not new_pass:
+        return jsonify({"success": False, "error": "Current password and new password are required."})
+
+    res = database.update_user_password(user["email"], curr_pass, new_pass)
+    if res.get("success"):
+        log_event(f"User '{user['email']}' successfully changed their account password.")
+        session["user"]["password"] = new_pass
+        session.modified = True
+    return jsonify(res)
 
 @app.route("/api/employees/<emp_id>", methods=["DELETE"])
 def delete_employee(emp_id):

@@ -416,11 +416,31 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+def get_logo_b64() -> str:
+    """Reads website logo image and encodes to base64 for embedding directly into HTML emails."""
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        logo_path = os.path.join(base_dir, "static", "images", "app_logo.png")
+        if os.path.exists(logo_path):
+            import base64
+            with open(logo_path, "rb") as f:
+                return base64.b64encode(f.read()).decode("utf-8")
+    except Exception as e:
+        print(f"[WARN] Error reading app logo for email header: {e}")
+    return ""
+
 def generate_html_email(body_text: str) -> str:
-    """Converts email body string into rich HTML formatted email matching sample layout."""
+    """Converts email body string into rich HTML formatted email matching sample layout with header logo."""
     lines = body_text.split("\n")
     html_parts = []
     in_bullets = False
+
+    logo_b64 = get_logo_b64()
+    logo_header = ""
+    if logo_b64:
+        logo_header = f'''<div style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #e2e8f0; text-align: left;">
+    <img src="data:image/png;base64,{logo_b64}" alt="TickTask Logo" style="max-height: 48px; max-width: 220px; height: auto; width: auto; display: block;" />
+</div>'''
 
     for line in lines:
         stripped = line.strip()
@@ -473,7 +493,8 @@ def generate_html_email(body_text: str) -> str:
     return f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
-<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #1e293b; line-height: 1.6; padding: 10px;">
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #1e293b; line-height: 1.6; padding: 16px; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+{logo_header}
 {html_content}
 </body>
 </html>"""
@@ -557,6 +578,7 @@ def send_email(to_email: str, cc_email: str, subject: str, body: str, dry_run: b
         msg['To'] = to_email
         if cc_email:
             msg['Cc'] = cc_email
+            msg['Reply-To'] = cc_email
         msg['Subject'] = subject
 
         # Attach Plain Text Fallback & Rich HTML Version

@@ -515,13 +515,19 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
     email_clean = (emp_data.get("email") or "").strip().lower()
     name_val = (emp_data.get("name") or "").strip()
     team_id_val = emp_data.get("teamId", "")
+    custom_pwd = (emp_data.get("password") or "").strip()
+
     if email_clean:
         existing_user = cursor.execute("SELECT id, password FROM users WHERE LOWER(email) = ?", (email_clean,)).fetchone()
         if existing_user:
-            cursor.execute("UPDATE users SET name = ?, role = ?, team_id = ? WHERE LOWER(email) = ?",
-                           (name_val, role, team_id_val, email_clean))
+            if custom_pwd:
+                cursor.execute("UPDATE users SET name = ?, role = ?, team_id = ?, password = ? WHERE LOWER(email) = ?",
+                               (name_val, role, team_id_val, custom_pwd, email_clean))
+            else:
+                cursor.execute("UPDATE users SET name = ?, role = ?, team_id = ? WHERE LOWER(email) = ?",
+                               (name_val, role, team_id_val, email_clean))
         else:
-            def_pass = "admin123" if role == "admin" else ("mgr123" if role == "manager" else "emp123")
+            def_pass = custom_pwd if custom_pwd else ("admin123" if role == "admin" else ("mgr123" if role == "manager" else "emp123"))
             u_id = f"u_{emp_id}"
             now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute("INSERT INTO users (id, name, email, password, role, team_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -542,6 +548,24 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
     conn.commit()
     conn.close()
     return True
+
+def update_user_password(email: str, old_password: str, new_password: str) -> Dict[str, Any]:
+    conn = get_db_connection()
+    email_clean = email.strip().lower()
+    row = conn.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email_clean,)).fetchone()
+    if not row:
+        conn.close()
+        return {"success": False, "error": "User account not found."}
+    
+    user_dict = dict(row)
+    if user_dict.get("password") != old_password.strip():
+        conn.close()
+        return {"success": False, "error": "Current password is incorrect."}
+    
+    conn.execute("UPDATE users SET password = ? WHERE LOWER(email) = ?", (new_password.strip(), email_clean))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": "Password updated successfully!"}
 
 def delete_employee_record(emp_id: str) -> bool:
     conn = get_db_connection()

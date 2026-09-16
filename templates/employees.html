@@ -37,7 +37,7 @@
                 <input type="text" id="search-input" class="form-control" style="padding-left: 40px;" placeholder="Search employee name, email, location, manager..." oninput="handleSearchInput()">
             </div>
 
-            <div style="width: 200px;">
+            <div style="min-width: 160px; flex: 1; max-width: 220px;">
                 <select id="filter-location" class="form-control" onchange="handleLocationFilterChange()">
                     <option value="ALL">All Locations</option>
                     <option value="India">India</option>
@@ -65,9 +65,9 @@
 
 <!-- Modal: Add / Edit Employee -->
 <div class="modal-overlay" id="employee-modal">
-    <div class="glass-panel modal-box">
-        <div class="modal-header">
-            <div style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600;" id="modal-title">Add New Employee</div>
+    <div class="glass-panel modal-box" style="max-width: 780px; width: 92%; padding: 22px 28px;">
+        <div class="modal-header" style="margin-bottom: 14px;">
+            <div style="font-family: 'Outfit', sans-serif; font-size: 21px; font-weight: 700; color: #f8fafc;" id="modal-title">Add New Member</div>
             <button class="close-btn" onclick="closeModal('employee-modal')">&times;</button>
         </div>
         
@@ -85,18 +85,25 @@
                 </div>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">User Role & Access Type</label>
-                <select id="emp-role-select" class="form-control" onchange="onUserRoleChange()">
-                    <option value="employee">👤 Employee (Daily Task Submission & Shift Reminders)</option>
-                    <option value="manager">👔 Manager (Team Management & Roster Access)</option>
-                    <option value="admin">🛡️ Admin (Full System Config Access)</option>
-                </select>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">User Role & Access Type</label>
+                    <select id="emp-role-select" class="form-control" onchange="onUserRoleChange()">
+                        <option value="employee">👤 Employee (Task Submission & Shift Reminders)</option>
+                        <option value="manager">👔 Manager (Team Management & Roster Access)</option>
+                        <option value="admin">🛡️ Admin (Full System Config Access)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Account Password</label>
+                    <input type="password" id="emp-password" class="form-control" placeholder="Set initial password (e.g. Pass@123)">
+                </div>
             </div>
 
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">Location (Select from Directory)</label>
+                    <label class="form-label">Location (Directory)</label>
                     <select id="emp-location-select" class="form-control" required onchange="onLocationSelectChange()"></select>
                 </div>
                 
@@ -114,8 +121,8 @@
             <!-- Employee-Specific Shift & Reminder Categories (Hidden for Manager & Admin) -->
             <div id="employee-shift-categories">
                 <div class="form-group">
-                    <label class="form-label">Working Days Selection (Check applicable days)</label>
-                    <div class="checkbox-grid">
+                    <label class="form-label">Working Days Selection</label>
+                    <div class="checkbox-grid" style="padding: 10px;">
                         <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Mon" checked> Mon</label>
                         <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Tue" checked> Tue</label>
                         <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Wed" checked> Wed</label>
@@ -133,16 +140,16 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Manager CC (Select from Directory)</label>
+                        <label class="form-label">Manager CC (Directory)</label>
                         <select id="emp-manager-select" class="form-control"></select>
                         <input type="hidden" id="emp-sheetname" value="Technical Infra Team-Aug-2026">
                     </div>
                 </div>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 18px;">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('employee-modal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Member Record</button>
+                <button type="submit" class="btn btn-primary" style="padding: 10px 20px;"><i class="fa-solid fa-floppy-disk"></i> Save Member Record</button>
             </div>
         </form>
     </div>
@@ -350,6 +357,35 @@
         return managerCc;
     }
 
+    function getCountryFlagHTML(countryStr) {
+        if (!countryStr) return '🌐';
+        const c = countryStr.toLowerCase().trim();
+        let code = 'in';
+        let emoji = '🇮🇳';
+
+        if (c.includes('uae') || c.includes('emirates')) {
+            code = 'ae'; emoji = '🇦🇪';
+        } else if (c.includes('saudi')) {
+            code = 'sa'; emoji = '🇸🇦';
+        } else if (c.includes('usa') || c.includes('us') || c.includes('america')) {
+            code = 'us'; emoji = '🇺🇸';
+        } else if (c.includes('uk') || c.includes('britain') || c.includes('england')) {
+            code = 'gb'; emoji = '🇬🇧';
+        } else if (c.includes('singapore')) {
+            code = 'sg'; emoji = '🇸🇬';
+        } else if (c.includes('australia')) {
+            code = 'au'; emoji = '🇦🇺';
+        } else if (c.includes('germany')) {
+            code = 'de'; emoji = '🇩🇪';
+        } else if (c.includes('canada')) {
+            code = 'ca'; emoji = '🇨🇦';
+        } else if (c.includes('india')) {
+            code = 'in'; emoji = '🇮🇳';
+        }
+
+        return `<img src="https://flagcdn.com/w40/${code}.png" alt="${countryStr}" style="width:18px; height:13px; object-fit:cover; border-radius:2px; vertical-align:middle; margin-right:4px; box-shadow:0 1px 3px rgba(0,0,0,0.3);" onerror="this.outerHTML='${emoji}&nbsp;'">`;
+    }
+
     function renderEmployeesTable() {
         const container = document.getElementById('roster-view-container');
         const filtered = getFilteredEmployees();
@@ -388,7 +424,7 @@
                         <td><a href="mailto:${emp.email}" style="color: #38bdf8;">${emp.email}</a></td>
                         <td>${roleBadge}</td>
                         <td><span class="badge badge-team">${emp.teamName || 'Infra Team'}</span></td>
-                        <td><span class="badge ${badgeClass}">${emp.location}</span> (${emp.timezone})</td>
+                        <td><span class="badge ${badgeClass}" style="display:inline-flex; align-items:center; gap:4px;">${getCountryFlagHTML(emp.location)} ${emp.location}</span> (${emp.timezone})</td>
                         <td>${workingDaysCell}</td>
                         <td>${shiftCell}</td>
                         <td>${mgrCell}</td>
@@ -456,7 +492,7 @@
                             <td><strong>${emp.name}</strong></td>
                             <td><a href="mailto:${emp.email}" style="color: #38bdf8;">${emp.email}</a></td>
                             <td>${roleBadge}</td>
-                            <td><span class="badge ${badgeClass}">${emp.location}</span> (${emp.timezone})</td>
+                            <td><span class="badge ${badgeClass}" style="display:inline-flex; align-items:center; gap:4px;">${getCountryFlagHTML(emp.location)} ${emp.location}</span> (${emp.timezone})</td>
                             <td>${workingDaysCell}</td>
                             <td>${shiftCell}</td>
                             <td>${mgrCell}</td>
@@ -509,6 +545,8 @@
         document.getElementById('modal-title').innerText = "Add New Member";
         document.getElementById('employee-form').reset();
         document.getElementById('emp-id').value = '';
+        document.getElementById('emp-password').value = '';
+        document.getElementById('emp-password').placeholder = "Set initial password (e.g. Pass@123)";
         document.getElementById('emp-role-select').value = 'employee';
         onUserRoleChange();
         if (locationsData.length > 0) {
@@ -527,6 +565,8 @@
         document.getElementById('emp-id').value = emp.id;
         document.getElementById('emp-name').value = emp.name;
         document.getElementById('emp-email').value = emp.email;
+        document.getElementById('emp-password').value = '';
+        document.getElementById('emp-password').placeholder = "Leave blank to keep current password";
         document.getElementById('emp-role-select').value = emp.role || 'employee';
         onUserRoleChange();
 
@@ -576,6 +616,7 @@
             id: document.getElementById('emp-id').value,
             name: document.getElementById('emp-name').value,
             email: document.getElementById('emp-email').value,
+            password: document.getElementById('emp-password').value,
             role: role,
             location: loc ? loc.country : 'India',
             locationId: locId,

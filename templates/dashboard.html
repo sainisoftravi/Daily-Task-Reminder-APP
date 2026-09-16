@@ -54,7 +54,7 @@
 
 
 <!-- Graphically Beautiful Charts Grid -->
-<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 28px;">
+<div class="dash-grid-responsive">
     
     <!-- User-Wise Email Delivery Chart -->
     <div class="glass-panel" style="padding: 24px; position: relative; z-index: 1000; overflow: visible;">
@@ -68,7 +68,7 @@
             </div>
 
             <!-- Calendar & Preset Filter Toolbar -->
-            <div style="display: flex; gap: 6px; align-items: center; position: relative;">
+            <div style="display: flex; gap: 6px; align-items: center; position: relative; flex-wrap: wrap;">
                 <!-- Calendar Popover Trigger Button -->
                 <button class="btn btn-primary" id="dash-calendar-trigger-btn" onclick="toggleDashCalendarPopover()" style="font-size: 12px; padding: 5px 12px; display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #6366f1, #0284c7); border: 1px solid rgba(255,255,255,0.15);">
                     <i class="fa-solid fa-calendar-days" style="font-size: 13px;"></i>
@@ -85,8 +85,8 @@
                 <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="loadChartsData(currentChartPeriod, currentDashStartDate, currentDashEndDate)" title="Refresh Chart"><i class="fa-solid fa-arrows-rotate"></i></button>
 
                 <!-- Popover Dropdown for Custom Calendar Range -->
-                <div id="dash-calendar-popover" style="display: none; position: absolute; top: 38px; right: 0; z-index: 99999; background: #0f172a; border: 1px solid #6366f1; border-radius: var(--radius-lg); padding: 16px; width: 290px; box-shadow: 0 20px 50px rgba(0,0,0,0.95); backdrop-filter: blur(20px);">
-                    <div style="font-size: 13px; font-weight: 600; color: #f8fafc; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
+                <div id="dash-calendar-popover" style="display: none; position: absolute; top: 38px; right: 0; z-index: 99999; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: 16px; width: 290px; box-shadow: 0 20px 50px rgba(0,0,0,0.4); backdrop-filter: blur(20px);">
+                    <div style="font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 8px;">
                         <span><i class="fa-solid fa-calendar" style="color:#38bdf8;"></i> Select Calendar Date Range</span>
                         <button onclick="toggleDashCalendarPopover()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:13px;"><i class="fa-solid fa-xmark"></i></button>
                     </div>
@@ -133,7 +133,7 @@
 </div>
 
 <!-- Main Row: Timelog Submission Status & Recent History Feed -->
-<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 28px;">
+<div class="dash-grid-responsive">
     
     <!-- Today's Timelog Submission Matrix -->
     <div class="glass-panel" style="padding: 24px;">

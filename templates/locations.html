@@ -98,6 +98,35 @@
         }
     }
 
+    function getCountryFlagHTML(countryStr) {
+        if (!countryStr) return '🌐';
+        const c = countryStr.toLowerCase().trim();
+        let code = 'in';
+        let emoji = '🇮🇳';
+
+        if (c.includes('uae') || c.includes('emirates')) {
+            code = 'ae'; emoji = '🇦🇪';
+        } else if (c.includes('saudi')) {
+            code = 'sa'; emoji = '🇸🇦';
+        } else if (c.includes('usa') || c.includes('us') || c.includes('america')) {
+            code = 'us'; emoji = '🇺🇸';
+        } else if (c.includes('uk') || c.includes('britain') || c.includes('england')) {
+            code = 'gb'; emoji = '🇬🇧';
+        } else if (c.includes('singapore')) {
+            code = 'sg'; emoji = '🇸🇬';
+        } else if (c.includes('australia')) {
+            code = 'au'; emoji = '🇦🇺';
+        } else if (c.includes('germany')) {
+            code = 'de'; emoji = '🇩🇪';
+        } else if (c.includes('canada')) {
+            code = 'ca'; emoji = '🇨🇦';
+        } else if (c.includes('india')) {
+            code = 'in'; emoji = '🇮🇳';
+        }
+
+        return `<img src="https://flagcdn.com/w40/${code}.png" alt="${countryStr}" style="width:20px; height:14px; object-fit:cover; border-radius:2px; vertical-align:middle; margin-right:6px; box-shadow:0 1px 3px rgba(0,0,0,0.3);" onerror="this.outerHTML='${emoji}&nbsp;'">`;
+    }
+
     function renderLocationsTable() {
         const tbody = document.getElementById('locations-table-body');
         tbody.innerHTML = '';
@@ -106,10 +135,12 @@
             if (loc.country.toLowerCase().includes('uae')) badgeClass = 'badge-uae';
             if (loc.country.toLowerCase().includes('saudi')) badgeClass = 'badge-saudi';
 
+            const flagHtml = getCountryFlagHTML(loc.country);
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td><span class="badge ${badgeClass}">${loc.country}</span></td>
-                <td><strong>${loc.name}</strong></td>
+                <td><span class="badge ${badgeClass}" style="display:inline-flex; align-items:center; gap:4px;">${flagHtml} ${loc.country}</span></td>
+                <td><strong style="display:inline-flex; align-items:center; gap:4px;">${flagHtml} ${loc.name}</strong></td>
                 <td>${loc.timezoneName}</td>
                 <td><code>${loc.ianaTz}</code></td>
                 <td>
