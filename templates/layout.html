@@ -183,24 +183,52 @@
 
         .clocks-bar {
             display: flex;
-            gap: 16px;
+            align-items: center;
+            gap: 12px;
         }
 
         .clock-pill {
-            padding: 8px 16px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--card-border);
-            border-radius: 20px;
+            padding: 6px 18px;
+            background: rgba(12, 18, 28, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 30px;
             display: flex;
             align-items: center;
             gap: 10px;
             font-size: 13px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            transition: all 0.25s ease;
+        }
+
+        .clock-pill:hover {
+            border-color: rgba(6, 182, 212, 0.4);
+            background: rgba(15, 23, 42, 0.95);
+            box-shadow: 0 4px 20px rgba(6, 182, 212, 0.15);
+        }
+
+        .clock-flag {
+            width: 20px;
+            height: 14px;
+            object-fit: cover;
+            border-radius: 2px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            display: inline-block;
+        }
+
+        .clock-country {
+            color: #f1f5f9;
+            font-weight: 500;
+            font-size: 13px;
+            letter-spacing: 0.2px;
         }
 
         .clock-time {
-            font-weight: 600;
-            color: var(--accent-cyan);
-            font-family: monospace;
+            font-weight: 700;
+            color: #00f2fe;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+            text-shadow: 0 0 8px rgba(0, 242, 254, 0.4);
         }
 
         .content-container {
@@ -484,16 +512,19 @@
             <!-- Timezone Clocks Bar -->
             <div class="clocks-bar">
                 <div class="clock-pill">
-                    <span>🇮🇳 India</span>
-                    <span class="clock-time" id="clock-ist">--:-- --</span>
+                    <img src="https://flagcdn.com/w40/in.png" alt="India" class="clock-flag" onerror="this.outerHTML='🇮🇳'">
+                    <span class="clock-country">India</span>
+                    <span class="clock-time" id="clock-ist">--:--:-- --</span>
                 </div>
                 <div class="clock-pill">
-                    <span>🇦🇪 UAE</span>
-                    <span class="clock-time" id="clock-gst">--:-- --</span>
+                    <img src="https://flagcdn.com/w40/ae.png" alt="UAE" class="clock-flag" onerror="this.outerHTML='🇦🇪'">
+                    <span class="clock-country">UAE</span>
+                    <span class="clock-time" id="clock-gst">--:--:-- --</span>
                 </div>
                 <div class="clock-pill">
-                    <span>🇸🇦 Saudi</span>
-                    <span class="clock-time" id="clock-ast">--:-- --</span>
+                    <img src="https://flagcdn.com/w40/sa.png" alt="Saudi" class="clock-flag" onerror="this.outerHTML='🇸🇦'">
+                    <span class="clock-country">Saudi</span>
+                    <span class="clock-time" id="clock-ast">--:--:-- --</span>
                 </div>
             </div>
         </header>
@@ -509,13 +540,15 @@
     <script>
         function updateClocks() {
             const now = new Date();
-            const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-            const gst = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
-            const ast = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
+            const opts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
 
-            document.getElementById('clock-ist').innerText = ist.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            document.getElementById('clock-gst').innerText = gst.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            document.getElementById('clock-ast').innerText = ast.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            try {
+                document.getElementById('clock-ist').innerText = now.toLocaleTimeString('en-US', { ...opts, timeZone: 'Asia/Kolkata' });
+                document.getElementById('clock-gst').innerText = now.toLocaleTimeString('en-US', { ...opts, timeZone: 'Asia/Dubai' });
+                document.getElementById('clock-ast').innerText = now.toLocaleTimeString('en-US', { ...opts, timeZone: 'Asia/Riyadh' });
+            } catch (err) {
+                console.error("Clock update error:", err);
+            }
         }
         setInterval(updateClocks, 1000);
         updateClocks();
