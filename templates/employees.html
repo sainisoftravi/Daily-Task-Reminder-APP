@@ -122,16 +122,10 @@
                 </div>
             </div>
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Task Sheet Name Pattern</label>
-                    <input type="text" id="emp-sheetname" class="form-control" value="Technical Infra Team-Aug-2026">
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Manager CC (Select from Directory)</label>
-                    <select id="emp-manager-select" class="form-control"></select>
-                </div>
+            <div class="form-group">
+                <label class="form-label">Manager CC (Select from Directory)</label>
+                <select id="emp-manager-select" class="form-control"></select>
+                <input type="hidden" id="emp-sheetname" value="Technical Infra Team-Aug-2026">
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
@@ -328,6 +322,22 @@
         });
     }
 
+    function getManagerDisplayName(managerCc) {
+        if (!managerCc) return 'N/A';
+        const found = managersData.find(m => 
+            (m.email && m.email.toLowerCase() === managerCc.toLowerCase()) ||
+            (m.name && m.name.toLowerCase() === managerCc.toLowerCase())
+        );
+        if (found && found.name) {
+            return found.name;
+        }
+        if (managerCc.includes('@')) {
+            const username = managerCc.split('@')[0];
+            return username.charAt(0).toUpperCase() + username.slice(1);
+        }
+        return managerCc;
+    }
+
     function renderEmployeesTable() {
         const container = document.getElementById('roster-view-container');
         const filtered = getFilteredEmployees();
@@ -345,6 +355,7 @@
                 if (emp.location.toLowerCase().includes('uae')) badgeClass = 'badge-uae';
                 if (emp.location.toLowerCase().includes('saudi')) badgeClass = 'badge-saudi';
                 const rems = emp.reminders ? emp.reminders.join(', ') : '18:30, 18:45, 19:00';
+                const mgrName = getManagerDisplayName(emp.managerCc || 'Ravi@d2backoffice.onmicrosoft.com');
 
                 rows += `
                     <tr>
@@ -354,8 +365,7 @@
                         <td><span class="badge ${badgeClass}">${emp.location}</span> (${emp.timezone})</td>
                         <td>${emp.workingDays ? emp.workingDays.join(', ') : 'Mon-Sat'}</td>
                         <td><span class="badge badge-india">⏰ ${emp.shiftName || 'Standard Day Shift'}</span><br><small style="color:var(--text-muted);">Reminders: ${rems}</small></td>
-                        <td><code>${emp.sheetName || 'Technical Infra Team-Aug-2026'}</code></td>
-                        <td><small>${emp.managerCc || 'Ravi@d2backoffice.onmicrosoft.com'}</small></td>
+                        <td><strong title="${emp.managerCc || ''}">${mgrName}</strong></td>
                         <td>
                             <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="editEmployee('${emp.id}')"><i class="fa-solid fa-pen"></i></button>
                             <button class="btn btn-danger" style="padding:6px 12px; font-size:12px;" onclick="deleteEmployee('${emp.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -375,7 +385,6 @@
                                 <th>Location & Time Zone</th>
                                 <th>Working Days</th>
                                 <th>Shift & Reminders</th>
-                                <th>Task Sheet Name</th>
                                 <th>Manager CC</th>
                                 <th>Actions</th>
                             </tr>
@@ -400,6 +409,7 @@
                     if (emp.location.toLowerCase().includes('uae')) badgeClass = 'badge-uae';
                     if (emp.location.toLowerCase().includes('saudi')) badgeClass = 'badge-saudi';
                     const rems = emp.reminders ? emp.reminders.join(', ') : '18:30, 18:45, 19:00';
+                    const mgrName = getManagerDisplayName(emp.managerCc || 'Ravi@d2backoffice.onmicrosoft.com');
 
                     teamRows += `
                         <tr>
@@ -408,7 +418,7 @@
                             <td><span class="badge ${badgeClass}">${emp.location}</span> (${emp.timezone})</td>
                             <td>${emp.workingDays ? emp.workingDays.join(', ') : 'Mon-Sat'}</td>
                             <td><span class="badge badge-india">⏰ ${emp.shiftName || 'Standard Day Shift'}</span><br><small style="color:var(--text-muted);">Reminders: ${rems}</small></td>
-                            <td><small>${emp.managerCc || 'Ravi@d2backoffice.onmicrosoft.com'}</small></td>
+                            <td><strong title="${emp.managerCc || ''}">${mgrName}</strong></td>
                             <td>
                                 <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="editEmployee('${emp.id}')"><i class="fa-solid fa-pen"></i></button>
                                 <button class="btn btn-danger" style="padding:6px 12px; font-size:12px;" onclick="deleteEmployee('${emp.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -478,6 +488,14 @@
 
         if (emp.shiftId && document.getElementById('emp-shift-select')) {
             document.getElementById('emp-shift-select').value = emp.shiftId;
+        }
+
+        if (emp.teamId && document.getElementById('emp-team-select')) {
+            document.getElementById('emp-team-select').value = emp.teamId;
+        }
+
+        if (emp.managerCc && document.getElementById('emp-manager-select')) {
+            document.getElementById('emp-manager-select').value = emp.managerCc;
         }
 
         const days = emp.workingDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
