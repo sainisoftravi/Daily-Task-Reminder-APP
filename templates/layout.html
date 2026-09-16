@@ -10,6 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
         :root {
@@ -456,6 +458,9 @@
             </li>
             <li class="nav-item {% if active_page == 'templates' %}active{% endif %}">
                 <a href="/templates"><i class="fa-solid fa-envelope-open-text"></i> Email Templates</a>
+            </li>
+            <li class="nav-item {% if active_page == 'quotes' %}active{% endif %}">
+                <a href="/quotes"><i class="fa-solid fa-lightbulb"></i> Thought of the Day</a>
             </li>
             <li class="nav-item {% if active_page == 'settings' %}active{% endif %}">
                 <a href="/settings"><i class="fa-solid fa-sliders"></i> System SMTP Config</a>

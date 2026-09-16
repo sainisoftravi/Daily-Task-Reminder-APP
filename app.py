@@ -65,6 +65,10 @@ def locations_page():
 def managers_page():
     return render_template("managers.html", active_page="managers")
 
+@app.route("/quotes")
+def quotes_page():
+    return render_template("quotes.html", active_page="quotes")
+
 @app.route("/templates")
 def templates_page():
     return render_template("templates.html", active_page="templates")
@@ -78,6 +82,26 @@ def logs_page():
     return render_template("logs.html", active_page="logs")
 
 # --- REST API ENDPOINTS (SQLITE BACKED) ---
+
+@app.route("/api/quotes", methods=["GET", "POST"])
+def manage_quotes():
+    if request.method == "GET":
+        quotes = database.get_all_quotes()
+        return jsonify({"success": True, "quotes": quotes})
+    
+    elif request.method == "POST":
+        data = request.json or {}
+        database.save_quote_record(data)
+        log_event(f"Updated Motivational Thought in SQLite: {data.get('quote')[:30]}...")
+        quotes = database.get_all_quotes()
+        return jsonify({"success": True, "quotes": quotes})
+
+@app.route("/api/quotes/<quote_id>", methods=["DELETE"])
+def delete_quote(quote_id):
+    database.delete_quote_record(quote_id)
+    log_event(f"Deleted Motivational Thought ID: {quote_id}")
+    quotes = database.get_all_quotes()
+    return jsonify({"success": True, "quotes": quotes})
 
 @app.route("/api/employees", methods=["GET", "POST"])
 def manage_employees():
@@ -240,7 +264,6 @@ def trigger_test():
 
     try:
         daily_reminder.run_reminder_cycle(args, emp_objects)
-        database.record_reminder_history(emp_name, "test@company.com", force_time, "TEST_SENT", datetime.datetime.now().strftime("%d-%b-%y"))
         log_event(f"Manual Test completed successfully for '{emp_name}'.")
         return jsonify({"success": True, "message": f"Test executed for {emp_name}"})
     except Exception as err:
@@ -252,10 +275,72 @@ def get_logs():
     logs = database.get_db_logs(200)
     return jsonify({"success": True, "logs": logs})
 
+@app.route("/api/logs/delete", methods=["POST"])
+def delete_logs():
+    payload = request.json or {}
+    period = payload.get("period", "all")
+    deleted = database.clear_db_logs(period)
+    log_event(f"Cleaned up {deleted} system daemon logs (period: {period}).")
+    return jsonify({"success": True, "deleted": deleted})
+
 @app.route("/api/history")
 def get_history():
     history = database.get_reminder_history(100)
     return jsonify({"success": True, "history": history})
+
+@app.route("/api/history/delete", methods=["POST"])
+def delete_history():
+    payload = request.json or {}
+    period = payload.get("period", "all")
+    deleted = database.clear_reminder_history(period)
+    log_event(f"Cleaned up {deleted} email reminder history entries (period: {period}).")
+    return jsonify({"success": True, "deleted": deleted})
+
+@app.route("/api/chart-data")
+def get_chart_data():
+    history = database.get_reminder_history(500)
+    employees = database.get_all_employees()
+    teams = database.get_all_teams()
+
+    user_counts = {}
+    for emp in employees:
+        user_counts[emp["name"]] = 0
+
+    team_counts = {}
+    for team in teams:
+        team_counts[team["name"]] = 0
+    if "Technical Infra Team" not in team_counts:
+        team_counts["Technical Infra Team"] = 0
+
+    time_counts = {"18:30 (Reminder 1)": 0, "18:45 (Reminder 2)": 0, "19:00 (Reminder 3)": 0, "Other": 0}
+
+    for item in history:
+        emp_name = item.get("employee_name", "Unknown")
+        user_counts[emp_name] = user_counts.get(emp_name, 0) + 1
+
+        rem_type = item.get("reminder_type", "")
+        if "18:30" in rem_type or "first" in rem_type.lower():
+            time_counts["18:30 (Reminder 1)"] += 1
+        elif "18:45" in rem_type or "second" in rem_type.lower():
+            time_counts["18:45 (Reminder 2)"] += 1
+        elif "19:00" in rem_type or "final" in rem_type.lower():
+            time_counts["19:00 (Reminder 3)"] += 1
+        else:
+            time_counts["Other"] += 1
+
+        matched_team = "Technical Infra Team"
+        for emp in employees:
+            if emp["name"].lower() in emp_name.lower() or emp_name.lower() in emp["name"].lower():
+                matched_team = emp.get("teamName") or "Technical Infra Team"
+                break
+        team_counts[matched_team] = team_counts.get(matched_team, 0) + 1
+
+    return jsonify({
+        "success": True,
+        "userStats": user_counts,
+        "teamStats": team_counts,
+        "timeStats": time_counts
+    })
 
 def background_reminder_daemon():
     """Runs reminder evaluation cycle every 15 minutes continuously using SQLite DB."""

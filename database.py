@@ -88,7 +88,8 @@ def init_db():
             key TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             subject TEXT NOT NULL,
-            body TEXT NOT NULL
+            body TEXT NOT NULL,
+            ignore_note TEXT
         )
     """)
 
@@ -135,6 +136,16 @@ def init_db():
         )
     """)
 
+    # 10. Quotes Table (Thought of the Day)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS quotes (
+            id TEXT PRIMARY KEY,
+            quote TEXT NOT NULL,
+            category TEXT,
+            created_at TEXT
+        )
+    """)
+
     # Migrations for existing databases
     try:
         cursor.execute("ALTER TABLE employees ADD COLUMN location_id TEXT")
@@ -143,6 +154,11 @@ def init_db():
 
     try:
         cursor.execute("ALTER TABLE managers ADD COLUMN team_name TEXT")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE templates ADD COLUMN ignore_note TEXT")
     except Exception:
         pass
 
@@ -233,8 +249,8 @@ def _seed_from_json(conn: sqlite3.Connection):
                     tpls = json.load(f)
                     for k, v in tpls.items():
                         cursor.execute(
-                            "INSERT INTO templates (key, name, subject, body) VALUES (?, ?, ?, ?)",
-                            (k, v.get("name", k), v.get("subject", ""), v.get("body", ""))
+                            "INSERT INTO templates (key, name, subject, body, ignore_note) VALUES (?, ?, ?, ?, ?)",
+                            (k, v.get("name", k), v.get("subject", ""), v.get("body", ""), v.get("ignore_note", ""))
                         )
             except Exception as e:
                 print(f"[DB SEED WARN] Templates seed error: {e}")
@@ -273,9 +289,79 @@ def _seed_from_json(conn: sqlite3.Connection):
         for loc in default_locations:
             cursor.execute("INSERT INTO locations (id, country, name, timezone_name, iana_tz) VALUES (?, ?, ?, ?, ?)", loc)
 
+    # Seed Motivational Quotes (Preserving older and user-added quotes)
+    cursor.execute("SELECT COUNT(*) FROM quotes")
+    if cursor.fetchone()[0] == 0:
+        category_1 = "Focus, Progress & Consistency"
+        category_2 = "Teamwork, Impact & Reliability"
+        category_3 = "Recharge, Balance & Perspective"
+
+        quotes_seed = [
+            # Category 1 (Focus, Progress & Consistency)
+            ("q_101", "Excellence is not an act, but a habit. What we build today lays the foundation for tomorrow.", category_1),
+            ("q_102", "Focus on progress, not perfection. Every problem solved today strengthens the system for tomorrow.", category_1),
+            ("q_103", "Big architectures are built one clean line of code at a time. Be proud of the ground you covered today.", category_1),
+            ("q_104", "Quality is never an accident; it is always the result of intelligent effort and dedication.", category_1),
+            ("q_105", "Continuous, deliberate improvement is what turns good engineering into great engineering.", category_1),
+            ("q_106", "Small daily disciplines deliver massive, long-term impact.", category_1),
+            ("q_107", "Consistent progress each day builds long-term success.", category_1),
+            ("q_108", "Focus on being productive instead of busy.", category_1),
+
+            # Category 2 (Teamwork, Impact & Reliability)
+            ("q_201", "Individually we are one drop; together, we build a seamless system.", category_2),
+            ("q_202", "A reliable handover today ensures an unstoppable team tomorrow.", category_2),
+            ("q_203", "Great teams aren't built on heroic individual acts, but on consistent, shared responsibility.", category_2),
+            ("q_204", "The strength of the team is each individual member. The strength of each member is the team.", category_2),
+            ("q_205", "Clear communication and thorough documentation are the highest forms of team support.", category_2),
+            ("q_206", "Pride in our work shows not just in what we build, but in how reliably we deliver it.", category_2),
+            ("q_207", "Great things are done by a series of small things brought together.", category_2),
+            ("q_208", "Order and organization simplify teamwork and accelerate progress.", category_2),
+
+            # Category 3 (Recharge, Balance & Perspective)
+            ("q_301", "Rest is not a reward for work completed; it is a prerequisite for tomorrow’s best performance.", category_3),
+            ("q_302", "A sharp mind needs dedicated downtime. Disconnect with confidence and recharge fully.", category_3),
+            ("q_303", "Sustainable excellence begins with balance. Log off knowing you made a difference today.", category_3),
+            ("q_304", "True focus at work is made possible by true presence at home.", category_3),
+            ("q_305", "Celebrate today’s wins, leave tomorrow’s challenges for tomorrow, and enjoy your evening.", category_3),
+            ("q_306", "Step away from the screen, refresh your perspective, and return with renewed energy.", category_3),
+            ("q_307", "Finish today strong so tomorrow starts with momentum.", category_3)
+        ]
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for q in quotes_seed:
+            cursor.execute("INSERT OR IGNORE INTO quotes (id, quote, category, created_at) VALUES (?, ?, ?, ?)", (q[0], q[1], q[2], now_str))
+
     conn.commit()
 
 # --- CRUD HELPER FUNCTIONS ---
+
+# Quotes (Thought of the Day)
+def get_all_quotes() -> List[Dict[str, Any]]:
+    conn = get_db_connection()
+    rows = conn.execute("SELECT * FROM quotes ORDER BY id ASC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def save_quote_record(quote_data: Dict[str, Any]) -> bool:
+    conn = get_db_connection()
+    q_id = quote_data.get("id") or f"q_{int(datetime.datetime.now().timestamp() * 1000)}"
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute("""
+        INSERT INTO quotes (id, quote, category, created_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            quote=excluded.quote,
+            category=excluded.category
+    """, (q_id, quote_data.get("quote", "").strip(), quote_data.get("category", "General").strip(), now_str))
+    conn.commit()
+    conn.close()
+    return True
+
+def delete_quote_record(quote_id: str) -> bool:
+    conn = get_db_connection()
+    conn.execute("DELETE FROM quotes WHERE id = ?", (quote_id,))
+    conn.commit()
+    conn.close()
+    return True
 
 # Employees
 def get_all_employees() -> List[Dict[str, Any]]:
@@ -473,21 +559,34 @@ def get_all_templates() -> Dict[str, Dict[str, str]]:
     conn.close()
     result = {}
     for r in rows:
-        result[r["key"]] = {"name": r["name"], "subject": r["subject"], "body": r["body"]}
+        d = dict(r)
+        result[d["key"]] = {
+            "name": d.get("name", d["key"]),
+            "subject": d.get("subject", ""),
+            "body": d.get("body", ""),
+            "ignore_note": d.get("ignore_note", "")
+        }
     return result
 
 def save_all_templates(templates_dict: Dict[str, Any]) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
+    try:
+        cursor.execute("ALTER TABLE templates ADD COLUMN ignore_note TEXT")
+        conn.commit()
+    except Exception:
+        pass
+
     for k, v in templates_dict.items():
         cursor.execute("""
-            INSERT INTO templates (key, name, subject, body)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO templates (key, name, subject, body, ignore_note)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(key) DO UPDATE SET
                 name=excluded.name,
                 subject=excluded.subject,
-                body=excluded.body
-        """, (k, v.get("name", k), v.get("subject", ""), v.get("body", "")))
+                body=excluded.body,
+                ignore_note=excluded.ignore_note
+        """, (k, v.get("name", k), v.get("subject", ""), v.get("body", ""), v.get("ignore_note", "")))
     conn.commit()
     conn.close()
     return True
@@ -553,6 +652,54 @@ def get_reminder_history(limit: int = 100) -> List[Dict[str, Any]]:
     rows = conn.execute("SELECT * FROM reminder_history ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+def clear_db_logs(period: str = "all") -> int:
+    """Deletes older daemon logs based on period ('day', 'week', 'month', 'year', 'all')."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now = datetime.datetime.now()
+    if period == "day":
+        cutoff = (now - datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("DELETE FROM logs WHERE timestamp < ?", (cutoff,))
+    elif period == "week":
+        cutoff = (now - datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("DELETE FROM logs WHERE timestamp < ?", (cutoff,))
+    elif period == "month":
+        cutoff = (now - datetime.timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("DELETE FROM logs WHERE timestamp < ?", (cutoff,))
+    elif period == "year":
+        cutoff = (now - datetime.timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("DELETE FROM logs WHERE timestamp < ?", (cutoff,))
+    else:
+        cursor.execute("DELETE FROM logs")
+    deleted_count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return deleted_count
+
+def clear_reminder_history(period: str = "all") -> int:
+    """Deletes older reminder history entries based on period ('day', 'week', 'month', 'year', 'all')."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now = datetime.datetime.now()
+    if period == "day":
+        cutoff = (now - datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("DELETE FROM reminder_history WHERE timestamp < ?", (cutoff,))
+    elif period == "week":
+        cutoff = (now - datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("DELETE FROM reminder_history WHERE timestamp < ?", (cutoff,))
+    elif period == "month":
+        cutoff = (now - datetime.timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("DELETE FROM reminder_history WHERE timestamp < ?", (cutoff,))
+    elif period == "year":
+        cutoff = (now - datetime.timedelta(days=365)).strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("DELETE FROM reminder_history WHERE timestamp < ?", (cutoff,))
+    else:
+        cursor.execute("DELETE FROM reminder_history")
+    deleted_count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return deleted_count
 
 # Locations
 def get_all_locations() -> List[Dict[str, Any]]:

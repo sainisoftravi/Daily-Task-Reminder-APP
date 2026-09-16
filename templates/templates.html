@@ -1,14 +1,16 @@
 {% extends "layout.html" %}
 
-{% block title %}Email Templates | Daily Task Reminder{% endblock %}
-{% block page_title %}Polite Email Template Creation{% endblock %}
+{% block title %}Email & Ignore Templates | Daily Task Reminder{% endblock %}
+{% block page_title %}Polite Email & Ignore Template Management{% endblock %}
 
 {% block content %}
 <div class="glass-panel" style="padding: 24px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
         <div>
-            <div style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600;">Polite Email Notification Templates</div>
-            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Configure polite reminder messages ("Dear Team, Fill your time logs timely").</div>
+            <div style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600;">Polite Email & Ignore Templates</div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                Configure reminder notifications and "Ignore if Log Hours Filled" disclaimers for team members.
+            </div>
         </div>
         <button class="btn btn-primary" onclick="saveTemplates()">
             <i class="fa-solid fa-floppy-disk"></i> Save Email Templates
@@ -18,35 +20,55 @@
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
         <div>
             <div class="form-group">
-                <label class="form-label">Select Reminder Stage</label>
+                <label class="form-label">Select Template Stage</label>
                 <select id="template-select" class="form-control" onchange="loadSelectedTemplate()">
-                    <option value="first_reminder">First Reminder (30m Before Shift End / 18:30)</option>
-                    <option value="second_reminder">Second Reminder (15m Before Shift End / 18:45)</option>
-                    <option value="final_reminder">Final Escalation (Shift End / 19:00)</option>
+                    <option value="first_reminder">Reminder 1 (30 Mins Before Shift End)</option>
+                    <option value="second_reminder">Reminder 2 (15 Mins Before Shift End)</option>
+                    <option value="final_reminder">Reminder 3 (Shift Close / End)</option>
+                    <option value="ignore_filled">Log Hours Filled - Courtesy / Ignore Template</option>
                 </select>
             </div>
 
             <div class="form-group">
                 <label class="form-label">Email Subject Line</label>
-                <input type="text" id="template-subject" class="form-control" oninput="updateLivePreview()">
+                <input type="text" id="template-subject" class="form-control" oninput="updateLivePreview()" placeholder="e.g. Friendly Reminder: Daily Work Log Update - {date}">
             </div>
 
             <div class="form-group">
-                <label class="form-label">Email Message Body (Use {name} and {date} variables)</label>
-                <textarea id="template-body" class="form-control" rows="12" oninput="updateLivePreview()"></textarea>
+                <label class="form-label">Email Message Body (Variables: <code>{name}</code>, <code>{date}</code>, <code>{quote}</code>)</label>
+                <textarea id="template-body" class="form-control" rows="8" oninput="updateLivePreview()" placeholder="Enter main email message body..."></textarea>
+            </div>
+
+            <div class="form-group" style="margin-top: 16px;">
+                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-bell-slash" style="color: var(--accent-amber);"></i>
+                    Ignore Disclaimer / Courtesy Note (For those who filled log hours)
+                </label>
+                <input type="text" id="template-ignore-note" class="form-control" oninput="updateLivePreview()" placeholder="e.g. If you have already updated your daily log hours for today, kindly ignore this message. Thank you for your prompt update!">
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                    This courtesy disclaimer is automatically included for employees who have updated their daily task logs.
+                </div>
             </div>
         </div>
 
         <div>
             <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 12px;">
-                <i class="fa-solid fa-eye" style="color: var(--accent-cyan);"></i> Real-time Live Email Preview
+                <i class="fa-solid fa-eye" style="color: var(--accent-cyan);"></i> Real-Time Live Email Preview
             </div>
             <div style="background: #ffffff; color: #1e293b; padding: 24px; border-radius: var(--radius-md); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2); font-size: 14px; line-height: 1.6;">
-                <div style="font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 14px;">
+                <div style="font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 14px; color: #0f172a;">
                     Subject: <span id="preview-subject" style="color: #6366f1;">...</span>
                 </div>
-                <div id="preview-body" style="white-space: pre-line;">
+                <div id="preview-body" style="white-space: pre-line; color: #334155; margin-bottom: 16px;">
                     ...
+                </div>
+                
+                <div id="preview-ignore-box" style="background: #f0fdf4; border: 1px dashed #22c55e; border-radius: 6px; padding: 12px; font-size: 13px; color: #15803d; display: flex; align-items: flex-start; gap: 10px;">
+                    <i class="fa-solid fa-circle-check" style="margin-top: 3px;"></i>
+                    <div>
+                        <strong>Ignore Disclaimer (If Log Hours Filled):</strong><br>
+                        <span id="preview-ignore-note">...</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -57,8 +79,24 @@
 {% block scripts %}
 <script>
     let templatesData = {};
+    let dbQuotesData = [];
+
+    const STAGE_SAMPLE_QUOTES = {
+        'first_reminder': "💡 THOUGHT OF THE DAY:\n\"Excellence is not an act, but a habit. What we build today lays the foundation for tomorrow.\"",
+        'second_reminder': "💡 THOUGHT OF THE DAY:\n\"Individually we are one drop; together, we build a seamless system.\"",
+        'final_reminder': "💡 THOUGHT OF THE DAY:\n\"Rest is not a reward for work completed; it is a prerequisite for tomorrow’s best performance.\"",
+        'ignore_filled': "💡 THOUGHT OF THE DAY:\n\"Continuous, deliberate improvement is what turns good engineering into great engineering.\""
+    };
 
     async function fetchTemplates() {
+        try {
+            const resQuotes = await fetch('/api/quotes');
+            const dataQuotes = await resQuotes.json();
+            if (dataQuotes.success) {
+                dbQuotesData = dataQuotes.quotes;
+            }
+        } catch (err) {}
+
         const res = await fetch('/api/templates');
         const data = await res.json();
         if (data.success) {
@@ -72,14 +110,48 @@
         const tpl = templatesData[key] || {};
         document.getElementById('template-subject').value = tpl.subject || '';
         document.getElementById('template-body').value = tpl.body || '';
+        document.getElementById('template-ignore-note').value = tpl.ignore_note || '';
         updateLivePreview();
     }
 
+    function getQuoteForStage(key) {
+        if (dbQuotesData && dbQuotesData.length > 0) {
+            const catMap = {
+                'first_reminder': 'focus',
+                'second_reminder': 'teamwork',
+                'final_reminder': 'recharge',
+                'ignore_filled': 'focus'
+            };
+            const catKey = catMap[key] || 'focus';
+            const matched = dbQuotesData.filter(q => (q.category || '').toLowerCase().includes(catKey));
+            if (matched.length > 0) {
+                return `💡 THOUGHT OF THE DAY:\n"${matched[0].quote}"`;
+            }
+        }
+        return STAGE_SAMPLE_QUOTES[key] || STAGE_SAMPLE_QUOTES['first_reminder'];
+    }
+
     function updateLivePreview() {
+        const key = document.getElementById('template-select').value;
         const subj = document.getElementById('template-subject').value;
         const body = document.getElementById('template-body').value;
-        document.getElementById('preview-subject').innerText = subj.replace('{date}', '16-Sep-26');
-        document.getElementById('preview-body').innerText = body.replace('{name}', 'Sachin').replace('{date}', '16-Sep-26');
+        const ignoreNote = document.getElementById('template-ignore-note').value;
+        
+        // Dynamically get the stage-matched Thought of the Day quote
+        const currentStageQuote = getQuoteForStage(key);
+
+        document.getElementById('preview-subject').innerText = subj.replace(/{date}/g, '16-Sep-26').replace(/{quote}/g, currentStageQuote);
+        document.getElementById('preview-body').innerText = body.replace(/{name}/g, 'Sachin').replace(/{date}/g, '16-Sep-26').replace(/{quote}/g, currentStageQuote);
+        
+        const ignoreBox = document.getElementById('preview-ignore-box');
+        const ignoreTextSpan = document.getElementById('preview-ignore-note');
+        
+        if (ignoreNote && ignoreNote.trim() !== '') {
+            ignoreBox.style.display = 'flex';
+            ignoreTextSpan.innerText = ignoreNote.replace(/{name}/g, 'Sachin').replace(/{date}/g, '16-Sep-26').replace(/{quote}/g, currentStageQuote);
+        } else {
+            ignoreBox.style.display = 'none';
+        }
     }
 
     async function saveTemplates() {
@@ -87,14 +159,15 @@
         templatesData[key] = {
             name: key,
             subject: document.getElementById('template-subject').value,
-            body: document.getElementById('template-body').value
+            body: document.getElementById('template-body').value,
+            ignore_note: document.getElementById('template-ignore-note').value
         };
         await fetch('/api/templates', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(templatesData)
         });
-        showToast('Templates Saved to Database');
+        showToast('Email & Ignore Templates Saved Successfully!');
     }
 
     fetchTemplates();

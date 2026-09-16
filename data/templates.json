@@ -1,17 +1,26 @@
 {
-  "final_reminder": {
-    "body": "Dear {name},\n\nYour shift has reached 7:00 PM and today's work log entry remains pending.\n\nPlease complete your daily task entry immediately so that your daily hours and updates are accurately recorded for today ({date}).\n\nDear team, please fill your time logs timely to help us maintain accurate daily project records.\n\nThank you for your immediate attention.\n\nWarm regards,\nIT & Infrastructure Team",
-    "name": "Final Escalation (7:00 PM / 19:00)",
-    "subject": "Final Call: Daily Work Log Required - {date}"
-  },
   "first_reminder": {
-    "name": "first_reminder",
-    "subject": "Friendly Reminder: Daily Work Log Update - {date}",
-    "body": "Dear {name},\n\nHope you are having a productive day!\n\nThis is a friendly reminder to please fill your time logs timely in the Daily Task and Update Sheet before the end of your working day (10:00 AM - 7:00 PM).\n\nKeeping your task log updated ensures the team stays aligned on today's achievements and project progress.\n\nThank you for your cooperation and dedication!\n\n"
+    "name": "Reminder 1 (30 Mins Before Shift End)",
+    "subject": "Friendly Reminder: End-of-Day Transition & Task Log - {date}",
+    "body": "{quote}\n\nHi {name},\n\nAs our shift approaches the final 30 minutes, please begin winding down your current tasks:\n\n• Commit your code changes and update assigned board tickets.\n• Fill out your daily work logs and project status updates.\n• Note any pending blockers for tomorrow's standup.\n\nNote: If you have already submitted your daily updates, please disregard this notice.\n\nWarm regards,\nIT & Infrastructure Team",
+    "ignore_note": "If you have already submitted your daily updates, please disregard this notice."
   },
   "second_reminder": {
-    "body": "Dear {name},\n\nWe noticed that today's work log cell is still blank in the Daily Task and Update Sheet.\n\nPlease take 2 minutes to fill your time logs timely before your shift ends at 7:00 PM.\n\nIf you have already updated your tasks in the last few minutes, kindly ignore this message.\n\nThank you so much for your prompt update!\n\nWarm regards,\nIT & Infrastructure Team",
-    "name": "Second Reminder (6:45 PM / 18:45)",
-    "subject": "Gentle Reminder: Pending Daily Work Log - {date}"
+    "name": "Reminder 2 (15 Mins Before Shift End)",
+    "subject": "Gentle Reminder: Wrap-Up & Documentation - {date}",
+    "body": "{quote}\n\nHi {name},\n\nWe are 15 minutes away from the end of the shift:\n\n• Please ensure your daily task reports and timesheets are submitted.\n• Hand over any critical alerts, ongoing deployments, or notes to shift leads.\n• Safely close non-essential sessions and test instances.\n\nNote: Kindly ignore this reminder if your documentation and status are already submitted.\n\nWarm regards,\nIT & Infrastructure Team",
+    "ignore_note": "Kindly ignore this reminder if your documentation and status are already submitted."
+  },
+  "final_reminder": {
+    "name": "Reminder 3 (Shift Close / End)",
+    "subject": "Final Call: Shift Close & Daily Log Submission - {date}",
+    "body": "{quote}\n\nGood evening {name},\n\nThe shift has concluded for the day:\n\n• Thank you for your hard work and commitment today.\n• Please ensure all systems are securely logged out and take time to disconnect and recharge.\n\nNote: If your daily reports are already submitted, please ignore this message. Have a great evening!\n\nWarm regards,\nIT & Infrastructure Team",
+    "ignore_note": "If your daily reports are already submitted, please ignore this message. Have a great evening!"
+  },
+  "ignore_filled": {
+    "name": "Log Hours Filled - Courtesy Confirmation",
+    "subject": "Status Confirmation: Daily Log Hours Recorded - {date}",
+    "body": "{quote}\n\nDear {name},\n\nThank you for updating your daily work log hours for today ({date}).\n\nYour daily time logs have been verified as filled in the Daily Task and Update Sheet. You may safely ignore any reminder notifications sent for today.\n\nThank you for keeping your daily project records up to date!\n\nWarm regards,\nIT & Infrastructure Team",
+    "ignore_note": "Your daily log hours have been recorded. You can safely ignore all reminder notifications for today."
   }
 }

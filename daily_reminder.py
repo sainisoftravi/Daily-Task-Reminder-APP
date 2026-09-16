@@ -84,24 +84,45 @@ class Employee:
         self.reminders = reminders or ["18:30", "18:45", "19:00"]
 
     def get_local_now(self) -> datetime.datetime:
-        iana_tz = TIMEZONE_MAP.get(self.timezone_str)
+        iana_tz = None
+        # 1. Direct IANA check (e.g. Asia/Kolkata, Asia/Dubai, Asia/Riyadh, America/New_York)
+        if self.timezone_str:
+            try:
+                pytz.timezone(self.timezone_str)
+                iana_tz = self.timezone_str
+            except Exception:
+                pass
+
+        # 2. Map lookup
+        if not iana_tz:
+            iana_tz = TIMEZONE_MAP.get(self.timezone_str)
+
+        # 3. Database Locations lookup
         if not iana_tz:
             try:
                 import database
                 locs = database.get_all_locations()
                 for l in locs:
-                    if l.get("timezoneName") == self.timezone_str or l.get("country", "").lower() == self.location.lower() or l.get("name", "").lower() == self.location.lower():
+                    if l.get("ianaTz") and (l.get("timezoneName") == self.timezone_str or l.get("country", "").lower() == self.location.lower() or l.get("name", "").lower() == self.location.lower() or l.get("id") == self.location):
                         iana_tz = l.get("ianaTz")
                         break
             except Exception:
                 pass
+
+        # 4. Keyword Fallback
         if not iana_tz:
-            if "india" in self.location.lower():
+            loc_lower = self.location.lower()
+            tz_lower = self.timezone_str.lower()
+            if "india" in loc_lower or "ist" in tz_lower:
                 iana_tz = "Asia/Kolkata"
-            elif "uae" in self.location.lower():
+            elif "uae" in loc_lower or "dubai" in loc_lower or "gst" in tz_lower:
                 iana_tz = "Asia/Dubai"
-            elif "saudi" in self.location.lower():
+            elif "saudi" in loc_lower or "riyadh" in loc_lower or "ast" in tz_lower:
                 iana_tz = "Asia/Riyadh"
+            elif "usa" in loc_lower or "est" in tz_lower or "new_york" in tz_lower:
+                iana_tz = "America/New_York"
+            elif "uk" in loc_lower or "gmt" in tz_lower or "london" in tz_lower:
+                iana_tz = "Europe/London"
             else:
                 iana_tz = "UTC"
 
@@ -224,68 +245,227 @@ def check_task_sheet_local(file_path: str, sheet_name: str, target_date: str, em
         return True  # Completed
     return False     # Missing
 
+MOTIVATIONAL_QUOTES = [
+    "Consistent progress each day builds long-term success.",
+    "A well-organized finish ensures a productive start tomorrow.",
+    "Rest and balance are essential for sustained excellence.",
+    "Small daily improvements over time lead to stunning results.",
+    "Excellence is not an act, but a habit.",
+    "Focus on being productive instead of busy.",
+    "Success is the sum of small efforts repeated day in and day out.",
+    "The secret of getting ahead is getting started and finishing strong.",
+    "Great things are done by a series of small things brought together.",
+    "Efficiency is doing better what is already being done.",
+    "Order and organization simplify teamwork and accelerate progress.",
+    "Finish today strong so tomorrow starts with momentum.",
+    "Clarity and communication are the pillars of great engineering.",
+    "Dedication today empowers innovation tomorrow."
+]
+
+import random
+
+STAGE_CATEGORY_MAP = {
+    "first": "Focus, Progress & Consistency",
+    "second": "Teamwork, Impact & Reliability",
+    "final": "Recharge, Balance & Perspective",
+    "ignore_filled": "Focus, Progress & Consistency"
+}
+
+def get_daily_quote(reminder_stage: str = "first", date_str: str = "") -> str:
+    """Returns a dynamic, randomly selected motivational quote matching stage category day-wise and time-wise."""
+    target_category = STAGE_CATEGORY_MAP.get(reminder_stage, "Focus, Progress & Consistency")
+    stage_quotes = []
+    all_quotes = []
+
+    try:
+        import database
+        db_quotes = database.get_all_quotes()
+        if db_quotes:
+            for q in db_quotes:
+                text = q.get("quote", "").strip()
+                cat = q.get("category", "").strip()
+                if text:
+                    all_quotes.append(text)
+                    if cat.lower() in target_category.lower() or target_category.lower() in cat.lower():
+                        stage_quotes.append(text)
+    except Exception:
+        pass
+
+    if not stage_quotes:
+        stage_quotes = all_quotes if all_quotes else MOTIVATIONAL_QUOTES
+
+    # Pick a random quote every time (randomized day-wise & time-wise)
+    raw_quote = random.choice(stage_quotes).strip(' "\'')
+    
+    # Formatted Thought of the Day header
+    return f"💡 THOUGHT OF THE DAY:\n\"{raw_quote}\""
+
 def build_email_content(reminder_type: str, employee_name: str, date_str: str) -> Tuple[str, str]:
     """Generates polite email subject and body for reminders using SQLite database templates."""
+    quote = get_daily_quote(reminder_type, date_str)
+    
     try:
         import database
         templates = database.get_all_templates()
-        key_map = {"first": "first_reminder", "second": "second_reminder", "final": "final_reminder"}
-        tpl_key = key_map.get(reminder_type, "first_reminder")
+        key_map = {
+            "first": "first_reminder",
+            "second": "second_reminder",
+            "final": "final_reminder",
+            "ignore": "ignore_filled",
+            "ignore_filled": "ignore_filled"
+        }
+        tpl_key = key_map.get(reminder_type, reminder_type if reminder_type in templates else "first_reminder")
         if tpl_key in templates:
-            subject = templates[tpl_key].get("subject", "").replace("{date}", date_str).replace("{name}", employee_name)
-            body = templates[tpl_key].get("body", "").replace("{date}", date_str).replace("{name}", employee_name)
+            tpl = templates[tpl_key]
+            subject = tpl.get("subject", "").replace("{date}", date_str).replace("{name}", employee_name).replace("{quote}", quote)
+            body = tpl.get("body", "").replace("{date}", date_str).replace("{name}", employee_name).replace("{quote}", quote)
+            ignore_note = tpl.get("ignore_note", "").replace("{date}", date_str).replace("{name}", employee_name).replace("{quote}", quote)
+            
+            # Clean up any stray quotes around quote placeholder
+            body = body.replace('""💡', '💡').replace('""', '"')
+
+            # If ignore_note exists and is not already part of the body, append it politely
+            if ignore_note and ignore_note.lower() not in body.lower():
+                if not ignore_note.startswith("Note:"):
+                    ignore_note = f"Note: {ignore_note}"
+                body += f"\n\n{ignore_note}"
             return subject, body
     except Exception as e:
         print(f"[WARN] Error loading custom email templates from SQLite: {e}")
 
-    # Fallback Polite Templates
+    # Fallback Templates matching specific 3-reminder stages
     if reminder_type == "first":
-        subject = f"Friendly Reminder: Daily Work Log Update - {date_str}"
-        body = f"""Dear {employee_name},
+        subject = f"Friendly Reminder: End-of-Day Transition & Task Log - {date_str}"
+        body = f"""{quote}
 
-Hope you are having a productive day!
+Hi {employee_name},
 
-This is a friendly reminder to please fill your time logs timely in the Daily Task and Update Sheet before the end of your working shift.
+As our shift approaches the final 30 minutes, please begin winding down your current tasks:
 
-Keeping your task log updated ensures the team stays aligned on today's achievements and project progress.
+• Commit your code changes and update assigned board tickets.
+• Fill out your daily work logs and project status updates.
+• Note any pending blockers for tomorrow's standup.
 
-Thank you for your cooperation and dedication!
+Note: If you have already submitted your daily updates, please disregard this notice.
 
 Warm regards,
 IT & Infrastructure Team"""
+
     elif reminder_type == "second":
-        subject = f"Gentle Reminder: Pending Daily Work Log - {date_str}"
-        body = f"""Dear {employee_name},
+        subject = f"Gentle Reminder: Wrap-Up & Documentation - {date_str}"
+        body = f"""{quote}
 
-We noticed that today's work log cell is still blank in the Daily Task and Update Sheet.
+Hi {employee_name},
 
-Please take 2 minutes to fill your time logs timely before your shift ends.
+We are 15 minutes away from the end of the shift:
 
-If you have already updated your tasks in the last few minutes, kindly ignore this message.
+• Please ensure your daily task reports and timesheets are submitted.
+• Hand over any critical alerts, ongoing deployments, or notes to shift leads.
+• Safely close non-essential sessions and test instances.
 
-Thank you so much for your prompt update!
-
-Warm regards,
-IT & Infrastructure Team"""
-    else:
-        subject = f"Final Call: Daily Work Log Required - {date_str}"
-        body = f"""Dear {employee_name},
-
-Your shift end time has arrived and today's work log entry remains pending.
-
-Please complete your daily task entry immediately so that your daily hours and updates are accurately recorded for today ({date_str}).
-
-Dear team, please fill your time logs timely to help us maintain accurate daily project records.
-
-Thank you for your immediate attention.
+Note: Kindly ignore this reminder if your documentation and status are already submitted.
 
 Warm regards,
 IT & Infrastructure Team"""
+
+    elif reminder_type in ("ignore", "ignore_filled"):
+        subject = f"Status Confirmation: Daily Log Hours Recorded - {date_str}"
+        body = f"""{quote}
+
+Dear {employee_name},
+
+Thank you for updating your daily work log hours for today ({date_str}).
+
+Your daily time logs have been verified as filled in the Daily Task and Update Sheet. You may safely ignore any reminder notifications sent for today.
+
+Thank you for keeping your daily project records up to date!
+
+Warm regards,
+IT & Infrastructure Team"""
+
+    else:  # Final / 3rd reminder at shift close
+        subject = f"Final Call: Shift Close & Daily Log Submission - {date_str}"
+        body = f"""{quote}
+
+Good evening {employee_name},
+
+The shift has concluded for the day:
+
+• Thank you for your hard work and commitment today.
+• Please ensure all systems are securely logged out and take time to disconnect and recharge.
+
+Note: If your daily reports are already submitted, please ignore this message. Have a great evening!
+
+Warm regards,
+IT & Infrastructure Team"""
+
     return subject, body
 
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+def generate_html_email(body_text: str) -> str:
+    """Converts email body string into rich HTML formatted email matching sample layout."""
+    lines = body_text.split("\n")
+    html_parts = []
+    in_bullets = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        # 1. Thought of the Day Header with Yellow Highlight
+        if "THOUGHT OF THE DAY:" in line or "Thought of the Day:" in line:
+            if in_bullets:
+                html_parts.append("</ul>")
+                in_bullets = False
+            html_parts.append('<div style="margin-bottom: 8px;"><span style="background-color: #ffff00; color: #000000; font-weight: bold; padding: 2px 6px; font-family: Arial, sans-serif; font-size: 13px;">💡 THOUGHT OF THE DAY:</span></div>')
+
+        # 2. Quote string in bold
+        elif stripped.startswith('"') and stripped.endswith('"') and len(stripped) > 5:
+            if in_bullets:
+                html_parts.append("</ul>")
+                in_bullets = False
+            html_parts.append(f'<div style="font-weight: bold; font-size: 15px; color: #0f172a; margin-bottom: 20px; font-family: Arial, sans-serif;">{stripped}</div>')
+
+        # 3. Note / Disclaimer line in bold
+        elif stripped.startswith("Note:") or stripped.startswith("If you have already") or stripped.startswith("Kindly ignore"):
+            if in_bullets:
+                html_parts.append("</ul>")
+                in_bullets = False
+            html_parts.append(f'<p style="margin-top: 18px; margin-bottom: 16px; font-family: Arial, sans-serif; font-size: 14px;"><strong>{stripped}</strong></p>')
+
+        # 4. Bullet points
+        elif stripped.startswith("•") or stripped.startswith("-") or stripped.startswith("* "):
+            if not in_bullets:
+                html_parts.append('<ul style="margin-top: 8px; margin-bottom: 16px; padding-left: 20px; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">')
+                in_bullets = True
+            bullet_text = stripped.lstrip("•-* ").strip()
+            html_parts.append(f'<li style="margin-bottom: 4px;">{bullet_text}</li>')
+
+        elif stripped == "":
+            if in_bullets:
+                html_parts.append("</ul>")
+                in_bullets = False
+            html_parts.append('<br>')
+
+        else:
+            if in_bullets:
+                html_parts.append("</ul>")
+                in_bullets = False
+            html_parts.append(f'<p style="margin: 6px 0; font-family: Arial, sans-serif; font-size: 14px; color: #1e293b;">{line}</p>')
+
+    if in_bullets:
+        html_parts.append("</ul>")
+
+    html_content = "".join(html_parts)
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #1e293b; line-height: 1.6; padding: 10px;">
+{html_content}
+</body>
+</html>"""
 
 def load_config(config_path: str) -> dict:
     """Loads settings from SQLite database or fallback config."""
@@ -349,14 +529,17 @@ def send_email(to_email: str, cc_email: str, subject: str, body: str, dry_run: b
         return True
 
     try:
-        msg = MIMEMultipart()
+        msg = MIMEMultipart("alternative")
         msg['From'] = sender_email
         msg['To'] = to_email
         if cc_email:
             msg['Cc'] = cc_email
         msg['Subject'] = subject
 
+        # Attach Plain Text Fallback & Rich HTML Version
+        html_body = generate_html_email(body)
         msg.attach(MIMEText(body, 'plain'))
+        msg.attach(MIMEText(html_body, 'html'))
 
         recipients = [to_email]
         if cc_email:

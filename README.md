@@ -1,246 +1,197 @@
-# Automated Daily Task/Work Log Reminder System
+# 🚀 Automated Daily Task & Work Log Reminder System
 
-Complete production solution for automated daily task reminders across multiple timezones (India, UAE, Saudi Arabia) using **Microsoft 365 Excel Online**, **Office Scripts**, **Power Automate**, **Python**, and **Docker**.
+A complete, enterprise-grade automated daily task reminder web application and daemon engine built with **Flask**, **SQLite Database**, **Chart.js Analytics**, **Python**, and **Docker**.
+
+Supports multi-timezone staff roster management (**India, UAE, Saudi Arabia, USA, UK, Singapore**), customizable work shifts, team management, rich HTML email notifications with dynamic **Thought of the Day** quote rotation, courtesy ignore disclaimers, and automated Excel / SharePoint sheet verification.
 
 ---
 
-## 1. Power Automate Flow Architecture
+## 📑 Table of Contents
+1. [Architecture & System Features](#1-architecture--system-features)
+2. [Web Application Pages Sitemap](#2-web-application-pages-sitemap)
+3. [Complete REST API Reference](#3-complete-rest-api-reference)
+4. [Automated Daemon Engine & Reminder Workflow](#4-automated-daemon-engine--reminder-workflow)
+5. [Rich HTML Email & Quote Rotator](#5-rich-html-email--quote-rotator)
+6. [Docker Deployment Guide](#6-docker-deployment-guide)
+
+---
+
+## 1. Architecture & System Features
 
 ```
-[ Recurrence Trigger (Every 15 Minutes) ]
-                   │
-                   ▼
-[ Action 1: Get EmployeeConfig Table (Excel Online) ]
-                   │
-                   ▼
-[ Action 2: Apply to Each Employee (Loop) ]
-                   │
-                   ├─► [ Step A: Calculate Local Time, Local Date, Local Day ]
-                   │     • LocalTime = formatDateTime(convertFromUtc(utcNow(), TimeZone), 'HH:mm')
-                   │     • LocalDay  = formatDateTime(convertFromUtc(utcNow(), TimeZone), 'ddd')
-                   │     • LocalDate = formatDateTime(convertFromUtc(utcNow(), TimeZone), 'dd-MMM-yy')
-                   │
-                   ├─► [ Step B: Condition - Is Today a Working Day? ]
-                   │     • Expression: contains(item()?['WorkingDays'], LocalDay)
-                   │     • If FALSE ──► Skip Employee (Off Day)
-                   │
-                   ├─► [ Step C: Condition - Is Local Time 18:30 or 18:45? ]
-                   │     • Expression: OR(equals(LocalTime, '18:30'), equals(LocalTime, '18:45'))
-                   │     • If FALSE ──► Skip Employee
-                   │
-                   ├─► [ Step D: Run Office Script ]
-                   │     • Script: "Daily Task Fill Reminder"
-                   │     • Parameters: sheetName = item()?['SheetName'], targetDateStr = LocalDate
-                   │
-                   └─► [ Step E: Condition - Is Employee in missingEmployees? ]
-                         • Expression: contains(outputs('Run_script')?['body/missingEmployees'], item()?['EmployeeName'])
-                         • If FALSE ──► Do Nothing (Task Already Completed!)
-                         • If TRUE  ──► Check Reminder Window:
-                                          ├─► If 18:30 ──► Send 1st Reminder Email
-                                          └─► If 18:45 ──► Send Final Reminder Email
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 Glassmorphism Web Dashboard (Port 5000)                     │
+│  Analytics Charts • Staff Roster • Shifts • Teams • Templates • Quotes • Logs │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                  Thread-Safe SQLite Database Layer                          │
+│                      (data/app_database.db)                                 │
+│    employees • shifts • teams • locations • managers • templates • quotes   │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 Background Reminder Daemon (Every 15 Mins)                  │
+│   Timezone Check ➔ Task Sheet Verification ➔ Stage Quote ➔ SSL SMTP Dispatch │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
----
-
-## 2. Power Automate Action Configuration (In Order)
-
-1. **Trigger: Recurrence**
-   - **Interval**: `15`
-   - **Frequency**: `Minute`
-
-2. **Action 1: List rows present in a table** (Connector: Excel Online Business)
-   - **Location**: `OneDrive for Business` or `SharePoint Site`
-   - **Document Library**: `OneDrive` or `Documents`
-   - **File**: `Daily Task and Update Sheet.xlsx`
-   - **Table**: `EmployeeConfig`
-
-3. **Action 2: Apply to each**
-   - **Select an output from previous steps**: `@outputs('List_rows_present_in_a_table')?['body/value']`
-
-4. **Inside Apply to Each - Action 3: Compose - LocalDay**
-   - **Inputs**: `formatDateTime(convertFromUtc(utcNow(), item()?['TimeZone']), 'ddd')`
-
-5. **Inside Apply to Each - Action 4: Compose - LocalTime**
-   - **Inputs**: `formatDateTime(convertFromUtc(utcNow(), item()?['TimeZone']), 'HH:mm')`
-
-6. **Inside Apply to Each - Action 5: Compose - LocalDate**
-   - **Inputs**: `formatDateTime(convertFromUtc(utcNow(), item()?['TimeZone']), 'dd-MMM-yy')`
-
-7. **Inside Apply to Each - Action 6: Condition - Check Working Day**
-   - **Expression**: `@contains(item()?['WorkingDays'], outputs('Compose_-_LocalDay'))`
-
-8. **Inside If Yes - Action 7: Condition - Check Reminder Time (18:30 or 18:45)**
-   - **Expression**: `@or(equals(outputs('Compose_-_LocalTime'), '18:30'), equals(outputs('Compose_-_LocalTime'), '18:45'))`
-
-9. **Inside If Yes - Action 8: Run script** (Connector: Excel Online Business)
-   - **Location**: `SharePoint Site` / `OneDrive`
-   - **File**: `Daily Task and Update Sheet.xlsx`
-   - **Script**: `Daily Task Fill Reminder`
-   - **sheetName**: `item()?['SheetName']`
-   - **targetDateStr**: `outputs('Compose_-_LocalDate')`
-
-10. **Inside If Yes - Action 9: Condition - Is Employee Missing**
-    - **Expression**: `@contains(outputs('Run_script')?['body/missingEmployees'], item()?['EmployeeName'])`
-
-11. **Inside If Yes - Action 10: Switch / Condition on LocalTime**
-    - **If LocalTime equals '18:30'**:
-      - **Action**: `Send an email (V2)`
-      - **TO**: `item()?['Email']`
-      - **CC**: `item()?['ManagerCC']`
-      - **Subject**: `Daily Work Log Reminder - @{outputs('Compose_-_LocalDate')}`
-      - **Body**: First Reminder Template
-    - **If LocalTime equals '18:45'**:
-      - **Action**: `Send an email (V2)`
-      - **TO**: `item()?['Email']`
-      - **CC**: `item()?['ManagerCC']`
-      - **Subject**: `Final Reminder: Daily Work Log - @{outputs('Compose_-_LocalDate')}`
-      - **Body**: Second Reminder Template
+- **Persistence**: All data stored permanently in SQLite DB (`data/app_database.db`) with volume mounting.
+- **Multi-Timezone Support**: Evaluates local employee time in IST, GST, AST, EST, PST, GMT, SGT independently.
+- **Dynamic Work Shifts**: Automatically computes Reminder 1 (30m before shift end), Reminder 2 (15m before shift end), and Reminder 3 (Shift close).
+- **Courtesy Ignore Disclaimer**: Appends polite notice for employees who updated their logs.
+- **Stage-Aware Thought of the Day**: Rotates motivational quotes daily matched to shift stages.
 
 ---
 
-## 3. Power Automate WDL Expressions Reference
+## 2. Web Application Pages Sitemap
 
-| Field | Power Automate WDL Expression |
-| :--- | :--- |
-| **Convert UTC to Local Timezone** | `convertFromUtc(utcNow(), item()?['TimeZone'])` |
-| **Local Time Format (HH:mm)** | `formatDateTime(convertFromUtc(utcNow(), item()?['TimeZone']), 'HH:mm')` |
-| **Local Day Format (ddd)** | `formatDateTime(convertFromUtc(utcNow(), item()?['TimeZone']), 'ddd')` |
-| **Local Date Format (dd-MMM-yy)** | `formatDateTime(convertFromUtc(utcNow(), item()?['TimeZone']), 'dd-MMM-yy')` |
-| **Working Day Check** | `contains(item()?['WorkingDays'], formatDateTime(convertFromUtc(utcNow(), item()?['TimeZone']), 'ddd'))` |
-| **Reminder Window Check** | `@or(equals(formatDateTime(convertFromUtc(utcNow(), item()?['TimeZone']), 'HH:mm'), '18:30'), equals(formatDateTime(convertFromUtc(utcNow(), item()?['TimeZone']), 'HH:mm'), '18:45'))` |
-
----
-
-## 4. Email Templates
-
-### First Reminder (18:30 Local Time)
-- **Subject**: `Daily Work Log Reminder - [Date]`
-- **Body**:
-```text
-Hello [EmployeeName],
-
-This is a friendly reminder to please update your task details and working hours for today in the Daily Task and Update Sheet.
-
-Please complete your daily work log before the end of your working day.
-
-Thank you.
-
-Regards,
-IT Team
-```
-
-### Second/Final Reminder (18:45 Local Time)
-- **Subject**: `Final Reminder: Daily Work Log - [Date]`
-- **Body**:
-```text
-Hello [EmployeeName],
-
-This is a final reminder to please complete today's task details and working hours in the Daily Task and Update Sheet.
-
-Please update your work log before the end of your working day.
-
-Thank you.
-
-Regards,
-IT Team
-```
+| Page Route | Title | Key Features & Purpose |
+| :--- | :--- | :--- |
+| `/dashboard` | **Realtime Analytics Dashboard** | Chart.js bar & doughnut visualizations for user/team email delivery, live timelog status, live daemon console log stream, and 1-click Log Maintenance Cleanup Toolbar (delete >1 day, >1 week, >1 month, >1 year, clear all). |
+| `/employees` | **Employee Roster Management** | Add, edit, or delete staff members. Assign locations with auto-filled timezones, work shifts, working days, teams, sheet names, and manager CC emails. Search & filter controls included. |
+| `/shifts` | **Custom Work Shift Creation** | Create and manage custom work shift hours (e.g. 10:00 - 19:00, 09:00 - 17:00, Night Shift). Automatically calculates 30m, 15m, and Shift End trigger times. |
+| `/teams` | **Teams Management** | Manage multi-team structures (Technical Infra Team, IoT Team, Cloud Ops, etc.) and map each team to its corresponding Excel worksheet tab. |
+| `/locations` | **Locations & Timezones** | Directory of global office locations (India, UAE, Saudi Arabia, USA, UK, Singapore) and their IANA timezone strings (`Asia/Kolkata`, `Asia/Dubai`, `Asia/Riyadh`, etc.). |
+| `/managers` | **Managers Directory** | Manage manager contact records for automatic email CC notifications during reminder escalation. |
+| `/templates` | **Email & Ignore Templates** | Configure polite notification templates for **Reminder 1**, **Reminder 2**, **Reminder 3**, and **Log Hours Filled Courtesy Template** with Real-Time Live Preview & `{name}`, `{date}`, `{quote}` variable substitution. |
+| `/quotes` | **Thought of the Day Library** | View, add, edit, or delete motivational quotes categorized by shift stage (`Focus, Progress & Consistency`, `Teamwork, Impact & Reliability`, `Recharge, Balance & Perspective`). |
+| `/settings` | **System SMTP Config** | Configure SSL 465 / TLS 587 SMTP mail server settings, user sender credentials, SharePoint direct download URL, and local Excel file path. |
+| `/logs` | **Daemon Logs & Audit Trail** | View live execution logs and SQLite email dispatch history table. Includes log cleanup options by date range. |
 
 ---
 
-## 5. Preventing 6:45 PM Duplicate Reminder
-Because the Office Script runs dynamically on every execution loop (both at 18:30 and 18:45 local time), it performs a live cell check on Excel. 
+## 3. Complete REST API Reference
 
-If an employee fills their task cell between 6:30 PM and 6:45 PM:
-1. The Office Script inspects the row for today's date at 18:45.
-2. The employee's cell now contains text.
-3. The Office Script includes the employee in `completedEmployees` and excludes them from `missingEmployees`.
-4. Power Automate checks `contains(missingEmployees, EmployeeName)` -> evaluates to `false`.
-5. Email action is bypassed automatically!
-
----
-
-## 6. Testing & Single Employee Test Mode
-
-### Power Automate Test Mode
-To test with one employee (e.g. `Sachin`):
-Add a Filter condition inside the loop or a main condition:
-`equals(item()?['EmployeeName'], 'Sachin')`
-
-### Python Program Execution
-Run the Python script for a single employee in test mode:
-```bash
-python daily_reminder.py --test-employee "Sachin" --force-time 18:30 --force-date 16-Sep-26
-```
-
-### Dry-Run Mode (Simulation without sending real emails)
-```bash
-python daily_reminder.py --dry-run --force-time 18:30
-```
-
----
-
-## 7. Python Configuration for Non-Admin Users (Email & Password)
-
-If you do **not** have Azure AD Admin permissions, you can run the Python application using standard Office 365 user credentials (your email address and password) via SMTP authentication (`smtp.office365.com:587`).
-
-### `config.json` Structure
-```json
-{
-  "excel_file_path": "Daily Task and Update Sheet.xlsx",
-  "employee_config_sheet": "EmployeeConfig",
-  "table_name": "EmployeeConfig",
-  "manager_cc_default": "Ravi@d2backoffice.onmicrosoft.com",
-  "test_employee": null,
-  "dry_run": false,
-  "auth_mode": "smtp",
-  "user_credentials": {
-    "email": "Ravi@d2backoffice.onmicrosoft.com",
-    "password": "YOUR_EMAIL_PASSWORD_HERE"
-  },
-  "smtp": {
-    "enabled": true,
-    "server": "smtp.office365.com",
-    "port": 587
+### 👥 Employees API
+- `GET /api/employees` - Returns all employee roster records.
+- `POST /api/employees` - Creates or updates an employee record.
+  ```json
+  {
+    "id": "emp_1",
+    "name": "Sachin",
+    "email": "sachin@company.com",
+    "location": "India",
+    "timezone": "Asia/Kolkata",
+    "workingDays": ["Mon","Tue","Wed","Thu","Fri","Sat"],
+    "shiftId": "shift_standard",
+    "teamId": "team_infra",
+    "managerCc": "Ravi@company.com"
   }
-}
-```
-
-> [!TIP]
-> **Multi-Factor Authentication (MFA) Note**:
-> If your Microsoft 365 account has 2FA/MFA enabled, generate an **App Password** from your Microsoft Account security settings (`https://mysignins.microsoft.com/security-info`) and place it in `"password"`.
+  ```
+- `DELETE /api/employees/<emp_id>` - Deletes employee by ID.
 
 ---
 
-## 8. Running with Docker & Docker Compose
+### ⏰ Shifts API
+- `GET /api/shifts` - Returns all custom shift schedules.
+- `POST /api/shifts` - Creates or updates a work shift.
+  ```json
+  {
+    "id": "shift_standard",
+    "name": "Standard Day Shift",
+    "startTime": "10:00",
+    "endTime": "19:00",
+    "reminder1": "18:30",
+    "reminder2": "18:45",
+    "finalCall": "19:00"
+  }
+  ```
+- `DELETE /api/shifts/<shift_id>` - Deletes a shift schedule.
 
-### Option A: Standard Docker Build & Run
-```bash
-# Build Docker image
-docker build -t daily-task-reminder .
+---
 
-# Run Docker container in background (checks every 15 mins)
-docker run -d --name task_reminder_daemon daily-task-reminder
+### 💡 Thought of the Day (Quotes) API
+- `GET /api/quotes` - Returns all motivational quotes.
+- `POST /api/quotes` - Creates or updates a motivational quote.
+  ```json
+  {
+    "id": "q_101",
+    "quote": "Excellence is not an act, but a habit. What we build today lays the foundation for tomorrow.",
+    "category": "Focus, Progress & Consistency"
+  }
+  ```
+- `DELETE /api/quotes/<quote_id>` - Deletes a quote by ID.
+
+---
+
+### 📧 Email Templates API
+- `GET /api/templates` - Returns all configured email templates.
+- `POST /api/templates` - Updates template dictionary (`first_reminder`, `second_reminder`, `final_reminder`, `ignore_filled`).
+
+---
+
+### 📊 Analytics & Maintenance API
+- `GET /api/chart-data` - Returns aggregated user, team, and time slot email delivery metrics for Chart.js dashboard charts.
+- `POST /api/logs/delete` - Deletes daemon console logs older than specified period (`day`, `week`, `month`, `year`, `all`).
+  ```json
+  { "period": "week" }
+  ```
+- `POST /api/history/delete` - Deletes email dispatch audit history older than specified period (`day`, `week`, `month`, `year`, `all`).
+- `POST /api/trigger-test` - Executes a manual test reminder check for a specific employee.
+  ```json
+  { "employeeName": "Sachin", "forceTime": "18:30", "dryRun": true }
+  ```
+
+---
+
+## 4. Automated Daemon Engine & Reminder Workflow
+
 ```
-
-### Option B: Docker Compose
-```bash
-# Start container using Docker Compose
-docker-compose up -d
-
-# View real-time container logs
-docker-compose logs -f
+[ Background Daemon Loop (15 Mins) ]
+                 │
+                 ▼
+[ Iterate Staff Roster from SQLite DB ]
+                 │
+                 ▼
+[ 1. Calculate Local Time (pytz IANA Timezone) ]
+                 │
+                 ▼
+[ 2. Check Working Day Schedule ] ──(Off Day?)──► SKIP
+                 │
+                 ▼
+[ 3. Match Local Time against Shift Reminders ] ──(No Match?)──► SKIP
+                 │
+                 ▼
+[ 4. Fetch Latest Excel Sheet from SharePoint ]
+                 │
+                 ▼
+[ 5. Verify Employee Cell for Today's Date ]
+                 │
+                 ├─► Filled? ────► Log COMPLETED & SKIP (No Email Sent)
+                 │
+                 └─► Blank? ─────► Generate Rich HTML Email & Dispatch via SMTP
 ```
 
 ---
 
-## 8. Verifying Email Delivery & Debugging
+## 5. Rich HTML Email & Quote Rotator
 
-1. **Power Automate Run History**:
-   - Navigate to **Power Automate -> Cloud Flows -> Daily Task Reminder -> Run History**.
-   - Select a run timestamp.
-   - Inspect the **Apply to each** loop for each employee.
-   - Check the **Send an email (V2)** step badge (Green Checkmark = Success).
+### 💡 Highlighted Thought of the Day Banner
+Emails are rendered in rich HTML (`MIMEMultipart("alternative")`):
+- **Yellow Highlight Banner**: `💡 THOUGHT OF THE DAY:` highlighted with yellow background.
+- **Bold Motivational Quote**: Formatted prominently below the header.
+- **Bold Courtesy Disclaimer**: Appends `Note: If you have already submitted your daily updates, please disregard this notice.` in bold text.
 
-2. **Outlook Sent Items**:
-   - Open Outlook / OWA for `Ravi@d2backoffice.onmicrosoft.com`.
-   - Check **Sent Items** folder to confirm dispatch timestamp, recipient TO/CC addresses, and exact subject line.
+---
+
+## 6. Docker Deployment Guide
+
+### Build & Run Containerized Stack
+```bash
+# Build and start container in detached mode
+docker compose up -d --build
+
+# View container status
+docker compose ps
+
+# View live container logs
+docker compose logs -f
+```
+
+The application will be accessible at: **`http://localhost:5000`**
+
+### Persistent Data Volume
+Database file is mounted at `./data:/app/data`, ensuring all roster updates, custom shifts, quote additions, and audit history remain safe across container restarts or updates.
