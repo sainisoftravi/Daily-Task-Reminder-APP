@@ -1,0 +1,20 @@
+[
+  {
+    "id": "team_infra",
+    "name": "Infra Team",
+    "sheetName": "Technical Infra Team OominiEYE",
+    "description": "Technical Infrastructure & Systems Operations"
+  },
+  {
+    "id": "team_iot",
+    "name": "IoT Team",
+    "sheetName": "IoT Team OominiEYE",
+    "description": "Internet of Things & Embedded Systems"
+  },
+  {
+    "id": "team_cloud",
+    "name": "Cloud Ops Team",
+    "sheetName": "Cloud Ops Team OominiEYE",
+    "description": "Cloud Architecture & DevOps"
+  }
+]

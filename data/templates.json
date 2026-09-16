@@ -1,0 +1,17 @@
+{
+  "final_reminder": {
+    "body": "Dear {name},\n\nYour shift has reached 7:00 PM and today's work log entry remains pending.\n\nPlease complete your daily task entry immediately so that your daily hours and updates are accurately recorded for today ({date}).\n\nDear team, please fill your time logs timely to help us maintain accurate daily project records.\n\nThank you for your immediate attention.\n\nWarm regards,\nIT & Infrastructure Team",
+    "name": "Final Escalation (7:00 PM / 19:00)",
+    "subject": "Final Call: Daily Work Log Required - {date}"
+  },
+  "first_reminder": {
+    "name": "first_reminder",
+    "subject": "Friendly Reminder: Daily Work Log Update - {date}",
+    "body": "Dear {name},\n\nHope you are having a productive day!\n\nThis is a friendly reminder to please fill your time logs timely in the Daily Task and Update Sheet before the end of your working day (10:00 AM - 7:00 PM).\n\nKeeping your task log updated ensures the team stays aligned on today's achievements and project progress.\n\nThank you for your cooperation and dedication!\n\n"
+  },
+  "second_reminder": {
+    "body": "Dear {name},\n\nWe noticed that today's work log cell is still blank in the Daily Task and Update Sheet.\n\nPlease take 2 minutes to fill your time logs timely before your shift ends at 7:00 PM.\n\nIf you have already updated your tasks in the last few minutes, kindly ignore this message.\n\nThank you so much for your prompt update!\n\nWarm regards,\nIT & Infrastructure Team",
+    "name": "Second Reminder (6:45 PM / 18:45)",
+    "subject": "Gentle Reminder: Pending Daily Work Log - {date}"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "excel_file_path": "Daily Task and Update Sheet.xlsx",
+  "sharepoint_url": "https://d2backoffice-my.sharepoint.com/:x:/g/personal/ravi_d2backoffice_onmicrosoft.com/IQCybiwws57qSpGmQ9RdBx_RAaKEOarut68jb1ZFs7NK0PQ?e=1wwbfr",
+  "auth_mode": "smtp",
+  "user_credentials": {
+    "email": "support@digital-twin-solutions.com",
+    "password": "1)T1h6Xzyo{kn"
+  },
+  "smtp": {
+    "enabled": true,
+    "server": "mail.digital-twin-solutions.com",
+    "port": 465,
+    "username": "support@digital-twin-solutions.com",
+    "password": "1)T1h6Xzyo{kn"
+  }
+}

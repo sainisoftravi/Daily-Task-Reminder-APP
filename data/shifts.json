@@ -1,0 +1,42 @@
+[
+  {
+    "id": "shift_standard",
+    "name": "Standard Day Shift (10:00 AM - 7:00 PM)",
+    "startTime": "10:00",
+    "endTime": "19:00",
+    "reminder1": "18:30",
+    "reminder2": "18:45",
+    "finalCall": "19:00",
+    "description": "Standard 9-hour day shift with 6:30 PM & 6:45 PM reminders"
+  },
+  {
+    "id": "shift_early",
+    "name": "Early Shift (9:00 AM - 5:00 PM)",
+    "startTime": "09:00",
+    "endTime": "17:00",
+    "reminder1": "16:30",
+    "reminder2": "16:45",
+    "finalCall": "17:00",
+    "description": "Early 8-hour shift with 4:30 PM & 4:45 PM reminders"
+  },
+  {
+    "id": "shift_uk",
+    "name": "UK / Late Shift (1:00 PM - 9:00 PM)",
+    "startTime": "13:00",
+    "endTime": "21:00",
+    "reminder1": "20:30",
+    "reminder2": "20:45",
+    "finalCall": "21:00",
+    "description": "Late shift with 8:30 PM & 8:45 PM reminders"
+  },
+  {
+    "id": "shift_night",
+    "name": "Night Shift (2:00 PM - 10:00 PM)",
+    "startTime": "14:00",
+    "endTime": "22:00",
+    "reminder1": "21:30",
+    "reminder2": "21:45",
+    "finalCall": "22:00",
+    "description": "Evening shift with 9:30 PM & 9:45 PM reminders"
+  }
+]

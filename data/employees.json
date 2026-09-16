@@ -1,0 +1,140 @@
+[
+  {
+    "id": "emp_1",
+    "name": "Sachin",
+    "email": "sachin@d2backoffice.onmicrosoft.com",
+    "location": "India",
+    "timezone": "India Standard Time",
+    "workingDays": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat"
+    ],
+    "shiftStart": "10:00",
+    "shiftEnd": "19:00",
+    "reminders": [
+      "18:30",
+      "18:45",
+      "19:00"
+    ],
+    "sheetName": "Technical Infra Team-Aug-2026",
+    "managerCc": "Ravi@d2backoffice.onmicrosoft.com"
+  },
+  {
+    "id": "emp_2",
+    "name": "Ganesh",
+    "email": "ganesh@d2backoffice.onmicrosoft.com",
+    "location": "India",
+    "timezone": "India Standard Time",
+    "workingDays": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat"
+    ],
+    "shiftStart": "10:00",
+    "shiftEnd": "19:00",
+    "reminders": [
+      "18:30",
+      "18:45",
+      "19:00"
+    ],
+    "sheetName": "Technical Infra Team-Aug-2026",
+    "managerCc": "Ravi@d2backoffice.onmicrosoft.com"
+  },
+  {
+    "id": "emp_3",
+    "name": "Amin",
+    "email": "amin@d2backoffice.onmicrosoft.com",
+    "location": "Saudi",
+    "timezone": "Arab Standard Time",
+    "workingDays": [
+      "Sun",
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu"
+    ],
+    "shiftStart": "10:00",
+    "shiftEnd": "19:00",
+    "reminders": [
+      "18:30",
+      "18:45",
+      "19:00"
+    ],
+    "sheetName": "Technical Infra Team-Aug-2026",
+    "managerCc": "Ravi@d2backoffice.onmicrosoft.com"
+  },
+  {
+    "id": "emp_4",
+    "name": "Naseef",
+    "email": "naseef@d2backoffice.onmicrosoft.com",
+    "location": "UAE",
+    "timezone": "Arabian Standard Time",
+    "workingDays": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat"
+    ],
+    "shiftStart": "10:00",
+    "shiftEnd": "19:00",
+    "reminders": [
+      "18:30",
+      "18:45",
+      "19:00"
+    ],
+    "sheetName": "Technical Infra Team-Aug-2026",
+    "managerCc": "Ravi@d2backoffice.onmicrosoft.com"
+  },
+  {
+    "id": "emp_5",
+    "name": "Senthil",
+    "email": "senthil@d2backoffice.onmicrosoft.com",
+    "location": "India",
+    "timezone": "India Standard Time",
+    "workingDays": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat"
+    ],
+    "shiftStart": "10:00",
+    "shiftEnd": "19:00",
+    "reminders": [
+      "18:30",
+      "18:45",
+      "19:00"
+    ],
+    "sheetName": "Technical Infra Team-Aug-2026",
+    "managerCc": "Ravi@d2backoffice.onmicrosoft.com"
+  },
+  {
+    "id": "emp_1789539502407",
+    "name": "Ravi Saini",
+    "email": "ravi.saini@digital-twin-solutions.com",
+    "location": "India",
+    "timezone": "India Standard Time",
+    "workingDays": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat"
+    ],
+    "teamId": "team_infra",
+    "teamName": "Infra Team",
+    "sheetName": "Technical Infra Team-Aug-2026",
+    "managerCc": "Ravi@d2backoffice.onmicrosoft.com"
+  }
+]

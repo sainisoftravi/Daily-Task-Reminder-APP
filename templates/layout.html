@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Daily Task Log Reminder System{% endblock %}</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-dark: #080c14;
+            --sidebar-width: 260px;
+            --card-bg: rgba(18, 26, 43, 0.75);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --primary: #6366f1;
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),
+                radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* Glassmorphism Panel Utility */
+        .glass-panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: rgba(10, 15, 26, 0.95);
+            border-right: 1px solid var(--card-border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+        }
+
+        .sidebar-brand {
+            padding: 24px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .brand-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .brand-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .nav-list {
+            list-style: none;
+            padding: 20px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .nav-item a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .nav-item a:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-item.active a {
+            background: var(--primary-gradient);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .sidebar-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--card-border);
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Main Workspace Content Area */
+        .workspace {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* Header Bar */
+        header {
+            padding: 18px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--card-border);
+            background: rgba(8, 12, 20, 0.85);
+            position: sticky;
+            top: 0;
+            z-index: 900;
+            backdrop-filter: blur(12px);
+        }
+
+        .page-header-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .clocks-bar {
+            display: flex;
+            gap: 16px;
+        }
+
+        .clock-pill {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+        }
+
+        .clock-time {
+            font-weight: 600;
+            color: var(--accent-cyan);
+            font-family: monospace;
+        }
+
+        .content-container {
+            padding: 28px;
+            flex: 1;
+        }
+
+        /* Shared Buttons & Form Elements */
+        .btn {
+            padding: 10px 20px;
+            border-radius: var(--radius-md);
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            border: 1px solid var(--card-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .btn-danger {
+            background: rgba(244, 63, 94, 0.2);
+            color: #fda4af;
+            border: 1px solid rgba(244, 63, 94, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: rgba(244, 63, 94, 0.3);
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            padding: 16px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--card-border);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 14px;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        .badge-india { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-uae { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-saudi { background: rgba(6, 182, 212, 0.15); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.3); }
+        .badge-team { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+
+        /* Modal Overlay & Forms */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-box {
+            width: 100%;
+            max-width: 640px;
+            padding: 30px;
+            position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 22px;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            background-color: #1e293b;
+            border: 1px solid var(--card-border);
+            color: #ffffff;
+            font-size: 14px;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+        }
+
+        select.form-control option {
+            background-color: #0f172a !important;
+            color: #ffffff !important;
+            padding: 12px !important;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 14px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--card-border);
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-main);
+            cursor: pointer;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 14px 24px;
+            border-radius: var(--radius-md);
+            background: rgba(16, 185, 129, 0.95);
+            color: #fff;
+            font-weight: 500;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            display: none;
+            z-index: 3000;
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+            </div>
+            <div>
+                <div class="brand-title">Daily Task Reminder</div>
+                <div class="brand-subtitle">SQLite & Multi-Team Engine</div>
+            </div>
+        </div>
+
+        <ul class="nav-list">
+            <li class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+                <a href="/dashboard"><i class="fa-solid fa-chart-pie"></i> Realtime Dashboard</a>
+            </li>
+            <li class="nav-item {% if active_page == 'employees' %}active{% endif %}">
+                <a href="/employees"><i class="fa-solid fa-user-gear"></i> Employee Roster</a>
+            </li>
+            <li class="nav-item {% if active_page == 'shifts' %}active{% endif %}">
+                <a href="/shifts"><i class="fa-solid fa-clock"></i> Shifts Creation</a>
+            </li>
+            <li class="nav-item {% if active_page == 'teams' %}active{% endif %}">
+                <a href="/teams"><i class="fa-solid fa-sitemap"></i> Teams Management</a>
+            </li>
+            <li class="nav-item {% if active_page == 'locations' %}active{% endif %}">
+                <a href="/locations"><i class="fa-solid fa-earth-americas"></i> Locations Management</a>
+            </li>
+            <li class="nav-item {% if active_page == 'managers' %}active{% endif %}">
+                <a href="/managers"><i class="fa-solid fa-user-tie"></i> Managers Directory</a>
+            </li>
+            <li class="nav-item {% if active_page == 'templates' %}active{% endif %}">
+                <a href="/templates"><i class="fa-solid fa-envelope-open-text"></i> Email Templates</a>
+            </li>
+            <li class="nav-item {% if active_page == 'settings' %}active{% endif %}">
+                <a href="/settings"><i class="fa-solid fa-sliders"></i> System SMTP Config</a>
+            </li>
+            <li class="nav-item {% if active_page == 'logs' %}active{% endif %}">
+                <a href="/logs"><i class="fa-solid fa-terminal"></i> Daemon Logs & Audit</a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <div>SQLite Engine v2.0 • Containerized</div>
+            <div style="color: var(--accent-emerald); margin-top: 4px;">● System Online</div>
+        </div>
+    </aside>
+
+    <!-- Workspace Area -->
+    <div class="workspace">
+        <header>
+            <div class="page-header-title">{% block page_title %}Dashboard{% endblock %}</div>
+
+            <!-- Timezone Clocks Bar -->
+            <div class="clocks-bar">
+                <div class="clock-pill">
+                    <span>🇮🇳 India</span>
+                    <span class="clock-time" id="clock-ist">--:-- --</span>
+                </div>
+                <div class="clock-pill">
+                    <span>🇦🇪 UAE</span>
+                    <span class="clock-time" id="clock-gst">--:-- --</span>
+                </div>
+                <div class="clock-pill">
+                    <span>🇸🇦 Saudi</span>
+                    <span class="clock-time" id="clock-ast">--:-- --</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="content-container">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast" id="toast-msg">Action Completed Successfully</div>
+
+    <script>
+        function updateClocks() {
+            const now = new Date();
+            const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+            const gst = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
+            const ast = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
+
+            document.getElementById('clock-ist').innerText = ist.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('clock-gst').innerText = gst.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('clock-ast').innerText = ast.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+        setInterval(updateClocks, 1000);
+        updateClocks();
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast-msg');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => { t.style.display = 'none'; }, 3000);
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

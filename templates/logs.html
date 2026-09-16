@@ -1,0 +1,89 @@
+{% extends "layout.html" %}
+
+{% block title %}Daemon Logs & Audit | Daily Task Reminder{% endblock %}
+{% block page_title %}Daemon Output Stream & Reminder History Audit{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <div style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 600;"><i class="fa-solid fa-terminal" style="color: #38bdf8;"></i> Daemon Execution Output Log (Live Stream)</div>
+        <button class="btn btn-secondary" style="font-size: 12px; padding: 4px 12px;" onclick="fetchLogs()"><i class="fa-solid fa-arrows-rotate"></i> Refresh Logs</button>
+    </div>
+    <div id="console-output" style="background: #050810; border: 1px solid var(--card-border); border-radius: var(--radius-md); padding: 20px; height: 320px; overflow-y: auto; font-family: monospace; font-size: 13px; color: #38bdf8; line-height: 1.7;">
+        Fetching execution logs...
+    </div>
+</div>
+
+<div class="glass-panel" style="padding: 24px;">
+    <div style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 600; margin-bottom: 16px;">
+        <i class="fa-solid fa-database" style="color: var(--accent-emerald);"></i> SQLite Email Dispatch Audit Trail History
+    </div>
+
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Employee Name</th>
+                    <th>Email Address</th>
+                    <th>Reminder Type</th>
+                    <th>Status</th>
+                    <th>Date String</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody id="history-table-body">
+                <!-- JS Populated -->
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function fetchLogs() {
+        try {
+            const res = await fetch('/api/logs');
+            const data = await res.json();
+            if (data.success) {
+                const box = document.getElementById('console-output');
+                box.innerHTML = data.logs.map(l => `<div>${l}</div>`).join('');
+                box.scrollTop = box.scrollHeight;
+            }
+        } catch (err) { console.error(err); }
+    }
+
+    async function fetchHistory() {
+        try {
+            const res = await fetch('/api/history');
+            const data = await res.json();
+            if (data.success && data.history) {
+                const tbody = document.getElementById('history-table-body');
+                tbody.innerHTML = '';
+                if (data.history.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No email history records found in SQLite DB.</td></tr>`;
+                    return;
+                }
+                data.history.forEach(h => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><small style="color:var(--text-muted);">${h.timestamp}</small></td>
+                        <td><strong>${h.employee_name}</strong></td>
+                        <td><small>${h.email}</small></td>
+                        <td><span class="badge badge-team">${h.reminder_type}</span></td>
+                        <td><span style="color:#34d399;">${h.status}</span></td>
+                        <td><code>${h.date_str}</code></td>
+                        <td><small style="color:var(--text-muted);">${h.details || ''}</small></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        } catch (err) { console.error(err); }
+    }
+
+    fetchLogs();
+    fetchHistory();
+    setInterval(fetchLogs, 10000);
+</script>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "layout.html" %}
+
+{% block title %}SMTP & System Config | Daily Task Reminder{% endblock %}
+{% block page_title %}System Configuration & SMTP Settings{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div>
+            <div style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600;">SMTP Server Credentials & SharePoint Integration</div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Configure outgoing SMTP email server (SSL Port 465 / TLS Port 587) and SharePoint Excel sheet link.</div>
+        </div>
+        <button class="btn btn-primary" onclick="saveSettings()">
+            <i class="fa-solid fa-floppy-disk"></i> Save Settings to Database
+        </button>
+    </div>
+
+    <div style="max-width: 800px;">
+        <div style="font-size: 14px; font-weight: 600; color: #38bdf8; margin-bottom: 16px; border-bottom: 1px solid var(--card-border); padding-bottom: 8px;">
+            <i class="fa-solid fa-server"></i> SMTP Server Settings
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">SMTP Server Host</label>
+                <input type="text" id="cfg-server" class="form-control" value="mail.digital-twin-solutions.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">SMTP Port (SSL 465 / TLS 587)</label>
+                <input type="number" id="cfg-port" class="form-control" value="465">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Sender Email Address</label>
+                <input type="email" id="cfg-email" class="form-control" value="support@digital-twin-solutions.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Sender Password</label>
+                <input type="password" id="cfg-password" class="form-control" placeholder="••••••••••••">
+            </div>
+        </div>
+
+        <div style="font-size: 14px; font-weight: 600; color: #38bdf8; margin-top: 24px; margin-bottom: 16px; border-bottom: 1px solid var(--card-border); padding-bottom: 8px;">
+            <i class="fa-solid fa-file-excel"></i> SharePoint Workbook Integration
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">SharePoint Direct Excel Workbook Link</label>
+            <input type="text" id="cfg-sharepoint" class="form-control" value="https://d2backoffice-my.sharepoint.com/:x:/g/personal/ravi_d2backoffice_onmicrosoft.com/IQCybiwws57qSpGmQ9RdBx_RAaKEOarut68jb1ZFs7NK0PQ?e=1wwbfr">
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function fetchSettings() {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        if (data.success && data.config) {
+            const cfg = data.config;
+            document.getElementById('cfg-server').value = cfg.smtp?.server || 'mail.digital-twin-solutions.com';
+            document.getElementById('cfg-port').value = cfg.smtp?.port || 465;
+            document.getElementById('cfg-email').value = cfg.user_credentials?.email || 'support@digital-twin-solutions.com';
+            document.getElementById('cfg-sharepoint').value = cfg.sharepoint_url || '';
+        }
+    }
+
+    async function saveSettings() {
+        const config = {
+            excel_file_path: "Daily Task and Update Sheet.xlsx",
+            sharepoint_url: document.getElementById('cfg-sharepoint').value,
+            auth_mode: "smtp",
+            user_credentials: {
+                email: document.getElementById('cfg-email').value,
+                password: document.getElementById('cfg-password').value || "1)T1h6Xzyo{kn"
+            },
+            smtp: {
+                enabled: true,
+                server: document.getElementById('cfg-server').value,
+                port: parseInt(document.getElementById('cfg-port').value)
+            }
+        };
+
+        await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        });
+        showToast('Settings Saved to Database');
+    }
+
+    fetchSettings();
+</script>
+{% endblock %}

@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  daily-task-reminder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: daily_task_reminder_app
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC

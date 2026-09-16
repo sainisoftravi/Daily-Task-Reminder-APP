@@ -1,0 +1,102 @@
+{% extends "layout.html" %}
+
+{% block title %}Email Templates | Daily Task Reminder{% endblock %}
+{% block page_title %}Polite Email Template Creation{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div>
+            <div style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600;">Polite Email Notification Templates</div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Configure polite reminder messages ("Dear Team, Fill your time logs timely").</div>
+        </div>
+        <button class="btn btn-primary" onclick="saveTemplates()">
+            <i class="fa-solid fa-floppy-disk"></i> Save Email Templates
+        </button>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div>
+            <div class="form-group">
+                <label class="form-label">Select Reminder Stage</label>
+                <select id="template-select" class="form-control" onchange="loadSelectedTemplate()">
+                    <option value="first_reminder">First Reminder (30m Before Shift End / 18:30)</option>
+                    <option value="second_reminder">Second Reminder (15m Before Shift End / 18:45)</option>
+                    <option value="final_reminder">Final Escalation (Shift End / 19:00)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Email Subject Line</label>
+                <input type="text" id="template-subject" class="form-control" oninput="updateLivePreview()">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Email Message Body (Use {name} and {date} variables)</label>
+                <textarea id="template-body" class="form-control" rows="12" oninput="updateLivePreview()"></textarea>
+            </div>
+        </div>
+
+        <div>
+            <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 12px;">
+                <i class="fa-solid fa-eye" style="color: var(--accent-cyan);"></i> Real-time Live Email Preview
+            </div>
+            <div style="background: #ffffff; color: #1e293b; padding: 24px; border-radius: var(--radius-md); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2); font-size: 14px; line-height: 1.6;">
+                <div style="font-weight: bold; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 14px;">
+                    Subject: <span id="preview-subject" style="color: #6366f1;">...</span>
+                </div>
+                <div id="preview-body" style="white-space: pre-line;">
+                    ...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let templatesData = {};
+
+    async function fetchTemplates() {
+        const res = await fetch('/api/templates');
+        const data = await res.json();
+        if (data.success) {
+            templatesData = data.templates;
+            loadSelectedTemplate();
+        }
+    }
+
+    function loadSelectedTemplate() {
+        const key = document.getElementById('template-select').value;
+        const tpl = templatesData[key] || {};
+        document.getElementById('template-subject').value = tpl.subject || '';
+        document.getElementById('template-body').value = tpl.body || '';
+        updateLivePreview();
+    }
+
+    function updateLivePreview() {
+        const subj = document.getElementById('template-subject').value;
+        const body = document.getElementById('template-body').value;
+        document.getElementById('preview-subject').innerText = subj.replace('{date}', '16-Sep-26');
+        document.getElementById('preview-body').innerText = body.replace('{name}', 'Sachin').replace('{date}', '16-Sep-26');
+    }
+
+    async function saveTemplates() {
+        const key = document.getElementById('template-select').value;
+        templatesData[key] = {
+            name: key,
+            subject: document.getElementById('template-subject').value,
+            body: document.getElementById('template-body').value
+        };
+        await fetch('/api/templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(templatesData)
+        });
+        showToast('Templates Saved to Database');
+    }
+
+    fetchTemplates();
+</script>
+{% endblock %}
