@@ -3,29 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | Daily Task Log Reminder System</title>
+    <title>Sign In | Daily Task Log Reminder System</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        :root {
-            --bg-dark: #080c14;
-            --card-bg: rgba(18, 26, 43, 0.85);
-            --card-border: rgba(255, 255, 255, 0.1);
-            --primary: #6366f1;
-            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
-            --accent-cyan: #06b6d4;
-            --accent-emerald: #10b981;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --radius-lg: 20px;
-            --radius-md: 12px;
-        }
-
         * {
             box-sizing: border-box;
             margin: 0;
@@ -34,13 +20,7 @@
         }
 
         body {
-            background-color: var(--bg-dark);
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.2) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.2) 0px, transparent 50%),
-                radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.12) 0px, transparent 50%);
-            background-attachment: fixed;
-            color: var(--text-main);
+            background: linear-gradient(135deg, #a5b4fc 0%, #818cf8 50%, #6366f1 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -48,160 +28,227 @@
             padding: 20px;
         }
 
-        .login-card {
+        .login-card-wrapper {
             width: 100%;
-            max-width: 460px;
-            background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--card-border);
-            border-radius: var(--radius-lg);
-            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
-            padding: 40px 32px;
+            max-width: 920px;
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 16px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+            display: flex;
+            min-height: 520px;
         }
 
-        .brand-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .brand-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 16px;
-            background: var(--primary-gradient);
-            display: inline-flex;
-            align-items: center;
+        /* Left Column - Form */
+        .login-left-col {
+            flex: 1;
+            padding: 40px 36px;
+            display: flex;
+            flex-direction: column;
             justify-content: center;
-            font-size: 26px;
-            color: #fff;
-            margin-bottom: 14px;
-            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
         }
 
-        .brand-title {
+        .welcome-title {
             font-family: 'Outfit', sans-serif;
-            font-size: 24px;
+            font-size: 32px;
             font-weight: 800;
-            background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #0f172a;
+            margin-bottom: 6px;
+            letter-spacing: -0.5px;
         }
 
-        .brand-subtitle {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-top: 4px;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 13px;
-            margin-bottom: 8px;
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        .input-wrapper {
-            position: relative;
-        }
-
-        .input-icon {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
+        .welcome-subtitle {
             font-size: 14px;
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 12px 16px 12px 42px;
-            border-radius: var(--radius-md);
-            background-color: #0f172a;
-            border: 1px solid var(--card-border);
-            color: #ffffff;
-            font-size: 14px;
-            outline: none;
-            transition: all 0.2s;
-        }
-
-        .form-control:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
-        }
-
-        .btn-submit {
-            width: 100%;
-            padding: 14px;
-            border-radius: var(--radius-md);
-            background: var(--primary-gradient);
-            color: #fff;
-            font-weight: 600;
-            font-size: 15px;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
-            transition: all 0.2s;
-            margin-top: 10px;
-        }
-
-        .btn-submit:hover {
-            opacity: 0.95;
-            transform: translateY(-1px);
+            color: #64748b;
+            margin-bottom: 32px;
         }
 
         .error-alert {
-            background: rgba(244, 63, 94, 0.15);
-            border: 1px solid rgba(244, 63, 94, 0.3);
-            color: #fda4af;
+            background: #fef2f2;
+            border: 1px solid #fca5a5;
+            color: #b91c1c;
             padding: 12px 16px;
-            border-radius: var(--radius-md);
+            border-radius: 12px;
             font-size: 13px;
-            margin-bottom: 20px;
+            margin-bottom: 24px;
             display: none;
+        }
+
+        .floating-field {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .floating-field label {
+            position: absolute;
+            top: -10px;
+            left: 16px;
+            background: #ffffff;
+            padding: 0 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #475569;
+            z-index: 2;
+        }
+
+        .floating-field input {
+            width: 100%;
+            height: 52px;
+            padding: 12px 18px;
+            border-radius: 14px;
+            border: 1.5px solid #64748b;
+            font-size: 14px;
+            color: #0f172a;
+            outline: none;
+            background: transparent;
+            transition: all 0.2s;
+        }
+
+        .floating-field input::placeholder {
+            color: #94a3b8;
+        }
+
+        .floating-field input:focus {
+            border-color: #3b36e0;
+            box-shadow: 0 0 0 3px rgba(59, 54, 224, 0.12);
+        }
+
+        .forgot-wrapper {
+            text-align: right;
+            margin-top: -12px;
+            margin-bottom: 28px;
+        }
+
+        .forgot-wrapper a {
+            color: #1e1b4b;
+            font-weight: 600;
+            font-size: 13px;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .forgot-wrapper a:hover {
+            color: #3b36e0;
+            text-decoration: underline;
+        }
+
+        .btn-signin {
+            width: 100%;
+            height: 52px;
+            background: #3b36e0;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 14px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(59, 54, 224, 0.35);
+            transition: all 0.2s;
+        }
+
+        .btn-signin:hover {
+            background: #2d28cb;
+            transform: translateY(-1px);
+            box-shadow: 0 12px 28px rgba(59, 54, 224, 0.45);
+        }
+
+        .btn-signin:active {
+            transform: translateY(0);
+        }
+
+        /* Right Column - Hero Banner */
+        .login-right-col {
+            flex: 1;
+            background: #8590ff;
+            border-radius: 20px;
+            padding: 32px 24px 24px 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .banner-img {
+            width: 100%;
+            max-width: 340px;
+            max-height: 320px;
+            object-fit: cover;
+            border-radius: 16px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+            margin-top: 8px;
+        }
+
+        .banner-footer {
+            text-align: center;
+            width: 100%;
+            margin-top: 16px;
+        }
+
+        .banner-caption {
+            color: #ffffff;
+            font-style: italic;
+            font-weight: 500;
+            font-size: 15px;
+            text-align: center;
+            opacity: 0.95;
+            line-height: 1.4;
+            margin-bottom: 0;
+        }
+
+        /* Responsive Layout */
+        @media (max-width: 768px) {
+            .login-card-wrapper {
+                flex-direction: column;
+            }
+            .login-right-col {
+                min-height: 260px;
+                padding: 24px;
+            }
+            .banner-img {
+                max-height: 200px;
+            }
         }
     </style>
 </head>
 <body>
 
-    <div class="login-card">
-        <div class="brand-header">
-            <div class="brand-icon">
-                <i class="fa-solid fa-clock-rotate-left"></i>
-            </div>
-            <div class="brand-title">Daily Task Reminder</div>
-            <div class="brand-subtitle">Multi-Role Access & Task Management Engine</div>
+    <div class="login-card-wrapper">
+        <!-- Left Side: Login Form -->
+        <div class="login-left-col">
+            <h1 class="welcome-title">Welcome Back!</h1>
+            <p class="welcome-subtitle">Please enter login details below</p>
+
+            <div class="error-alert" id="error-box"></div>
+
+            <form id="login-form" onsubmit="handleLoginSubmit(event)">
+                <div class="floating-field">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" required placeholder="Enter the email">
+                </div>
+
+                <div class="floating-field">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required placeholder="Enter the Password">
+                </div>
+
+                <div class="forgot-wrapper">
+                    <a href="javascript:void(0)" onclick="alert('Please contact your administrator to reset your password.')">Forgot password?</a>
+                </div>
+
+                <button type="submit" class="btn-signin" id="submit-btn">Sign in</button>
+            </form>
         </div>
 
-        <div class="error-alert" id="error-box"></div>
-
-        <form id="login-form" onsubmit="handleLoginSubmit(event)">
-            <div class="form-group">
-                <label class="form-label">Email Address</label>
-                <div class="input-wrapper">
-                    <i class="fa-solid fa-envelope input-icon"></i>
-                    <input type="email" id="login-email" class="form-control" required placeholder="name@company.com">
-                </div>
+        <!-- Right Side: Tasky Hero Graphic -->
+        <div class="login-right-col">
+            <img src="/static/images/login_illustration.jpg" alt="Task Management Illustration" class="banner-img">
+            
+            <div class="banner-footer">
+                <p class="banner-caption">Manage your task in a easy and more efficient way with Tasky...</p>
             </div>
-
-            <div class="form-group">
-                <label class="form-label">Password</label>
-                <div class="input-wrapper">
-                    <i class="fa-solid fa-lock input-icon"></i>
-                    <input type="password" id="login-password" class="form-control" required placeholder="••••••••">
-                </div>
-            </div>
-
-            <button type="submit" class="btn-submit" id="submit-btn">
-                <i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal
-            </button>
-        </form>
+        </div>
     </div>
 
     <script>
@@ -235,13 +282,13 @@
                 } else {
                     errorBox.innerText = data.error || 'Invalid login credentials.';
                     errorBox.style.display = 'block';
-                    submitBtn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal`;
+                    submitBtn.innerText = 'Sign in';
                     submitBtn.disabled = false;
                 }
             } catch (err) {
                 errorBox.innerText = 'Connection error. Please try again.';
                 errorBox.style.display = 'block';
-                submitBtn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal`;
+                submitBtn.innerText = 'Sign in';
                 submitBtn.disabled = false;
             }
         }
