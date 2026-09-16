@@ -50,7 +50,7 @@ Supports multi-timezone staff roster management (**India, UAE, Saudi Arabia, USA
 
 | Page Route | Title | Key Features & Purpose |
 | :--- | :--- | :--- |
-| `/dashboard` | **Realtime Analytics Dashboard** | Chart.js bar & doughnut visualizations for user/team email delivery, live timelog status, live daemon console log stream, and 1-click Log Maintenance Cleanup Toolbar (delete >1 day, >1 week, >1 month, >1 year, clear all). |
+| `/dashboard` | **Realtime Analytics Dashboard** | Chart.js bar & doughnut visualizations for user/team email delivery history, time slot distribution, and live timelog submission status per employee. |
 | `/employees` | **Employee Roster Management** | Add, edit, or delete staff members. Assign locations with auto-filled timezones, work shifts, working days, teams, sheet names, and manager CC emails. Search & filter controls included. |
 | `/shifts` | **Custom Work Shift Creation** | Create and manage custom work shift hours (e.g. 10:00 - 19:00, 09:00 - 17:00, Night Shift). Automatically calculates 30m, 15m, and Shift End trigger times. |
 | `/teams` | **Teams Management** | Manage multi-team structures (Technical Infra Team, IoT Team, Cloud Ops, etc.) and map each team to its corresponding Excel worksheet tab. |
@@ -59,7 +59,7 @@ Supports multi-timezone staff roster management (**India, UAE, Saudi Arabia, USA
 | `/templates` | **Email & Ignore Templates** | Configure polite notification templates for **Reminder 1**, **Reminder 2**, **Reminder 3**, and **Log Hours Filled Courtesy Template** with Real-Time Live Preview & `{name}`, `{date}`, `{quote}` variable substitution. |
 | `/quotes` | **Thought of the Day Library** | View, add, edit, or delete motivational quotes categorized by shift stage (`Focus, Progress & Consistency`, `Teamwork, Impact & Reliability`, `Recharge, Balance & Perspective`). |
 | `/settings` | **System SMTP Config** | Configure SSL 465 / TLS 587 SMTP mail server settings, user sender credentials, SharePoint direct download URL, and local Excel file path. |
-| `/logs` | **Daemon Logs & Audit Trail** | View live execution logs and SQLite email dispatch history table. Includes log cleanup options by date range. |
+| `/logs` | **Daemon Logs & Audit Trail** | View live execution logs and SQLite email dispatch history table. Features an interactive **📅 Select Date Range** calendar popover button (`Start Date` & `End Date`), range-based log filtering and deletion, and a `Clear All History` button. |
 
 ---
 

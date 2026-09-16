@@ -4,6 +4,69 @@
 {% block page_title %}Daemon Output Stream & Reminder History Audit{% endblock %}
 
 {% block content %}
+<!-- System Log & History Maintenance Toolbar -->
+<div class="glass-panel" style="padding: 20px 24px; margin-bottom: 24px; position: relative; z-index: 1000; overflow: visible;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+        <div>
+            <div style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-broom" style="color: var(--accent-rose);"></i>
+                System Log & History Maintenance
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">
+                Safely filter or delete execution logs and email delivery history records by date range or time period.
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; position: relative;">
+            <!-- Interactive Calendar Icon Trigger Button -->
+            <button class="btn btn-primary" id="calendar-trigger-btn" onclick="toggleCalendarPopover()" style="font-size: 13px; padding: 7px 16px; display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #6366f1, #0284c7); border: 1px solid rgba(255,255,255,0.15);">
+                <i class="fa-solid fa-calendar-days" style="font-size: 15px;"></i>
+                <span id="selected-range-label">📅 Select Date Range</span>
+                <i class="fa-solid fa-chevron-down" style="font-size: 10px; opacity: 0.8;"></i>
+            </button>
+
+            <!-- Quick Cleanup Presets -->
+            <button class="btn btn-danger" style="font-size: 12px; padding: 6px 14px;" onclick="confirmDeleteHistory('all')">
+                <i class="fa-solid fa-trash-can"></i> Clear All History
+            </button>
+
+            <!-- Popover Dropdown for Calendar Date Pickers -->
+            <div id="calendar-popover" style="display: none; position: absolute; top: 46px; left: 0; z-index: 99999; background: #0f172a; border: 1px solid #6366f1; border-radius: var(--radius-lg); padding: 20px; width: 320px; box-shadow: 0 20px 50px rgba(0,0,0,0.95); backdrop-filter: blur(20px);">
+                <div style="font-size: 14px; font-weight: 600; color: #f8fafc; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px;">
+                    <span><i class="fa-solid fa-calendar" style="color:#38bdf8;"></i> Select Date Range</span>
+                    <button onclick="toggleCalendarPopover()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:14px;"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">
+                        <i class="fa-regular fa-calendar" style="color:#38bdf8;"></i> From (Start Date)
+                    </label>
+                    <input type="date" id="filter-start-date" class="form-input" style="width: 100%; padding: 8px 12px; font-size: 13px;" onchange="updateRangeLabel()">
+                </div>
+
+                <div style="margin-bottom: 18px;">
+                    <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">
+                        <i class="fa-regular fa-calendar-check" style="color:#38bdf8;"></i> To (End Date)
+                    </label>
+                    <input type="date" id="filter-end-date" class="form-input" style="width: 100%; padding: 8px 12px; font-size: 13px;" onchange="updateRangeLabel()">
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <button class="btn btn-primary" style="font-size: 12px; width: 100%; justify-content: center; padding: 8px;" onclick="applyRangeFilter()">
+                        <i class="fa-solid fa-filter"></i> Apply Range Filter
+                    </button>
+                    <button class="btn btn-danger" style="font-size: 12px; width: 100%; justify-content: center; padding: 8px;" onclick="confirmDeleteRange()">
+                        <i class="fa-solid fa-trash-arrow-up"></i> Delete Selected Range Logs
+                    </button>
+                    <button class="btn btn-secondary" style="font-size: 12px; width: 100%; justify-content: center; padding: 7px;" onclick="resetRangeFilter()">
+                        <i class="fa-solid fa-rotate-left"></i> Reset Range Filter
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <div style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 600;"><i class="fa-solid fa-terminal" style="color: #38bdf8;"></i> Daemon Execution Output Log (Live Stream)</div>
@@ -42,27 +105,78 @@
 
 {% block scripts %}
 <script>
+    function toggleCalendarPopover() {
+        const pop = document.getElementById('calendar-popover');
+        pop.style.display = (pop.style.display === 'none' || !pop.style.display) ? 'block' : 'none';
+    }
+
+    document.addEventListener('click', function(e) {
+        const popover = document.getElementById('calendar-popover');
+        const trigger = document.getElementById('calendar-trigger-btn');
+        if (popover && trigger && !popover.contains(e.target) && !trigger.contains(e.target)) {
+            popover.style.display = 'none';
+        }
+    });
+
+    function updateRangeLabel() {
+        const start = document.getElementById('filter-start-date').value;
+        const end = document.getElementById('filter-end-date').value;
+        const label = document.getElementById('selected-range-label');
+        
+        if (start && end) {
+            label.innerText = `Range: ${start} → ${end}`;
+        } else if (start) {
+            label.innerText = `From: ${start}`;
+        } else if (end) {
+            label.innerText = `Up to: ${end}`;
+        } else {
+            label.innerText = `📅 Select Date Range`;
+        }
+    }
+
     async function fetchLogs() {
+        const startDate = document.getElementById('filter-start-date').value;
+        const endDate = document.getElementById('filter-end-date').value;
+
+        let url = '/api/logs?';
+        const params = new URLSearchParams();
+        if (startDate) params.append('start_date', startDate);
+        if (endDate) params.append('end_date', endDate);
+        url += params.toString();
+
         try {
-            const res = await fetch('/api/logs');
+            const res = await fetch(url);
             const data = await res.json();
             if (data.success) {
                 const box = document.getElementById('console-output');
-                box.innerHTML = data.logs.map(l => `<div>${l}</div>`).join('');
+                if (data.logs.length === 0) {
+                    box.innerHTML = `<div style="color: var(--text-muted);">No execution log records found for the selected date range.</div>`;
+                } else {
+                    box.innerHTML = data.logs.map(l => `<div>${l}</div>`).join('');
+                }
                 box.scrollTop = box.scrollHeight;
             }
         } catch (err) { console.error(err); }
     }
 
     async function fetchHistory() {
+        const startDate = document.getElementById('filter-start-date').value;
+        const endDate = document.getElementById('filter-end-date').value;
+
+        let url = '/api/history?';
+        const params = new URLSearchParams();
+        if (startDate) params.append('start_date', startDate);
+        if (endDate) params.append('end_date', endDate);
+        url += params.toString();
+
         try {
-            const res = await fetch('/api/history');
+            const res = await fetch(url);
             const data = await res.json();
             if (data.success && data.history) {
                 const tbody = document.getElementById('history-table-body');
                 tbody.innerHTML = '';
                 if (data.history.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No email history records found in SQLite DB.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding: 20px;">No email history records found matching selected date range.</td></tr>`;
                     return;
                 }
                 data.history.forEach(h => {
@@ -80,6 +194,106 @@
                 });
             }
         } catch (err) { console.error(err); }
+    }
+
+    function applyRangeFilter() {
+        fetchLogs();
+        fetchHistory();
+        toggleCalendarPopover();
+        showToast("Applied calendar date range filter.");
+    }
+
+    function resetRangeFilter() {
+        document.getElementById('filter-start-date').value = '';
+        document.getElementById('filter-end-date').value = '';
+        updateRangeLabel();
+        fetchLogs();
+        fetchHistory();
+        toggleCalendarPopover();
+        showToast("Cleared range filter.");
+    }
+
+    async function confirmDeleteRange() {
+        const startDate = document.getElementById('filter-start-date').value;
+        const endDate = document.getElementById('filter-end-date').value;
+
+        if (!startDate && !endDate) {
+            alert("Please select a From Date or To Date in the calendar range picker before deleting.");
+            return;
+        }
+
+        let msg = "Are you sure you want to delete logs and history records ";
+        if (startDate && endDate) {
+            msg += `between ${startDate} and ${endDate}?`;
+        } else if (startDate) {
+            msg += `from ${startDate} onwards?`;
+        } else {
+            msg += `up to ${endDate}?`;
+        }
+
+        if (!confirm(msg)) return;
+
+        try {
+            const resHist = await fetch('/api/history/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ period: 'range', start_date: startDate, end_date: endDate })
+            });
+            const resLog = await fetch('/api/logs/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ period: 'range', start_date: startDate, end_date: endDate })
+            });
+
+            const dataHist = await resHist.json();
+            const dataLog = await resLog.json();
+
+            showToast(`Deleted ${dataHist.deleted || 0} history records and ${dataLog.deleted || 0} daemon logs for selected calendar date range.`);
+            
+            fetchLogs();
+            fetchHistory();
+            toggleCalendarPopover();
+
+        } catch (err) {
+            console.error("Error deleting history range:", err);
+        }
+    }
+
+    async function confirmDeleteHistory(period) {
+        const periodLabels = {
+            'day': 'older than 1 Day',
+            'week': 'older than 1 Week',
+            'month': 'older than 1 Month',
+            'year': 'older than 1 Year',
+            'all': 'ALL history records & logs'
+        };
+
+        const label = periodLabels[period] || period;
+        if (!confirm(`Are you sure you want to delete email reminder history and audit logs ${label}?`)) return;
+
+        try {
+            const resHist = await fetch('/api/history/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ period: period })
+            });
+            const resLog = await fetch('/api/logs/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ period: period })
+            });
+
+            const dataHist = await resHist.json();
+            const dataLog = await resLog.json();
+
+            showToast(`Deleted ${dataHist.deleted || 0} history records and ${dataLog.deleted || 0} daemon logs.`);
+            
+            fetchLogs();
+            fetchHistory();
+
+        } catch (err) {
+            console.error("Error deleting history:", err);
+        }
     }
 
     fetchLogs();

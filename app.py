@@ -272,28 +272,38 @@ def trigger_test():
 
 @app.route("/api/logs")
 def get_logs():
-    logs = database.get_db_logs(200)
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    query = request.args.get("query")
+    logs = database.get_db_logs(limit=300, start_date=start_date, end_date=end_date, query=query)
     return jsonify({"success": True, "logs": logs})
 
 @app.route("/api/logs/delete", methods=["POST"])
 def delete_logs():
     payload = request.json or {}
     period = payload.get("period", "all")
-    deleted = database.clear_db_logs(period)
-    log_event(f"Cleaned up {deleted} system daemon logs (period: {period}).")
+    start_date = payload.get("start_date")
+    end_date = payload.get("end_date")
+    deleted = database.clear_db_logs(period=period, start_date=start_date, end_date=end_date)
+    log_event(f"Cleaned up {deleted} system daemon logs (period: {period}, start: {start_date}, end: {end_date}).")
     return jsonify({"success": True, "deleted": deleted})
 
 @app.route("/api/history")
 def get_history():
-    history = database.get_reminder_history(100)
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    query = request.args.get("query")
+    history = database.get_reminder_history(limit=300, start_date=start_date, end_date=end_date, query=query)
     return jsonify({"success": True, "history": history})
 
 @app.route("/api/history/delete", methods=["POST"])
 def delete_history():
     payload = request.json or {}
     period = payload.get("period", "all")
-    deleted = database.clear_reminder_history(period)
-    log_event(f"Cleaned up {deleted} email reminder history entries (period: {period}).")
+    start_date = payload.get("start_date")
+    end_date = payload.get("end_date")
+    deleted = database.clear_reminder_history(period=period, start_date=start_date, end_date=end_date)
+    log_event(f"Cleaned up {deleted} email reminder history entries (period: {period}, start: {start_date}, end: {end_date}).")
     return jsonify({"success": True, "deleted": deleted})
 
 @app.route("/api/chart-data")

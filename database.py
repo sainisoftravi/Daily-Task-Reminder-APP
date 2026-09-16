@@ -627,9 +627,29 @@ def log_to_db(msg: str, level: str = "INFO"):
     except Exception as e:
         print(f"[LOG DB ERROR] {e}")
 
-def get_db_logs(limit: int = 200) -> List[str]:
+def get_db_logs(limit: int = 200, start_date: str = None, end_date: str = None, query: str = None) -> List[str]:
     conn = get_db_connection()
-    rows = conn.execute("SELECT timestamp, level, message FROM logs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    sql = "SELECT timestamp, level, message FROM logs"
+    conditions = []
+    params = []
+
+    if start_date:
+        conditions.append("timestamp >= ?")
+        params.append(f"{start_date} 00:00:00")
+    if end_date:
+        conditions.append("timestamp <= ?")
+        params.append(f"{end_date} 23:59:59")
+    if query:
+        conditions.append("(message LIKE ? OR level LIKE ?)")
+        params.extend([f"%{query}%", f"%{query}%"])
+
+    if conditions:
+        sql += " WHERE " + " AND ".join(conditions)
+
+    sql += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+
+    rows = conn.execute(sql, tuple(params)).fetchall()
     conn.close()
     return [f"[{r['timestamp']}] {r['message']}" for r in reversed(rows)]
 
@@ -647,18 +667,53 @@ def record_reminder_history(emp_name: str, email: str, rem_type: str, status: st
     except Exception as e:
         print(f"[HISTORY DB ERROR] {e}")
 
-def get_reminder_history(limit: int = 100) -> List[Dict[str, Any]]:
+def get_reminder_history(limit: int = 200, start_date: str = None, end_date: str = None, query: str = None) -> List[Dict[str, Any]]:
     conn = get_db_connection()
-    rows = conn.execute("SELECT * FROM reminder_history ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    sql = "SELECT * FROM reminder_history"
+    conditions = []
+    params = []
+
+    if start_date:
+        conditions.append("timestamp >= ?")
+        params.append(f"{start_date} 00:00:00")
+    if end_date:
+        conditions.append("timestamp <= ?")
+        params.append(f"{end_date} 23:59:59")
+    if query:
+        conditions.append("(employee_name LIKE ? OR email LIKE ? OR reminder_type LIKE ? OR status LIKE ? OR date_str LIKE ? OR details LIKE ?)")
+        params.extend([f"%{query}%"] * 6)
+
+    if conditions:
+        sql += " WHERE " + " AND ".join(conditions)
+
+    sql += " ORDER BY id DESC LIMIT ?"
+    params.append(limit)
+
+    rows = conn.execute(sql, tuple(params)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
-def clear_db_logs(period: str = "all") -> int:
-    """Deletes older daemon logs based on period ('day', 'week', 'month', 'year', 'all')."""
+def clear_db_logs(period: str = "all", start_date: str = None, end_date: str = None) -> int:
+    """Deletes older daemon logs based on period ('day', 'week', 'month', 'year', 'all', 'range')."""
     conn = get_db_connection()
     cursor = conn.cursor()
     now = datetime.datetime.now()
-    if period == "day":
+
+    if (period == "range" or start_date or end_date) and period not in ("day", "week", "month", "year", "all"):
+        conditions = []
+        params = []
+        if start_date:
+            conditions.append("timestamp >= ?")
+            params.append(f"{start_date} 00:00:00")
+        if end_date:
+            conditions.append("timestamp <= ?")
+            params.append(f"{end_date} 23:59:59")
+        if conditions:
+            sql = "DELETE FROM logs WHERE " + " AND ".join(conditions)
+            cursor.execute(sql, tuple(params))
+        else:
+            cursor.execute("DELETE FROM logs")
+    elif period == "day":
         cutoff = (now - datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("DELETE FROM logs WHERE timestamp < ?", (cutoff,))
     elif period == "week":
@@ -672,17 +727,33 @@ def clear_db_logs(period: str = "all") -> int:
         cursor.execute("DELETE FROM logs WHERE timestamp < ?", (cutoff,))
     else:
         cursor.execute("DELETE FROM logs")
+
     deleted_count = cursor.rowcount
     conn.commit()
     conn.close()
     return deleted_count
 
-def clear_reminder_history(period: str = "all") -> int:
-    """Deletes older reminder history entries based on period ('day', 'week', 'month', 'year', 'all')."""
+def clear_reminder_history(period: str = "all", start_date: str = None, end_date: str = None) -> int:
+    """Deletes older reminder history entries based on period ('day', 'week', 'month', 'year', 'all', 'range')."""
     conn = get_db_connection()
     cursor = conn.cursor()
     now = datetime.datetime.now()
-    if period == "day":
+
+    if (period == "range" or start_date or end_date) and period not in ("day", "week", "month", "year", "all"):
+        conditions = []
+        params = []
+        if start_date:
+            conditions.append("timestamp >= ?")
+            params.append(f"{start_date} 00:00:00")
+        if end_date:
+            conditions.append("timestamp <= ?")
+            params.append(f"{end_date} 23:59:59")
+        if conditions:
+            sql = "DELETE FROM reminder_history WHERE " + " AND ".join(conditions)
+            cursor.execute(sql, tuple(params))
+        else:
+            cursor.execute("DELETE FROM reminder_history")
+    elif period == "day":
         cutoff = (now - datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("DELETE FROM reminder_history WHERE timestamp < ?", (cutoff,))
     elif period == "week":
@@ -696,6 +767,7 @@ def clear_reminder_history(period: str = "all") -> int:
         cursor.execute("DELETE FROM reminder_history WHERE timestamp < ?", (cutoff,))
     else:
         cursor.execute("DELETE FROM reminder_history")
+
     deleted_count = cursor.rowcount
     conn.commit()
     conn.close()

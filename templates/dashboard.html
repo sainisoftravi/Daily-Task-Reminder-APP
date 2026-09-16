@@ -51,36 +51,7 @@
     </div>
 </div>
 
-<!-- Log & History Maintenance Toolbar -->
-<div class="glass-panel" style="padding: 20px 24px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-    <div>
-        <div style="font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-            <i class="fa-solid fa-broom" style="color: var(--accent-rose);"></i>
-            System Log & History Maintenance
-        </div>
-        <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-            Safely delete older audit logs and email delivery history records by time period.
-        </div>
-    </div>
-    
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 14px;" onclick="confirmDeleteHistory('day')">
-            <i class="fa-solid fa-calendar-day"></i> Delete >1 Day
-        </button>
-        <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 14px;" onclick="confirmDeleteHistory('week')">
-            <i class="fa-solid fa-calendar-week"></i> Delete >1 Week
-        </button>
-        <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 14px;" onclick="confirmDeleteHistory('month')">
-            <i class="fa-solid fa-calendar-days"></i> Delete >1 Month
-        </button>
-        <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 14px;" onclick="confirmDeleteHistory('year')">
-            <i class="fa-solid fa-calendar"></i> Delete >1 Year
-        </button>
-        <button class="btn btn-danger" style="font-size: 12px; padding: 6px 14px;" onclick="confirmDeleteHistory('all')">
-            <i class="fa-solid fa-trash-can"></i> Clear All History
-        </button>
-    </div>
-</div>
+
 
 <!-- Graphically Beautiful Charts Grid -->
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 28px;">
@@ -199,15 +170,6 @@
     </div>
 </div>
 
-<!-- Live Daemon Log Stream Card -->
-<div class="glass-panel" style="padding: 24px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-        <div style="font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 600;"><i class="fa-solid fa-terminal" style="color: #38bdf8;"></i> Live Daemon Console Log Stream</div>
-        <button class="btn btn-secondary" style="font-size: 12px; padding: 4px 12px;" onclick="fetchDashboardLogs()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
-    </div>
-    <div id="dash-log-box" style="background: #050810; border: 1px solid var(--card-border); border-radius: var(--radius-md); padding: 16px; height: 180px; overflow-y: auto; font-family: monospace; font-size: 12px; color: #38bdf8; line-height: 1.6;">
-        Loading live execution logs...
-    </div>
 </div>
 {% endblock %}
 
@@ -345,7 +307,6 @@
             
             // Reload UI
             loadChartsData();
-            fetchDashboardLogs();
             setTimeout(() => { window.location.reload(); }, 1500);
 
         } catch (err) {
@@ -353,20 +314,6 @@
         }
     }
 
-    async function fetchDashboardLogs() {
-        try {
-            const res = await fetch('/api/logs');
-            const data = await res.json();
-            if (data.success) {
-                const box = document.getElementById('dash-log-box');
-                box.innerHTML = data.logs.slice(-50).map(l => `<div>${l}</div>`).join('');
-                box.scrollTop = box.scrollHeight;
-            }
-        } catch (err) { console.error(err); }
-    }
-
     loadChartsData();
-    fetchDashboardLogs();
-    setInterval(fetchDashboardLogs, 10000);
 </script>
 {% endblock %}
