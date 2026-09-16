@@ -273,7 +273,7 @@ def _seed_from_json(conn: sqlite3.Connection):
             "password": "1)T1h6Xzyo{kn"
         }
     }
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('config', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (json.dumps(default_cfg),))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('config', ?) ON CONFLICT(key) DO NOTHING", (json.dumps(default_cfg),))
 
     # Seed Locations
     cursor.execute("SELECT COUNT(*) FROM locations")
