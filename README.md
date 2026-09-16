@@ -25,9 +25,9 @@ The system comes pre-seeded with multi-role test accounts for immediate testing 
 | Role | Email Address | Password | Landing Page & Access Scope |
 | :--- | :--- | :--- | :--- |
 | 🛡️ **Admin** | `admin@company.com` | `admin123` | `/dashboard` (Full System Access, Roster, Shifts, SMTP, Audit Logs) |
-| 👔 **Manager** | `Ravi@d2backoffice.onmicrosoft.com` | `manager123` | `/dashboard` (Manager Access, Staff Roster, Shifts, Teams Management) |
-| 👤 **Employee (Sachin)** | `sachin@d2backoffice.onmicrosoft.com` | `emp123` | `/task-entry` (Personal Task Workspace & Work Log Submission) |
-| 👤 **Employee (Amin)** | `amin@d2backoffice.onmicrosoft.com` | `emp123` | `/task-entry` (Personal Task Workspace & Work Log Submission) |
+| 👔 **Manager** | `manager@company.com` | `manager123` | `/dashboard` (Manager Access, Staff Roster, Shifts, Teams Management) |
+| 👤 **Employee (Sachin)** | `sachin@company.com` | `emp123` | `/task-entry` (Personal Task Workspace & Work Log Submission) |
+| 👤 **Employee (Amin)** | `amin@company.com` | `emp123` | `/task-entry` (Personal Task Workspace & Work Log Submission) |
 
 ---
 
