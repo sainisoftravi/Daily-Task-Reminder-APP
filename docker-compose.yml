@@ -8,9 +8,10 @@ services:
     container_name: daily_task_reminder_app
     restart: always
     ports:
-      - "5000:5000"
+      - "${HOST_PORT:-5000}:5000"
     volumes:
       - ./:/app
     environment:
       - PYTHONUNBUFFERED=1
       - TZ=UTC
+      - PORT=5000

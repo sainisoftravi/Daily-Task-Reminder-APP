@@ -178,21 +178,42 @@ Emails are rendered in rich HTML (`MIMEMultipart("alternative")`):
 
 ---
 
-## 6. Docker Deployment Guide
+## 6. Docker & External Host Port Deployment Guide
 
-### Build & Run Containerized Stack
+### External Host Port Mapping (e.g., 5050:5000)
+By default, the application container listens internally on port **5000**. If port 5000 is occupied on your host server by another application, you can map any external host port (e.g., `5050:5000`, `8080:5000`, `3000:5000`) using any of the following methods:
+
+#### Method 1: Edit `docker-compose.yml` directly
+You can open `docker-compose.yml` and change the `ports:` line to map your desired external port:
+```yaml
+    ports:
+      - "5050:5000"
+```
+Then start the container:
 ```bash
-# Build and start container in detached mode
-docker compose up -d --build
-
-# View container status
-docker compose ps
-
-# View live container logs
-docker compose logs -f
+docker compose up -d
 ```
 
-The application will be accessible at: **`http://localhost:5000`**
+#### Method 2: Via `.env` File (Recommended)
+Edit the `.env` file in the project root directory:
+```env
+HOST_PORT=5050
+```
+Then run Docker Compose:
+```bash
+docker compose up -d
+```
+
+#### Method 3: Inline Environment Variable
+```bash
+# On Windows PowerShell
+$env:HOST_PORT="5050"; docker compose up -d
+
+# On Linux / macOS / Bash
+HOST_PORT=5050 docker compose up -d
+```
+
+The application will now be accessible externally at: **`http://localhost:5050`** (or your server's IP `http://<SERVER_IP>:5050`).
 
 ### Persistent Data Volume
 Database file is mounted at `./data:/app/data`, ensuring all roster updates, custom shifts, quote additions, and audit history remain safe across container restarts or updates.
