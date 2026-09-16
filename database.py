@@ -79,7 +79,8 @@ def init_db():
             team_id TEXT,
             team_name TEXT,
             sheet_name TEXT,
-            manager_cc TEXT
+            manager_cc TEXT,
+            role TEXT DEFAULT 'employee'
         )
     """)
 
@@ -147,7 +148,39 @@ def init_db():
         )
     """)
 
-    # Migrations for existing databases
+    # 11. Web Task Submission Logs Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS task_logs (
+            id TEXT PRIMARY KEY,
+            employee_id TEXT,
+            employee_name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            team_id TEXT,
+            team_name TEXT NOT NULL,
+            date_str TEXT NOT NULL,
+            task_details TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+
+    # 12. Users Table (Multi-Role Authentication System)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL,
+            team_id TEXT,
+            created_at TEXT
+        )
+    """)
+
+    try:
+        cursor.execute("ALTER TABLE employees ADD COLUMN role TEXT DEFAULT 'employee'")
+    except Exception:
+        pass
+
     try:
         cursor.execute("ALTER TABLE employees ADD COLUMN location_id TEXT")
     except Exception:
@@ -331,7 +364,68 @@ def _seed_from_json(conn: sqlite3.Connection):
         for q in quotes_seed:
             cursor.execute("INSERT OR IGNORE INTO quotes (id, quote, category, created_at) VALUES (?, ?, ?, ?)", (q[0], q[1], q[2], now_str))
 
+    # Seed Default User Accounts (Admin, Manager, Employees)
+    _seed_users(conn)
     conn.commit()
+
+def _seed_users(conn: sqlite3.Connection):
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users")
+    if cursor.fetchone()[0] == 0:
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Default Admin Account
+        cursor.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                       ("u_admin", "System Administrator", "admin@company.com", "admin123", "admin", now_str))
+        # Default Manager Account
+        cursor.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                       ("u_mgr_1", "Ravi Saini", "Ravi@d2backoffice.onmicrosoft.com", "manager123", "manager", now_str))
+
+        # Seed Employee Accounts from employee roster
+        cursor.execute("SELECT name, email, team_id FROM employees")
+        emps = cursor.fetchall()
+        for idx, emp in enumerate(emps):
+            e_dict = dict(emp)
+            u_id = f"u_emp_{idx+1}"
+            cursor.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, team_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                           (u_id, e_dict.get("name"), e_dict.get("email"), "emp123", "employee", e_dict.get("team_id", ""), now_str))
+
+# --- User Authentication & Management Helpers ---
+
+def authenticate_user(email: str, password_raw: str) -> Optional[Dict[str, Any]]:
+    conn = get_db_connection()
+    email_clean = email.strip().lower()
+    row = conn.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email_clean,)).fetchone()
+    conn.close()
+
+    if not row:
+        return None
+    
+    user_dict = dict(row)
+    # Check password match (plain text or encrypted fallback)
+    if user_dict.get("password") == password_raw.strip():
+        user_dict.pop("password", None)
+        return user_dict
+    return None
+
+def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+    conn = get_db_connection()
+    row = conn.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email.strip().lower(),)).fetchone()
+    conn.close()
+    if row:
+        u = dict(row)
+        u.pop("password", None)
+        return u
+    return None
+
+def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
+    conn = get_db_connection()
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    if row:
+        u = dict(row)
+        u.pop("password", None)
+        return u
+    return None
 
 # --- CRUD HELPER FUNCTIONS ---
 
@@ -381,6 +475,7 @@ def get_all_employees() -> List[Dict[str, Any]]:
         d["teamName"] = d.get("team_name")
         d["sheetName"] = d.get("sheet_name")
         d["managerCc"] = d.get("manager_cc")
+        d["role"] = d.get("role") or "employee"
         result.append(d)
     return result
 
@@ -390,10 +485,11 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
     emp_id = emp_data.get("id") or f"emp_{int(datetime.datetime.now().timestamp() * 1000)}"
     w_days = ",".join(emp_data.get("workingDays", [])) if isinstance(emp_data.get("workingDays"), list) else str(emp_data.get("workingDays", ""))
     rems = ",".join(emp_data.get("reminders", [])) if isinstance(emp_data.get("reminders"), list) else "18:30,18:45,19:00"
+    role = (emp_data.get("role") or "employee").lower()
 
     cursor.execute("""
-        INSERT INTO employees (id, name, email, location, location_id, timezone, working_days, shift_id, shift_name, reminders, team_id, team_name, sheet_name, manager_cc)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO employees (id, name, email, location, location_id, timezone, working_days, shift_id, shift_name, reminders, team_id, team_name, sheet_name, manager_cc, role)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             name=excluded.name,
             email=excluded.email,
@@ -407,12 +503,42 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
             team_id=excluded.team_id,
             team_name=excluded.team_name,
             sheet_name=excluded.sheet_name,
-            manager_cc=excluded.manager_cc
+            manager_cc=excluded.manager_cc,
+            role=excluded.role
     """, (
         emp_id, emp_data.get("name"), emp_data.get("email"), emp_data.get("location"), emp_data.get("locationId"), emp_data.get("timezone"),
         w_days, emp_data.get("shiftId"), emp_data.get("shiftName"), rems,
-        emp_data.get("teamId"), emp_data.get("teamName"), emp_data.get("sheetName"), emp_data.get("managerCc")
+        emp_data.get("teamId"), emp_data.get("teamName"), emp_data.get("sheetName"), emp_data.get("managerCc"), role
     ))
+
+    # Sync with users table for authentication
+    email_clean = (emp_data.get("email") or "").strip().lower()
+    name_val = (emp_data.get("name") or "").strip()
+    team_id_val = emp_data.get("teamId", "")
+    if email_clean:
+        existing_user = cursor.execute("SELECT id, password FROM users WHERE LOWER(email) = ?", (email_clean,)).fetchone()
+        if existing_user:
+            cursor.execute("UPDATE users SET name = ?, role = ?, team_id = ? WHERE LOWER(email) = ?",
+                           (name_val, role, team_id_val, email_clean))
+        else:
+            def_pass = "admin123" if role == "admin" else ("mgr123" if role == "manager" else "emp123")
+            u_id = f"u_{emp_id}"
+            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("INSERT INTO users (id, name, email, password, role, team_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                           (u_id, name_val, email_clean, def_pass, role, team_id_val, now_str))
+
+    # If role is manager, sync with managers table
+    if role == "manager" and email_clean:
+        cursor.execute("""
+            INSERT INTO managers (id, name, email, team_id, team_name)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name,
+                email=excluded.email,
+                team_id=excluded.team_id,
+                team_name=excluded.team_name
+        """, (f"mgr_{emp_id}", name_val, email_clean, team_id_val, emp_data.get("teamName", "")))
+
     conn.commit()
     conn.close()
     return True
@@ -961,6 +1087,89 @@ def save_location_record(loc_data: Dict[str, Any]) -> bool:
 def delete_location_record(loc_id: str) -> bool:
     conn = get_db_connection()
     conn.execute("DELETE FROM locations WHERE id = ?", (loc_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+# --- Daily Task Submission Logs Helpers ---
+
+def save_task_log(data: Dict[str, Any]) -> bool:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    emp_name = data.get("employeeName") or data.get("employee_name", "Unknown")
+    email = data.get("email", "")
+    team_name = data.get("teamName") or data.get("team_name", "Infra Team")
+    team_id = data.get("teamId") or data.get("team_id", "")
+    date_str = data.get("dateStr") or data.get("date_str") or datetime.datetime.now().strftime("%Y-%m-%d")
+    task_details = data.get("taskDetails") or data.get("task_details", "")
+    emp_id = data.get("employeeId") or data.get("employee_id", "")
+    log_id = data.get("id") or f"log_{emp_name.lower().replace(' ', '_')}_{date_str}"
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    cursor.execute("""
+        INSERT INTO task_logs (id, employee_id, employee_name, email, team_id, team_name, date_str, task_details, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            employee_name=excluded.employee_name,
+            email=excluded.email,
+            team_id=excluded.team_id,
+            team_name=excluded.team_name,
+            date_str=excluded.date_str,
+            task_details=excluded.task_details,
+            updated_at=excluded.updated_at
+    """, (log_id, emp_id, emp_name, email, team_id, team_name, date_str, task_details, now_str))
+    conn.commit()
+    conn.close()
+    return True
+
+def get_task_logs(team_id: Optional[str] = None, team_name: Optional[str] = None, date_str: Optional[str] = None, start_date: Optional[str] = None, end_date: Optional[str] = None) -> List[Dict[str, Any]]:
+    conn = get_db_connection()
+    query = "SELECT * FROM task_logs WHERE 1=1"
+    params = []
+
+    if team_id and team_id != "ALL":
+        query += " AND (team_id = ? OR LOWER(team_name) LIKE ?)"
+        params.append(team_id)
+        params.append(f"%{team_id.lower()}%")
+    elif team_name and team_name != "ALL":
+        query += " AND LOWER(team_name) LIKE ?"
+        params.append(f"%{team_name.lower()}%")
+
+    if date_str:
+        query += " AND date_str = ?"
+        params.append(date_str)
+    if start_date:
+        query += " AND date_str >= ?"
+        params.append(start_date)
+    if end_date:
+        query += " AND date_str <= ?"
+        params.append(end_date)
+
+    query += " ORDER BY date_str DESC, employee_name ASC"
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def is_employee_task_filled(employee_name_or_email: str, date_str: str) -> bool:
+    """Checks if an employee has submitted a task log for the specified date."""
+    conn = get_db_connection()
+    val = employee_name_or_email.strip().lower()
+    
+    # Try exact YYYY-MM-DD match or alternate date representations
+    row = conn.execute("""
+        SELECT task_details FROM task_logs 
+        WHERE (LOWER(employee_name) LIKE ? OR LOWER(email) LIKE ?) 
+        AND (date_str = ? OR date_str LIKE ?)
+    """, (f"%{val}%", f"%{val}%", date_str, f"%{date_str}%")).fetchone()
+    
+    conn.close()
+    if row and row["task_details"] and len(row["task_details"].strip()) > 5:
+        return True
+    return False
+
+def delete_task_log(log_id: str) -> bool:
+    conn = get_db_connection()
+    conn.execute("DELETE FROM task_logs WHERE id = ?", (log_id,))
     conn.commit()
     conn.close()
     return True

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | Daily Task Log Reminder System</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-dark: #080c14;
+            --card-bg: rgba(18, 26, 43, 0.85);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --primary: #6366f1;
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --radius-lg: 20px;
+            --radius-md: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.2) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.2) 0px, transparent 50%),
+                radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.12) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 460px;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+            padding: 40px 32px;
+        }
+
+        .brand-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .brand-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: var(--primary-gradient);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            color: #fff;
+            margin-bottom: 14px;
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+        }
+
+        .brand-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 16px 12px 42px;
+            border-radius: var(--radius-md);
+            background-color: #0f172a;
+            border: 1px solid var(--card-border);
+            color: #ffffff;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 14px;
+            border-radius: var(--radius-md);
+            background: var(--primary-gradient);
+            color: #fff;
+            font-weight: 600;
+            font-size: 15px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn-submit:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+        }
+
+        .error-alert {
+            background: rgba(244, 63, 94, 0.15);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            color: #fda4af;
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            margin-bottom: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <div class="brand-header">
+            <div class="brand-icon">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+            </div>
+            <div class="brand-title">Daily Task Reminder</div>
+            <div class="brand-subtitle">Multi-Role Access & Task Management Engine</div>
+        </div>
+
+        <div class="error-alert" id="error-box"></div>
+
+        <form id="login-form" onsubmit="handleLoginSubmit(event)">
+            <div class="form-group">
+                <label class="form-label">Email Address</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-envelope input-icon"></i>
+                    <input type="email" id="login-email" class="form-control" required placeholder="name@company.com">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <div class="input-wrapper">
+                    <i class="fa-solid fa-lock input-icon"></i>
+                    <input type="password" id="login-password" class="form-control" required placeholder="••••••••">
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit" id="submit-btn">
+                <i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal
+            </button>
+        </form>
+    </div>
+
+    <script>
+        async function handleLoginSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            const errorBox = document.getElementById('error-box');
+            errorBox.style.display = 'none';
+
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.innerText = "Signing in...";
+            submitBtn.disabled = true;
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await res.json();
+                if (data.success && data.user) {
+                    const role = data.user.role || 'employee';
+                    if (role === 'employee') {
+                        window.location.href = '/task-entry';
+                    } else {
+                        window.location.href = '/dashboard';
+                    }
+                } else {
+                    errorBox.innerText = data.error || 'Invalid login credentials.';
+                    errorBox.style.display = 'block';
+                    submitBtn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal`;
+                    submitBtn.disabled = false;
+                }
+            } catch (err) {
+                errorBox.innerText = 'Connection error. Please try again.';
+                errorBox.style.display = 'block';
+                submitBtn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> Sign In to Portal`;
+                submitBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

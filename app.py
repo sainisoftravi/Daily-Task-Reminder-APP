@@ -17,13 +17,34 @@ import datetime
 import threading
 import smtplib
 from typing import List, Dict, Any
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 
 # Import database module and reminder engine
 import database
 import daily_reminder
 
 app = Flask(__name__, template_folder="templates")
+app.secret_key = os.environ.get("SECRET_KEY", "daily_task_reminder_system_secret_key_2026")
+
+# --- Authentication Middleware ---
+EXEMPT_ROUTES = {'/login', '/api/login', '/api/logout', '/api/me', '/static'}
+
+@app.before_request
+def check_authentication():
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        return
+
+    path = request.path
+    if path in EXEMPT_ROUTES or path.startswith('/static'):
+        return
+
+    # Check session
+    user = session.get("user")
+    if not user:
+        if path.startswith('/api/'):
+            return jsonify({"success": False, "error": "Authentication required", "redirect": "/login"}), 401
+        return redirect(url_for("login_page"))
 
 # --- CORS (Cross-Origin Resource Sharing) Middleware ---
 @app.after_request
@@ -42,11 +63,54 @@ def handle_options_preflight(path):
 def log_event(msg: str, level: str = "INFO"):
     database.log_to_db(msg, level)
 
+# --- AUTHENTICATION & LOGIN ROUTES ---
+
+@app.route("/login")
+def login_page():
+    if session.get("user"):
+        role = session["user"].get("role", "employee")
+        if role == "employee":
+            return redirect(url_for("task_entry_page"))
+        return redirect(url_for("dashboard_page"))
+    return render_template("login.html")
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    data = request.json or {}
+    email = data.get("email", "")
+    password = data.get("password", "")
+
+    user = database.authenticate_user(email, password)
+    if not user:
+        return jsonify({"success": False, "error": "Invalid email or password. Please check your credentials."}), 401
+
+    session["user"] = user
+    log_event(f"User '{user.get('name')}' ({user.get('email')}) logged in successfully as role '{user.get('role')}'.")
+    return jsonify({"success": True, "user": user})
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    user = session.get("user")
+    if user:
+        log_event(f"User '{user.get('name')}' logged out.")
+    session.clear()
+    return jsonify({"success": True, "redirect": "/login"})
+
+@app.route("/api/me")
+def api_me():
+    user = session.get("user")
+    if user:
+        return jsonify({"success": True, "user": user})
+    return jsonify({"success": False, "user": None})
+
 # --- PAGE ROUTING ENDPOINTS ---
 
 @app.route("/")
 @app.route("/dashboard")
 def dashboard_page():
+    user = session.get("user", {})
+    if user.get("role") == "employee":
+        return redirect(url_for("task_entry_page"))
     employees = database.get_all_employees()
     shifts = database.get_all_shifts()
     teams = database.get_all_teams()
@@ -96,7 +160,37 @@ def settings_page():
 def logs_page():
     return render_template("logs.html", active_page="logs")
 
+@app.route("/task-entry")
+def task_entry_page():
+    return render_template("task_entry.html", active_page="task_entry")
+
 # --- REST API ENDPOINTS (SQLITE BACKED) ---
+
+@app.route("/api/task-logs", methods=["GET", "POST"])
+def manage_task_logs():
+    if request.method == "GET":
+        team_id = request.args.get("team_id")
+        team_name = request.args.get("team_name")
+        date_str = request.args.get("date_str")
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+
+        logs = database.get_task_logs(team_id=team_id, team_name=team_name, date_str=date_str, start_date=start_date, end_date=end_date)
+        return jsonify({"success": True, "logs": logs})
+
+    elif request.method == "POST":
+        data = request.json or {}
+        database.save_task_log(data)
+        emp_name = data.get("employeeName") or data.get("employee_name", "Employee")
+        date_str = data.get("dateStr") or data.get("date_str") or datetime.datetime.now().strftime("%Y-%m-%d")
+        log_event(f"Submitted Daily Task Log for '{emp_name}' on date '{date_str}'.")
+        return jsonify({"success": True, "message": f"Task log submitted for {emp_name}"})
+
+@app.route("/api/task-logs/<log_id>", methods=["DELETE"])
+def delete_task_log_route(log_id):
+    database.delete_task_log(log_id)
+    log_event(f"Deleted Task Log ID: {log_id}")
+    return jsonify({"success": True})
 
 @app.route("/api/quotes", methods=["GET", "POST"])
 def manage_quotes():

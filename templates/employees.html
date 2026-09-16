@@ -74,14 +74,24 @@
         <form id="employee-form" onsubmit="handleEmployeeSubmit(event)">
             <input type="hidden" id="emp-id">
             
-            <div class="form-group">
-                <label class="form-label">Employee Full Name</label>
-                <input type="text" id="emp-name" class="form-control" required placeholder="e.g. Sachin">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Member Full Name</label>
+                    <input type="text" id="emp-name" class="form-control" required placeholder="e.g. Sachin">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email Address</label>
+                    <input type="email" id="emp-email" class="form-control" required placeholder="e.g. sachin@company.com">
+                </div>
             </div>
 
             <div class="form-group">
-                <label class="form-label">Email Address</label>
-                <input type="email" id="emp-email" class="form-control" required placeholder="name@company.com">
+                <label class="form-label">User Role & Access Type</label>
+                <select id="emp-role-select" class="form-control" onchange="onUserRoleChange()">
+                    <option value="employee">👤 Employee (Daily Task Submission & Shift Reminders)</option>
+                    <option value="manager">👔 Manager (Team Management & Roster Access)</option>
+                    <option value="admin">🛡️ Admin (Full System Config Access)</option>
+                </select>
             </div>
 
             <div class="form-row">
@@ -96,41 +106,43 @@
                 </div>
             </div>
 
-            <!-- Checkbox Working Days Selection -->
             <div class="form-group">
-                <label class="form-label">Working Days Selection (Check applicable days)</label>
-                <div class="checkbox-grid">
-                    <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Mon" checked> Mon</label>
-                    <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Tue" checked> Tue</label>
-                    <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Wed" checked> Wed</label>
-                    <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Thu" checked> Thu</label>
-                    <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Fri" checked> Fri</label>
-                    <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Sat" checked> Sat</label>
-                    <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Sun"> Sun</label>
-                </div>
+                <label class="form-label">Assigned Team</label>
+                <select id="emp-team-select" class="form-control" onchange="updateTeamSheetName()"></select>
             </div>
 
-            <div class="form-row">
+            <!-- Employee-Specific Shift & Reminder Categories (Hidden for Manager & Admin) -->
+            <div id="employee-shift-categories">
                 <div class="form-group">
-                    <label class="form-label">Assigned Shift (Job Hours)</label>
-                    <select id="emp-shift-select" class="form-control"></select>
+                    <label class="form-label">Working Days Selection (Check applicable days)</label>
+                    <div class="checkbox-grid">
+                        <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Mon" checked> Mon</label>
+                        <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Tue" checked> Tue</label>
+                        <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Wed" checked> Wed</label>
+                        <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Thu" checked> Thu</label>
+                        <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Fri" checked> Fri</label>
+                        <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Sat" checked> Sat</label>
+                        <label class="checkbox-label"><input type="checkbox" name="chk-day" value="Sun"> Sun</label>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Assigned Team</label>
-                    <select id="emp-team-select" class="form-control" onchange="updateTeamSheetName()"></select>
-                </div>
-            </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Assigned Shift (Job Hours)</label>
+                        <select id="emp-shift-select" class="form-control"></select>
+                    </div>
 
-            <div class="form-group">
-                <label class="form-label">Manager CC (Select from Directory)</label>
-                <select id="emp-manager-select" class="form-control"></select>
-                <input type="hidden" id="emp-sheetname" value="Technical Infra Team-Aug-2026">
+                    <div class="form-group">
+                        <label class="form-label">Manager CC (Select from Directory)</label>
+                        <select id="emp-manager-select" class="form-control"></select>
+                        <input type="hidden" id="emp-sheetname" value="Technical Infra Team-Aug-2026">
+                    </div>
+                </div>
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('employee-modal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Employee</button>
+                <button type="submit" class="btn btn-primary">Save Member Record</button>
             </div>
         </form>
     </div>
@@ -354,18 +366,32 @@
                 let badgeClass = 'badge-india';
                 if (emp.location.toLowerCase().includes('uae')) badgeClass = 'badge-uae';
                 if (emp.location.toLowerCase().includes('saudi')) badgeClass = 'badge-saudi';
+                
+                const roleStr = (emp.role || 'employee').toLowerCase();
+                let roleBadge = '<span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3);">👤 Employee</span>';
+                if (roleStr === 'admin') roleBadge = '<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3);">🛡️ Admin</span>';
+                if (roleStr === 'manager') roleBadge = '<span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.3);">👔 Manager</span>';
+
+                const isEmp = roleStr === 'employee';
                 const rems = emp.reminders ? emp.reminders.join(', ') : '18:30, 18:45, 19:00';
                 const mgrName = getManagerDisplayName(emp.managerCc || 'Ravi@d2backoffice.onmicrosoft.com');
+
+                const workingDaysCell = isEmp ? (emp.workingDays ? emp.workingDays.join(', ') : 'Mon-Sat') : '<span style="color:var(--text-muted);">N/A</span>';
+                const shiftCell = isEmp 
+                    ? `<span class="badge badge-india">⏰ ${emp.shiftName || 'Standard Day Shift'}</span><br><small style="color:var(--text-muted);">Reminders: ${rems}</small>`
+                    : '<span style="color:var(--text-muted); font-size:12px;">No Reminders</span>';
+                const mgrCell = isEmp ? `<strong title="${emp.managerCc || ''}">${mgrName}</strong>` : '<span style="color:var(--text-muted);">N/A</span>';
 
                 rows += `
                     <tr>
                         <td><strong>${emp.name}</strong></td>
                         <td><a href="mailto:${emp.email}" style="color: #38bdf8;">${emp.email}</a></td>
+                        <td>${roleBadge}</td>
                         <td><span class="badge badge-team">${emp.teamName || 'Infra Team'}</span></td>
                         <td><span class="badge ${badgeClass}">${emp.location}</span> (${emp.timezone})</td>
-                        <td>${emp.workingDays ? emp.workingDays.join(', ') : 'Mon-Sat'}</td>
-                        <td><span class="badge badge-india">⏰ ${emp.shiftName || 'Standard Day Shift'}</span><br><small style="color:var(--text-muted);">Reminders: ${rems}</small></td>
-                        <td><strong title="${emp.managerCc || ''}">${mgrName}</strong></td>
+                        <td>${workingDaysCell}</td>
+                        <td>${shiftCell}</td>
+                        <td>${mgrCell}</td>
                         <td>
                             <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="editEmployee('${emp.id}')"><i class="fa-solid fa-pen"></i></button>
                             <button class="btn btn-danger" style="padding:6px 12px; font-size:12px;" onclick="deleteEmployee('${emp.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -379,8 +405,9 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Employee</th>
+                                <th>Name</th>
                                 <th>Email</th>
+                                <th>Role</th>
                                 <th>Team</th>
                                 <th>Location & Time Zone</th>
                                 <th>Working Days</th>
@@ -408,17 +435,31 @@
                     let badgeClass = 'badge-india';
                     if (emp.location.toLowerCase().includes('uae')) badgeClass = 'badge-uae';
                     if (emp.location.toLowerCase().includes('saudi')) badgeClass = 'badge-saudi';
+                    
+                    const roleStr = (emp.role || 'employee').toLowerCase();
+                    let roleBadge = '<span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3);">👤 Employee</span>';
+                    if (roleStr === 'admin') roleBadge = '<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3);">🛡️ Admin</span>';
+                    if (roleStr === 'manager') roleBadge = '<span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.3);">👔 Manager</span>';
+
+                    const isEmp = roleStr === 'employee';
                     const rems = emp.reminders ? emp.reminders.join(', ') : '18:30, 18:45, 19:00';
                     const mgrName = getManagerDisplayName(emp.managerCc || 'Ravi@d2backoffice.onmicrosoft.com');
+
+                    const workingDaysCell = isEmp ? (emp.workingDays ? emp.workingDays.join(', ') : 'Mon-Sat') : '<span style="color:var(--text-muted);">N/A</span>';
+                    const shiftCell = isEmp 
+                        ? `<span class="badge badge-india">⏰ ${emp.shiftName || 'Standard Day Shift'}</span><br><small style="color:var(--text-muted);">Reminders: ${rems}</small>`
+                        : '<span style="color:var(--text-muted); font-size:12px;">No Reminders</span>';
+                    const mgrCell = isEmp ? `<strong title="${emp.managerCc || ''}">${mgrName}</strong>` : '<span style="color:var(--text-muted);">N/A</span>';
 
                     teamRows += `
                         <tr>
                             <td><strong>${emp.name}</strong></td>
                             <td><a href="mailto:${emp.email}" style="color: #38bdf8;">${emp.email}</a></td>
+                            <td>${roleBadge}</td>
                             <td><span class="badge ${badgeClass}">${emp.location}</span> (${emp.timezone})</td>
-                            <td>${emp.workingDays ? emp.workingDays.join(', ') : 'Mon-Sat'}</td>
-                            <td><span class="badge badge-india">⏰ ${emp.shiftName || 'Standard Day Shift'}</span><br><small style="color:var(--text-muted);">Reminders: ${rems}</small></td>
-                            <td><strong title="${emp.managerCc || ''}">${mgrName}</strong></td>
+                            <td>${workingDaysCell}</td>
+                            <td>${shiftCell}</td>
+                            <td>${mgrCell}</td>
                             <td>
                                 <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="editEmployee('${emp.id}')"><i class="fa-solid fa-pen"></i></button>
                                 <button class="btn btn-danger" style="padding:6px 12px; font-size:12px;" onclick="deleteEmployee('${emp.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -436,8 +477,9 @@
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Employee</th>
+                                        <th>Name</th>
                                         <th>Email</th>
+                                        <th>Role</th>
                                         <th>Location & Time Zone</th>
                                         <th>Working Days</th>
                                         <th>Shift & Reminders</th>
@@ -455,10 +497,20 @@
         }
     }
 
+    function onUserRoleChange() {
+        const role = document.getElementById('emp-role-select').value;
+        const shiftBox = document.getElementById('employee-shift-categories');
+        if (shiftBox) {
+            shiftBox.style.display = (role === 'manager' || role === 'admin') ? 'none' : 'block';
+        }
+    }
+
     function openAddModal() {
-        document.getElementById('modal-title').innerText = "Add New Employee";
+        document.getElementById('modal-title').innerText = "Add New Member";
         document.getElementById('employee-form').reset();
         document.getElementById('emp-id').value = '';
+        document.getElementById('emp-role-select').value = 'employee';
+        onUserRoleChange();
         if (locationsData.length > 0) {
             document.getElementById('emp-location-select').value = locationsData[0].id;
             onLocationSelectChange();
@@ -471,10 +523,13 @@
         const emp = employeesData.find(e => e.id === id);
         if (!emp) return;
 
-        document.getElementById('modal-title').innerText = "Edit Employee";
+        document.getElementById('modal-title').innerText = "Edit Member Record";
         document.getElementById('emp-id').value = emp.id;
         document.getElementById('emp-name').value = emp.name;
         document.getElementById('emp-email').value = emp.email;
+        document.getElementById('emp-role-select').value = emp.role || 'employee';
+        onUserRoleChange();
+
         document.getElementById('emp-timezone').value = emp.timezone;
         document.getElementById('emp-sheetname').value = emp.sheetName || 'Technical Infra Team-Aug-2026';
 
@@ -508,6 +563,7 @@
 
     async function handleEmployeeSubmit(e) {
         e.preventDefault();
+        const role = document.getElementById('emp-role-select').value;
         const selectedDays = Array.from(document.querySelectorAll('input[name="chk-day"]:checked')).map(c => c.value);
         const teamId = document.getElementById('emp-team-select').value;
         const team = teamsData.find(t => t.id === teamId);
@@ -520,17 +576,18 @@
             id: document.getElementById('emp-id').value,
             name: document.getElementById('emp-name').value,
             email: document.getElementById('emp-email').value,
+            role: role,
             location: loc ? loc.country : 'India',
             locationId: locId,
             timezone: loc ? loc.timezoneName : 'India Standard Time',
-            workingDays: selectedDays,
-            shiftId: shiftId,
-            shiftName: shift ? shift.name : 'Standard Day Shift',
-            reminders: shift ? [shift.reminder1, shift.reminder2, shift.finalCall] : ["18:30", "18:45", "19:00"],
+            workingDays: (role === 'manager' || role === 'admin') ? [] : selectedDays,
+            shiftId: (role === 'manager' || role === 'admin') ? '' : shiftId,
+            shiftName: (role === 'manager' || role === 'admin') ? 'N/A (No Reminders)' : (shift ? shift.name : 'Standard Day Shift'),
+            reminders: (role === 'manager' || role === 'admin') ? [] : (shift ? [shift.reminder1, shift.reminder2, shift.finalCall] : ["18:30", "18:45", "19:00"]),
             teamId: teamId,
             teamName: team ? team.name : 'Infra Team',
             sheetName: document.getElementById('emp-sheetname').value,
-            managerCc: document.getElementById('emp-manager-select').value
+            managerCc: (role === 'manager' || role === 'admin') ? '' : document.getElementById('emp-manager-select').value
         };
 
         await fetch('/api/employees', {
@@ -540,7 +597,7 @@
         });
 
         closeModal('employee-modal');
-        showToast('Employee Saved to SQLite DB');
+        showToast('Member Saved to SQLite DB');
         fetchEmployees();
     }
 

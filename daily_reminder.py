@@ -191,9 +191,20 @@ def download_sharepoint_file(url: str, dest_path: str) -> bool:
 
 def check_task_sheet_local(file_path: str, sheet_name: str, target_date: str, employee_name: str) -> bool:
     """
-    Checks local Excel sheet to determine if employee has filled their task details for target_date.
-    Returns True if filled, False if blank/missing.
+    Checks local Excel sheet & SQLite Web Task Submissions database to determine if employee has filled their task details.
+    Returns True if filled (reminder suppressed), False if blank/missing.
     """
+    # 1. First check Web Form SQLite Task Submissions
+    try:
+        import database
+        today_iso = datetime.datetime.now().strftime("%Y-%m-%d")
+        if database.is_employee_task_filled(employee_name, target_date) or database.is_employee_task_filled(employee_name, today_iso):
+            print(f"[SQLITE TASK SUBMISSION] Employee '{employee_name}' has submitted daily task log via Web Form for '{target_date}'. Suppressing reminder email.")
+            return True
+    except Exception as e:
+        print(f"[WARN] Could not check SQLite task_logs: {e}")
+
+    # 2. Check local Excel file if openpyxl available
     if not openpyxl:
         print("[WARN] openpyxl not installed. Assuming cell is blank for testing.")
         return False

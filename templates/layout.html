@@ -465,42 +465,49 @@
             </div>
         </div>
 
-        <ul class="nav-list">
-            <li class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+        <ul class="nav-list" id="sidebar-nav-list">
+            <li class="nav-item nav-admin nav-manager nav-employee {% if active_page == 'task_entry' %}active{% endif %}">
+                <a href="/task-entry"><i class="fa-solid fa-list-check"></i> Daily Task Submission</a>
+            </li>
+            <li class="nav-item nav-admin nav-manager {% if active_page == 'dashboard' %}active{% endif %}">
                 <a href="/dashboard"><i class="fa-solid fa-chart-pie"></i> Realtime Dashboard</a>
             </li>
-            <li class="nav-item {% if active_page == 'employees' %}active{% endif %}">
+            <li class="nav-item nav-admin nav-manager {% if active_page == 'employees' %}active{% endif %}">
                 <a href="/employees"><i class="fa-solid fa-user-gear"></i> Employee Roster</a>
             </li>
-            <li class="nav-item {% if active_page == 'shifts' %}active{% endif %}">
+            <li class="nav-item nav-admin nav-manager {% if active_page == 'shifts' %}active{% endif %}">
                 <a href="/shifts"><i class="fa-solid fa-clock"></i> Shifts Creation</a>
             </li>
-            <li class="nav-item {% if active_page == 'teams' %}active{% endif %}">
+            <li class="nav-item nav-admin nav-manager {% if active_page == 'teams' %}active{% endif %}">
                 <a href="/teams"><i class="fa-solid fa-sitemap"></i> Teams Management</a>
             </li>
-            <li class="nav-item {% if active_page == 'locations' %}active{% endif %}">
+            <li class="nav-item nav-admin {% if active_page == 'locations' %}active{% endif %}">
                 <a href="/locations"><i class="fa-solid fa-earth-americas"></i> Locations Management</a>
             </li>
-            <li class="nav-item {% if active_page == 'managers' %}active{% endif %}">
+            <li class="nav-item nav-admin {% if active_page == 'managers' %}active{% endif %}">
                 <a href="/managers"><i class="fa-solid fa-user-tie"></i> Managers Directory</a>
             </li>
-            <li class="nav-item {% if active_page == 'templates' %}active{% endif %}">
+            <li class="nav-item nav-admin {% if active_page == 'templates' %}active{% endif %}">
                 <a href="/templates"><i class="fa-solid fa-envelope-open-text"></i> Email Templates</a>
             </li>
-            <li class="nav-item {% if active_page == 'quotes' %}active{% endif %}">
+            <li class="nav-item nav-admin {% if active_page == 'quotes' %}active{% endif %}">
                 <a href="/quotes"><i class="fa-solid fa-lightbulb"></i> Thought of the Day</a>
             </li>
-            <li class="nav-item {% if active_page == 'settings' %}active{% endif %}">
+            <li class="nav-item nav-admin nav-manager {% if active_page == 'settings' %}active{% endif %}">
                 <a href="/settings"><i class="fa-solid fa-sliders"></i> System SMTP Config</a>
             </li>
-            <li class="nav-item {% if active_page == 'logs' %}active{% endif %}">
+            <li class="nav-item nav-admin {% if active_page == 'logs' %}active{% endif %}">
                 <a href="/logs"><i class="fa-solid fa-terminal"></i> Daemon Logs & Audit</a>
             </li>
         </ul>
 
         <div class="sidebar-footer">
-            <div>SQLite Engine v2.0 • Containerized</div>
-            <div style="color: var(--accent-emerald); margin-top: 4px;">● System Online</div>
+            <div id="user-profile-badge" style="margin-bottom: 8px; text-align: left; padding: 6px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--card-border);">
+                <!-- User Info Populated by JS -->
+            </div>
+            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px; width: 100%;" onclick="handleLogout()">
+                <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+            </button>
         </div>
     </aside>
 
@@ -563,6 +570,55 @@
             t.style.display = 'block';
             setTimeout(() => { t.style.display = 'none'; }, 3000);
         }
+
+        async function fetchCurrentUser() {
+            try {
+                const res = await fetch('/api/me');
+                const data = await res.json();
+                if (data.success && data.user) {
+                    window.currentUser = data.user;
+                    const u = data.user;
+                    const badge = document.getElementById('user-profile-badge');
+                    
+                    let roleIcon = '👤';
+                    let roleLabel = 'Employee';
+                    let roleColor = '#34d399';
+                    if (u.role === 'admin') { roleIcon = '🛡️'; roleLabel = 'Admin'; roleColor = '#f43f5e'; }
+                    if (u.role === 'manager') { roleIcon = '👔'; roleLabel = 'Manager'; roleColor = '#c084fc'; }
+
+                    if (badge) {
+                        badge.innerHTML = `
+                            <div style="font-size:12px; font-weight:700; color:#f8fafc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${u.name}</div>
+                            <div style="font-size:11px; color:${roleColor}; margin-top:2px;">${roleIcon} ${roleLabel}</div>
+                        `;
+                    }
+
+                    // Role-based sidebar filtering
+                    if (u.role === 'employee') {
+                        document.querySelectorAll('.nav-item').forEach(el => {
+                            if (!el.classList.contains('nav-employee')) {
+                                el.style.display = 'none';
+                            }
+                        });
+                    } else if (u.role === 'manager') {
+                        document.querySelectorAll('.nav-item').forEach(el => {
+                            if (!el.classList.contains('nav-manager')) {
+                                el.style.display = 'none';
+                            }
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("Auth check failed:", err);
+            }
+        }
+
+        async function handleLogout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+        fetchCurrentUser();
     </script>
     {% block scripts %}{% endblock %}
 </body>
