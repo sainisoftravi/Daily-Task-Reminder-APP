@@ -57,8 +57,8 @@
 <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 28px;">
     
     <!-- User-Wise Email Delivery Chart -->
-    <div class="glass-panel" style="padding: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+    <div class="glass-panel" style="padding: 24px; position: relative; z-index: 1000; overflow: visible;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; position: relative; z-index: 1000;">
             <div>
                 <div style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
                     <i class="fa-solid fa-chart-column" style="color: var(--accent-cyan);"></i>
@@ -66,7 +66,51 @@
                 </div>
                 <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Number of daily reminder emails dispatched per staff member</div>
             </div>
-            <button class="btn btn-secondary" style="font-size: 12px; padding: 4px 10px;" onclick="loadChartsData()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+
+            <!-- Calendar & Preset Filter Toolbar -->
+            <div style="display: flex; gap: 6px; align-items: center; position: relative;">
+                <!-- Calendar Popover Trigger Button -->
+                <button class="btn btn-primary" id="dash-calendar-trigger-btn" onclick="toggleDashCalendarPopover()" style="font-size: 12px; padding: 5px 12px; display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #6366f1, #0284c7); border: 1px solid rgba(255,255,255,0.15);">
+                    <i class="fa-solid fa-calendar-days" style="font-size: 13px;"></i>
+                    <span id="dash-selected-range-label">📅 Select Range</span>
+                    <i class="fa-solid fa-chevron-down" style="font-size: 9px; opacity: 0.8;"></i>
+                </button>
+
+                <!-- Preset Filter Pills -->
+                <button class="btn btn-secondary chart-filter-btn active" id="btn-filter-all" style="font-size: 11px; padding: 4px 10px;" onclick="setChartFilter('all')">All</button>
+                <button class="btn btn-secondary chart-filter-btn" id="btn-filter-day" style="font-size: 11px; padding: 4px 10px;" onclick="setChartFilter('day')">Day</button>
+                <button class="btn btn-secondary chart-filter-btn" id="btn-filter-week" style="font-size: 11px; padding: 4px 10px;" onclick="setChartFilter('week')">Week</button>
+                <button class="btn btn-secondary chart-filter-btn" id="btn-filter-month" style="font-size: 11px; padding: 4px 10px;" onclick="setChartFilter('month')">Month</button>
+                
+                <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="loadChartsData(currentChartPeriod, currentDashStartDate, currentDashEndDate)" title="Refresh Chart"><i class="fa-solid fa-arrows-rotate"></i></button>
+
+                <!-- Popover Dropdown for Custom Calendar Range -->
+                <div id="dash-calendar-popover" style="display: none; position: absolute; top: 38px; right: 0; z-index: 99999; background: #0f172a; border: 1px solid #6366f1; border-radius: var(--radius-lg); padding: 16px; width: 290px; box-shadow: 0 20px 50px rgba(0,0,0,0.95); backdrop-filter: blur(20px);">
+                    <div style="font-size: 13px; font-weight: 600; color: #f8fafc; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
+                        <span><i class="fa-solid fa-calendar" style="color:#38bdf8;"></i> Select Calendar Date Range</span>
+                        <button onclick="toggleDashCalendarPopover()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:13px;"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+
+                    <div style="margin-bottom: 10px;">
+                        <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">From Date</label>
+                        <input type="date" id="dash-start-date" class="form-input" style="width: 100%; padding: 6px 10px; font-size: 12px;" onchange="updateDashRangeLabel()">
+                    </div>
+
+                    <div style="margin-bottom: 14px;">
+                        <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">To Date</label>
+                        <input type="date" id="dash-end-date" class="form-input" style="width: 100%; padding: 6px 10px; font-size: 12px;" onchange="updateDashRangeLabel()">
+                    </div>
+
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-primary" style="font-size: 11px; flex: 1; justify-content: center; padding: 6px;" onclick="applyDashRangeFilter()">
+                            <i class="fa-solid fa-filter"></i> Apply Filter
+                        </button>
+                        <button class="btn btn-secondary" style="font-size: 11px; flex: 1; justify-content: center; padding: 6px;" onclick="resetDashRangeFilter()">
+                            <i class="fa-solid fa-rotate-left"></i> Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
         <div style="height: 280px; position: relative;">
             <canvas id="userChart"></canvas>
@@ -177,10 +221,83 @@
 <script>
     let userChartObj = null;
     let timeChartObj = null;
+    let currentChartPeriod = 'all';
+    let currentDashStartDate = '';
+    let currentDashEndDate = '';
 
-    async function loadChartsData() {
+    function toggleDashCalendarPopover() {
+        const pop = document.getElementById('dash-calendar-popover');
+        pop.style.display = (pop.style.display === 'none' || !pop.style.display) ? 'block' : 'none';
+    }
+
+    document.addEventListener('click', function(e) {
+        const popover = document.getElementById('dash-calendar-popover');
+        const trigger = document.getElementById('dash-calendar-trigger-btn');
+        if (popover && trigger && !popover.contains(e.target) && !trigger.contains(e.target)) {
+            popover.style.display = 'none';
+        }
+    });
+
+    function updateDashRangeLabel() {
+        const start = document.getElementById('dash-start-date').value;
+        const end = document.getElementById('dash-end-date').value;
+        const label = document.getElementById('dash-selected-range-label');
+        
+        if (start && end) {
+            label.innerText = `${start} → ${end}`;
+        } else if (start) {
+            label.innerText = `From: ${start}`;
+        } else if (end) {
+            label.innerText = `Up to: ${end}`;
+        } else {
+            label.innerText = `📅 Select Range`;
+        }
+    }
+
+    function setChartFilter(period) {
+        currentChartPeriod = period;
+        currentDashStartDate = '';
+        currentDashEndDate = '';
+        document.getElementById('dash-start-date').value = '';
+        document.getElementById('dash-end-date').value = '';
+        updateDashRangeLabel();
+
+        // Update active class on pills
+        document.querySelectorAll('.chart-filter-btn').forEach(b => b.classList.remove('active'));
+        const activeBtn = document.getElementById(`btn-filter-${period}`);
+        if (activeBtn) activeBtn.classList.add('active');
+
+        loadChartsData(period);
+        showToast(`Chart filtered by: ${period.toUpperCase()}`);
+    }
+
+    function applyDashRangeFilter() {
+        currentDashStartDate = document.getElementById('dash-start-date').value;
+        currentDashEndDate = document.getElementById('dash-end-date').value;
+        currentChartPeriod = 'range';
+
+        document.querySelectorAll('.chart-filter-btn').forEach(b => b.classList.remove('active'));
+        toggleDashCalendarPopover();
+
+        loadChartsData('range', currentDashStartDate, currentDashEndDate);
+        showToast("Applied calendar date range to charts.");
+    }
+
+    function resetDashRangeFilter() {
+        document.getElementById('dash-start-date').value = '';
+        document.getElementById('dash-end-date').value = '';
+        updateDashRangeLabel();
+        toggleDashCalendarPopover();
+        setChartFilter('all');
+    }
+
+    async function loadChartsData(period = 'all', startDate = '', endDate = '') {
         try {
-            const res = await fetch('/api/chart-data');
+            let url = `/api/chart-data?period=${period}`;
+            if (startDate) url += `&start_date=${startDate}`;
+            if (endDate) url += `&end_date=${endDate}`;
+
+            const res = await fetch(url);
             const data = await res.json();
             if (!data.success) return;
 

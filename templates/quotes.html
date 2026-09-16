@@ -65,7 +65,11 @@
 
             <div class="form-group">
                 <label class="form-label">Category / Theme</label>
-                <input type="text" id="quote-category" class="form-control" placeholder="e.g. Focus & Progress, Excellence, Perseverance" required>
+                <select id="quote-category" class="form-control" required style="background: rgba(15, 23, 42, 0.9); color: #f8fafc; border: 1px solid var(--card-border);">
+                    <option value="Focus, Progress & Consistency">Focus, Progress & Consistency</option>
+                    <option value="Teamwork, Impact & Reliability">Teamwork, Impact & Reliability</option>
+                    <option value="Recharge, Balance & Perspective">Recharge, Balance & Perspective</option>
+                </select>
             </div>
 
             <div class="form-group">
@@ -94,10 +98,32 @@
             const data = await res.json();
             if (data.success) {
                 allQuotes = data.quotes;
+                populateCategoryDropdown();
                 renderQuotesTable(allQuotes);
             }
         } catch (err) {
             console.error("Error fetching quotes:", err);
+        }
+    }
+
+    function populateCategoryDropdown() {
+        const select = document.getElementById('quote-category');
+        const defaultCategories = [
+            "Focus, Progress & Consistency",
+            "Teamwork, Impact & Reliability",
+            "Recharge, Balance & Perspective"
+        ];
+        
+        const dbCategories = allQuotes.map(q => q.category).filter(Boolean);
+        const uniqueCategories = Array.from(new Set([...defaultCategories, ...dbCategories]));
+        
+        const currentVal = select.value;
+        select.innerHTML = uniqueCategories.map(cat => 
+            `<option value="${cat}">${cat}</option>`
+        ).join('');
+
+        if (currentVal && uniqueCategories.includes(currentVal)) {
+            select.value = currentVal;
         }
     }
 
@@ -112,7 +138,7 @@
             <tr>
                 <td>
                     <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3);">
-                        <i class="fa-solid fa-tag" style="margin-right: 4px;"></i>${q.category || 'General'}
+                        <i class="fa-solid fa-tag" style="margin-right: 4px;"></i>${q.category || 'Focus, Progress & Consistency'}
                     </span>
                 </td>
                 <td style="font-weight: 600; color: #f8fafc; font-style: italic;">
@@ -144,9 +170,10 @@
     }
 
     function openAddQuoteModal() {
+        populateCategoryDropdown();
         document.getElementById('modal-title').innerText = "Add New Thought of the Day";
         document.getElementById('quote-id').value = "";
-        document.getElementById('quote-category').value = "Focus & Progress";
+        document.getElementById('quote-category').value = "Focus, Progress & Consistency";
         document.getElementById('quote-text').value = "";
         document.getElementById('quote-modal').classList.add('active');
     }
@@ -154,9 +181,10 @@
     function editQuote(id) {
         const q = allQuotes.find(item => item.id === id);
         if (!q) return;
+        populateCategoryDropdown();
         document.getElementById('modal-title').innerText = "Edit Thought of the Day";
         document.getElementById('quote-id').value = q.id;
-        document.getElementById('quote-category').value = q.category || "General";
+        document.getElementById('quote-category').value = q.category || "Focus, Progress & Consistency";
         document.getElementById('quote-text').value = q.quote || "";
         document.getElementById('quote-modal').classList.add('active');
     }

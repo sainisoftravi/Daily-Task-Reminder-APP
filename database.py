@@ -13,6 +13,7 @@ import json
 import sqlite3
 import datetime
 from typing import List, Dict, Any, Optional
+from cryptography.fernet import Fernet
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 DB_FILE = os.path.join(DATA_DIR, "app_database.db")
@@ -613,6 +614,155 @@ def save_system_settings(config_dict: Dict[str, Any]) -> bool:
     conn.commit()
     conn.close()
     return True
+
+# --- Multi-SMTP Accounts Encryption & Management Functions ---
+
+SECRET_KEY_FILE = os.path.join(DATA_DIR, "app_secret.key")
+
+def get_or_create_fernet_key() -> bytes:
+    if os.path.exists(SECRET_KEY_FILE):
+        try:
+            with open(SECRET_KEY_FILE, "rb") as f:
+                key = f.read().strip()
+                if key:
+                    return key
+        except Exception as e:
+            print(f"[KEY READ ERROR] {e}")
+    
+    key = Fernet.generate_key()
+    try:
+        with open(SECRET_KEY_FILE, "wb") as f:
+            f.write(key)
+    except Exception as e:
+        print(f"[KEY WRITE ERROR] {e}")
+    return key
+
+def encrypt_password(plaintext: str) -> str:
+    if not plaintext or plaintext.startswith("gAAAAA") or plaintext == "••••••••••••":
+        return plaintext
+    try:
+        f = Fernet(get_or_create_fernet_key())
+        return f.encrypt(plaintext.encode('utf-8')).decode('utf-8')
+    except Exception as e:
+        print(f"[ENCRYPT ERROR] {e}")
+        return plaintext
+
+def decrypt_password(ciphertext: str) -> str:
+    if not ciphertext or not ciphertext.startswith("gAAAAA"):
+        return ciphertext
+    try:
+        f = Fernet(get_or_create_fernet_key())
+        return f.decrypt(ciphertext.encode('utf-8')).decode('utf-8')
+    except Exception as e:
+        print(f"[DECRYPT ERROR] {e}")
+        return ciphertext
+
+def get_all_smtp_accounts(mask_passwords: bool = False) -> List[Dict[str, Any]]:
+    config = get_system_settings()
+    smtp_accounts = config.get("smtp_accounts", [])
+    
+    if not smtp_accounts:
+        user_creds = config.get("user_credentials", {})
+        smtp_cfg = config.get("smtp", {})
+        raw_pwd = user_creds.get("password") or smtp_cfg.get("password") or "1)T1h6Xzyo{kn"
+        enc_pwd = encrypt_password(raw_pwd)
+        default_acc = {
+            "id": "smtp_default",
+            "name": "Default Support System SMTP",
+            "manager_email": "default",
+            "server": smtp_cfg.get("server") or "mail.digital-twin-solutions.com",
+            "port": int(smtp_cfg.get("port", 465)),
+            "email": user_creds.get("email") or "support@digital-twin-solutions.com",
+            "password": enc_pwd,
+            "is_default": True
+        }
+        smtp_accounts = [default_acc]
+        config["smtp_accounts"] = smtp_accounts
+        save_system_settings(config)
+
+    result = []
+    for a in smtp_accounts:
+        copy_a = dict(a)
+        if mask_passwords:
+            copy_a["password"] = "••••••••••••"
+        result.append(copy_a)
+
+    return result
+
+def save_smtp_account(acc_data: Dict[str, Any]) -> bool:
+    config = get_system_settings()
+    smtp_accounts = config.get("smtp_accounts") or get_all_smtp_accounts(mask_passwords=False)
+    
+    acc_id = acc_data.get("id") or f"smtp_{int(datetime.datetime.now().timestamp() * 1000)}"
+    acc_data["id"] = acc_id
+    
+    existing_acc = next((a for a in smtp_accounts if a.get("id") == acc_id), None)
+    
+    pwd_input = acc_data.get("password", "")
+    if pwd_input == "••••••••••••" or not pwd_input:
+        if existing_acc and existing_acc.get("password"):
+            acc_data["password"] = existing_acc["password"]
+    else:
+        acc_data["password"] = encrypt_password(pwd_input)
+
+    if acc_data.get("is_default"):
+        for a in smtp_accounts:
+            a["is_default"] = False
+
+    existing_index = next((i for i, a in enumerate(smtp_accounts) if a.get("id") == acc_id), -1)
+    if existing_index >= 0:
+        smtp_accounts[existing_index] = acc_data
+    else:
+        smtp_accounts.append(acc_data)
+
+    config["smtp_accounts"] = smtp_accounts
+    
+    if acc_data.get("is_default"):
+        config["smtp"] = {
+            "enabled": True,
+            "server": acc_data.get("server"),
+            "port": int(acc_data.get("port", 465))
+        }
+        config["user_credentials"] = {
+            "email": acc_data.get("email"),
+            "password": acc_data.get("password")
+        }
+
+    return save_system_settings(config)
+
+def delete_smtp_account(acc_id: str) -> bool:
+    config = get_system_settings()
+    smtp_accounts = config.get("smtp_accounts") or get_all_smtp_accounts(mask_passwords=False)
+    
+    smtp_accounts = [a for a in smtp_accounts if a.get("id") != acc_id]
+    config["smtp_accounts"] = smtp_accounts
+    return save_system_settings(config)
+
+def get_smtp_account_for_manager(manager_email: str) -> Dict[str, Any]:
+    accounts = get_all_smtp_accounts(mask_passwords=False)
+    matched = None
+
+    if manager_email:
+        clean_mgr = manager_email.strip().lower()
+        for acc in accounts:
+            acc_mgr = (acc.get("manager_email") or "").strip().lower()
+            if acc_mgr and acc_mgr != "default" and (acc_mgr in clean_mgr or clean_mgr in acc_mgr):
+                matched = dict(acc)
+                break
+                
+    if not matched:
+        for acc in accounts:
+            if acc.get("is_default"):
+                matched = dict(acc)
+                break
+            
+    if not matched and accounts:
+        matched = dict(accounts[0])
+
+    if matched and matched.get("password"):
+        matched["password"] = decrypt_password(matched["password"])
+
+    return matched or {}
 
 # Daemon Logs
 def log_to_db(msg: str, level: str = "INFO"):

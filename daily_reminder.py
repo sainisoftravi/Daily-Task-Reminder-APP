@@ -501,17 +501,29 @@ def load_config(config_path: str) -> dict:
     }
 
 def send_email(to_email: str, cc_email: str, subject: str, body: str, dry_run: bool = False, config: Optional[dict] = None) -> bool:
-    """Handles sending email notifications via SSL 465 SMTP using user credentials."""
-    cfg = config or load_config("config.json")
-    user_creds = cfg.get("user_credentials", {})
-    smtp_cfg = cfg.get("smtp", {})
+    """Handles sending email notifications via SSL 465 / TLS 587 SMTP using manager or default credentials."""
+    import database
 
-    sender_email = user_creds.get("email") or smtp_cfg.get("username") or "support@digital-twin-solutions.com"
-    sender_password = user_creds.get("password") or smtp_cfg.get("password") or "1)T1h6Xzyo{kn"
-    smtp_server = smtp_cfg.get("server") or "mail.digital-twin-solutions.com"
-    smtp_port = int(smtp_cfg.get("port", 465))
+    # Look up manager-specific SMTP account by CC email (manager's email)
+    manager_smtp = database.get_smtp_account_for_manager(cc_email)
+    
+    if manager_smtp and manager_smtp.get("email") and manager_smtp.get("server"):
+        sender_email = manager_smtp.get("email")
+        sender_password = manager_smtp.get("password")
+        smtp_server = manager_smtp.get("server")
+        smtp_port = int(manager_smtp.get("port", 465))
+        smtp_account_name = manager_smtp.get("name") or sender_email
+    else:
+        cfg = config or database.get_system_settings()
+        user_creds = cfg.get("user_credentials", {})
+        smtp_cfg = cfg.get("smtp", {})
+        sender_email = user_creds.get("email") or smtp_cfg.get("username") or "support@digital-twin-solutions.com"
+        sender_password = user_creds.get("password") or smtp_cfg.get("password") or "1)T1h6Xzyo{kn"
+        smtp_server = smtp_cfg.get("server") or "mail.digital-twin-solutions.com"
+        smtp_port = int(smtp_cfg.get("port", 465))
+        smtp_account_name = "Default System SMTP"
 
-    print(f"\n--- [EMAIL DISPATCH via {smtp_server}:{smtp_port}] ---")
+    print(f"\n--- [EMAIL DISPATCH via {smtp_account_name} ({smtp_server}:{smtp_port})] ---")
     print(f"FROM:    {sender_email}")
     print(f"TO:      {to_email}")
     print(f"CC:      {cc_email}")
