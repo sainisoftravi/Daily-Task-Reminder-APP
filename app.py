@@ -17,11 +17,12 @@ import datetime
 import threading
 import smtplib
 from typing import List, Dict, Any
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, Response
 
-# Import database module and reminder engine
+# Import database module, reminder engine, and report generator
 import database
 import daily_reminder
+import report_generator
 
 app = Flask(__name__, template_folder="templates")
 app.secret_key = os.environ.get("SECRET_KEY", "daily_task_reminder_system_secret_key_2026")
@@ -196,6 +197,132 @@ def delete_task_log_route(log_id):
     database.delete_task_log(log_id)
     log_event(f"Deleted Task Log ID: {log_id}")
     return jsonify({"success": True})
+
+@app.route("/api/export/task-report", methods=["GET"])
+def export_task_report():
+    fmt = (request.args.get("format") or "xlsx").lower()
+    team_id = request.args.get("team_id")
+    req_team_name = request.args.get("team_name")
+    period = request.args.get("period") or "month"
+    custom_start = request.args.get("start_date")
+    custom_end = request.args.get("end_date")
+    emp_name_filter = request.args.get("employee_name")
+
+    all_teams = database.get_all_teams()
+    all_employees = database.get_all_employees()
+
+    # Determine team name and filtered employees
+    team_name = "All Teams"
+    filtered_employees = all_employees
+
+    if req_team_name and req_team_name != "ALL":
+        team_name = req_team_name
+        filtered_employees = [e for e in all_employees if (e.get("teamName") or "").lower() == req_team_name.lower() or (e.get("teamId") or "").lower() == req_team_name.lower()]
+    elif team_id and team_id != "ALL":
+        target_team = next((t for t in all_teams if t.get("id") == team_id or t.get("name").lower() == team_id.lower()), None)
+        if target_team:
+            team_name = target_team.get("name")
+            filtered_employees = [e for e in all_employees if (e.get("teamId") == team_id or (e.get("teamName") or "").lower() == target_team.get("name").lower())]
+        else:
+            team_name = team_id
+            filtered_employees = [e for e in all_employees if (e.get("teamId") == team_id or (e.get("teamName") or "").lower() == team_id.lower())]
+
+    if emp_name_filter:
+        emp_match = next((e for e in all_employees if e.get("name", "").lower() == emp_name_filter.lower()), None)
+        if emp_match:
+            filtered_employees = [emp_match]
+            if emp_match.get("teamName") and (team_name == "All Teams" or not team_name):
+                team_name = emp_match.get("teamName")
+        else:
+            filtered_employees = [{"name": emp_name_filter, "location": "India"}]
+
+    if not filtered_employees:
+        filtered_employees = all_employees
+
+    # If all filtered employees belong to the same team, auto-set team_name
+    unique_teams = list(dict.fromkeys([e.get("teamName", "").strip() for e in filtered_employees if e.get("teamName")]))
+    if len(unique_teams) == 1 and (team_name == "All Teams" or not team_name):
+        team_name = unique_teams[0]
+
+    # Determine unique team locations
+    locs = list(dict.fromkeys([e.get("location", "Global").strip() for e in filtered_employees if e.get("location")]))
+    locations_str = ", ".join(locs) if locs else "Global"
+
+    # Date range calculations
+    now = datetime.datetime.now()
+    dates_list = []
+    period_label = ""
+
+    if custom_start and custom_end:
+        try:
+            d_start = datetime.datetime.strptime(custom_start, "%Y-%m-%d")
+            d_end = datetime.datetime.strptime(custom_end, "%Y-%m-%d")
+            curr = d_start
+            while curr <= d_end:
+                dates_list.append(curr.strftime("%Y-%m-%d"))
+                curr += datetime.timedelta(days=1)
+            period_label = f"{custom_start} to {custom_end}"
+        except Exception:
+            dates_list = [now.strftime("%Y-%m-%d")]
+            period_label = custom_start
+    elif period == "day":
+        today_str = now.strftime("%Y-%m-%d")
+        dates_list = [today_str]
+        period_label = now.strftime("%d %b %Y")
+    elif period == "week":
+        for i in range(6, -1, -1):
+            d = now - datetime.timedelta(days=i)
+            dates_list.append(d.strftime("%Y-%m-%d"))
+        period_label = f"Week of {dates_list[0]} - {dates_list[-1]}"
+    elif period == "year":
+        start_year = datetime.datetime(now.year, 1, 1)
+        curr = start_year
+        while curr <= now:
+            dates_list.append(curr.strftime("%Y-%m-%d"))
+            curr += datetime.timedelta(days=1)
+        period_label = now.strftime("Year %Y")
+    else: # month (default)
+        start_month = datetime.datetime(now.year, now.month, 1)
+        curr = start_month
+        while curr.month == now.month and curr <= now:
+            dates_list.append(curr.strftime("%Y-%m-%d"))
+            curr += datetime.timedelta(days=1)
+        period_label = now.strftime("%b %Y")
+
+    # Fetch task logs for the calculated date range
+    start_date = dates_list[0] if dates_list else None
+    end_date = dates_list[-1] if dates_list else None
+    logs = database.get_task_logs(start_date=start_date, end_date=end_date)
+
+    logs_map = {}
+    for l in logs:
+        d_str = l.get("date_str") or l.get("dateStr")
+        e_name = (l.get("employee_name") or l.get("employeeName") or "").strip().lower()
+        if d_str and e_name:
+            logs_map[(d_str, e_name)] = l.get("task_details", "")
+
+    # Extract logged-in user full name
+    user = session.get("user") or {}
+    downloaded_by = user.get("name") or user.get("email") or "System User"
+
+    # Generate output format
+    safe_team_name = team_name.replace(" ", "_")
+    safe_period_label = period_label.replace(" ", "_").replace(",", "")
+
+    if fmt == "pdf":
+        file_data = report_generator.generate_pdf_report(team_name, period_label, locations_str, dates_list, filtered_employees, logs_map, downloaded_by=downloaded_by)
+        filename = f"Task_Report_{safe_team_name}_{safe_period_label}.pdf"
+        mimetype = "application/pdf"
+    else:
+        file_data = report_generator.generate_xlsx_report(team_name, period_label, locations_str, dates_list, filtered_employees, logs_map, downloaded_by=downloaded_by)
+        filename = f"Task_Report_{safe_team_name}_{safe_period_label}.xlsx"
+        mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+    return Response(
+        file_data,
+        mimetype=mimetype,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 @app.route("/api/quotes", methods=["GET", "POST"])
 def manage_quotes():

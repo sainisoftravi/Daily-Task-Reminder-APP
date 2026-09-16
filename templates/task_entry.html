@@ -8,7 +8,7 @@
     <!-- Header & Mode Switcher Bar -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; border-bottom: 1px solid var(--card-border); padding-bottom: 20px;">
         <div>
-            <div style="font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+            <div style="font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: var(--text-main);">
                 Daily Task Submission & Monitoring Portal
             </div>
             <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
@@ -17,7 +17,7 @@
         </div>
 
         <!-- Mode Switcher Tabs -->
-        <div style="display: flex; background: rgba(15, 23, 42, 0.8); padding: 4px; border-radius: var(--radius-md); border: 1px solid var(--card-border);">
+        <div style="display: flex; background: var(--btn-sec-bg); padding: 4px; border-radius: var(--radius-md); border: 1px solid var(--card-border);">
             <button class="btn" id="mode-emp-btn" style="padding: 8px 18px; font-size: 13px; border-radius: 8px; font-weight: 600;" onclick="switchMode('employee')">
                 <i class="fa-solid fa-user-check"></i> Employee Portal
             </button>
@@ -38,17 +38,25 @@
                 <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; flex: 1; min-width: 240px;">
                     <span style="font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Select Profile:</span>
                     <div style="min-width: 200px; flex: 1; max-width: 320px;">
-                        <select id="emp-profile-select" class="form-control" style="font-weight: 600; color: #38bdf8;" onchange="handleEmpProfileChange()"></select>
+                        <select id="emp-profile-select" class="form-control" style="font-weight: 600; color: var(--link-color);" onchange="handleEmpProfileChange()"></select>
                     </div>
                     <div id="emp-profile-badge" style="font-size: 12px; color: var(--text-muted);">
                         <!-- Location & Team Info -->
                     </div>
                 </div>
 
-                <!-- Primary Submit Action -->
-                <button class="btn btn-primary" onclick="openSubmitModalForActiveEmp()" style="padding: 10px 20px;">
-                    <i class="fa-solid fa-pen-to-square"></i> Submit Today's Task Log
-                </button>
+                <!-- Primary Submit & Export Actions -->
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                    <button class="btn btn-secondary" onclick="downloadReport('xlsx')" style="padding: 9px 14px; font-size: 13px; color: #10b981; border-color: rgba(16, 185, 129, 0.3);" title="Download Excel (.xlsx) Task Report">
+                        <i class="fa-solid fa-file-excel"></i> Export XLSX
+                    </button>
+                    <button class="btn btn-secondary" onclick="downloadReport('pdf')" style="padding: 9px 14px; font-size: 13px; color: #f43f5e; border-color: rgba(244, 63, 94, 0.3);" title="Download PDF Task Report">
+                        <i class="fa-solid fa-file-pdf"></i> Export PDF
+                    </button>
+                    <button class="btn btn-primary" onclick="openSubmitModalForActiveEmp()" style="padding: 9px 18px; font-size: 13px;">
+                        <i class="fa-solid fa-pen-to-square"></i> Submit Today's Task Log
+                    </button>
+                </div>
             </div>
 
             <!-- Time Filter Bar: Day, Week, Month, Year, Custom Calendar -->
@@ -164,6 +172,14 @@
                     <button class="btn btn-secondary" id="matrix-toggle-btn" style="padding: 6px 14px; font-size: 12px;" onclick="toggleExcelMatrixView()">
                         <i class="fa-solid fa-table-cells"></i> Spreadsheet Matrix
                     </button>
+
+                    <button class="btn btn-secondary" onclick="downloadReport('xlsx')" style="padding: 6px 12px; font-size: 12px; color: #10b981; border-color: rgba(16, 185, 129, 0.3);" title="Download Task Report (.xlsx)">
+                        <i class="fa-solid fa-file-excel"></i> Export XLSX
+                    </button>
+
+                    <button class="btn btn-secondary" onclick="downloadReport('pdf')" style="padding: 6px 12px; font-size: 12px; color: #f43f5e; border-color: rgba(244, 63, 94, 0.3);" title="Download Task Report (.pdf)">
+                        <i class="fa-solid fa-file-pdf"></i> Export PDF
+                    </button>
                 </div>
             </div>
         </div>
@@ -213,20 +229,20 @@
 
                 <div class="form-group">
                     <label class="form-label">Task Log Date</label>
-                    <input type="date" id="task-date-input" class="form-control" required style="background-color: #0f172a;">
+                    <input type="date" id="task-date-input" class="form-control" required style="background-color: var(--form-control-bg); color: var(--form-control-text);">
                 </div>
             </div>
 
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Assigned Team</label>
-                    <input type="text" id="task-team-name" class="form-control" readonly style="background-color: #0f172a; color: #c084fc; font-weight: 600;">
+                    <input type="text" id="task-team-name" class="form-control" readonly style="background-color: var(--form-control-bg); color: var(--primary); font-weight: 600;">
                     <input type="hidden" id="task-team-id">
                 </div>
 
                 <div class="form-group">
                     <label class="form-label">Employee Email</label>
-                    <input type="email" id="task-emp-email" class="form-control" readonly style="background-color: #0f172a; color: #38bdf8;">
+                    <input type="email" id="task-emp-email" class="form-control" readonly style="background-color: var(--form-control-bg); color: var(--link-color);">
                 </div>
             </div>
 
@@ -258,7 +274,7 @@
             </div>
             <button class="close-btn" onclick="closeModal('task-view-modal')">&times;</button>
         </div>
-        <div id="view-modal-body" style="font-size: 14px; color: #e2e8f0; white-space: pre-line; line-height: 1.6; background: rgba(0,0,0,0.3); padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--card-border); max-height: 400px; overflow-y: auto;">
+        <div id="view-modal-body" style="font-size: 14px; color: var(--text-main); white-space: pre-line; line-height: 1.6; background: var(--th-bg); padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--card-border); max-height: 400px; overflow-y: auto;">
         </div>
         <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
             <button class="btn btn-secondary" onclick="closeModal('task-view-modal')">Close</button>
@@ -489,7 +505,7 @@
                 <tr>
                     <td><strong>${formattedDate}</strong></td>
                     <td>
-                        <div style="font-size: 13px; color: #e2e8f0; white-space: pre-line; line-height: 1.5; max-height: 120px; overflow-y: auto;">
+                        <div style="font-size: 13px; color: var(--text-main); white-space: pre-line; line-height: 1.5; max-height: 120px; overflow-y: auto;">
                             ${escapeHtml(log.task_details)}
                         </div>
                     </td>
@@ -650,7 +666,7 @@
 
             if (foundLog && foundLog.task_details && foundLog.task_details.trim()) {
                 statusCell = `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">✅ Submitted (No Reminder)</span>`;
-                detailsSnippet = `<div style="font-size: 12px; color: #e2e8f0; white-space: pre-line; line-height: 1.4; max-height: 60px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(foundLog.task_details)}</div>`;
+                detailsSnippet = `<div style="font-size: 12px; color: var(--text-main); white-space: pre-line; line-height: 1.4; max-height: 60px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(foundLog.task_details)}</div>`;
                 actionBtn = `<button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="viewTaskDetailDrawer('${foundLog.id}')"><i class="fa-solid fa-eye"></i> View Log</button>`;
             } else {
                 statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Log</span>`;
@@ -661,8 +677,8 @@
             rowsHtml += `
                 <tr>
                     <td>
-                        <strong style="font-size: 14px; color: #f8fafc;">${emp.name}</strong>
-                        <div style="font-size: 12px; color: var(--text-muted);"><a href="mailto:${emp.email}" style="color: #38bdf8;">${emp.email}</a></div>
+                        <strong style="font-size: 14px; color: var(--text-main);">${emp.name}</strong>
+                        <div style="font-size: 12px; color: var(--text-muted);"><a href="mailto:${emp.email}" style="color: var(--link-color);">${emp.email}</a></div>
                     </td>
                     <td><span class="badge badge-team">${emp.teamName || 'Infra Team'}</span></td>
                     <td><span class="badge ${locClass}">${emp.location}</span> (${emp.timezone})</td>
@@ -785,6 +801,39 @@
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+    }
+
+    function downloadReport(format) {
+        let url = `/api/export/task-report?format=${format}`;
+
+        if (currentMode === 'employee') {
+            if (activeEmpName) {
+                url += `&employee_name=${encodeURIComponent(activeEmpName)}`;
+                const empObj = employeesData.find(e => e.name.toLowerCase() === activeEmpName.toLowerCase());
+                if (empObj && empObj.teamName) {
+                    url += `&team_name=${encodeURIComponent(empObj.teamName)}`;
+                }
+            }
+            url += `&period=${currentPeriod}`;
+            if (currentPeriod === 'custom') {
+                if (customStartDate) url += `&start_date=${customStartDate}`;
+                if (customEndDate) url += `&end_date=${customEndDate}`;
+            }
+        } else {
+            url += `&team_id=${encodeURIComponent(adminActiveTeamId)}`;
+            if (adminActiveTeamId !== 'ALL') {
+                const teamObj = teamsData.find(t => t.id === adminActiveTeamId || t.name === adminActiveTeamId);
+                if (teamObj) {
+                    url += `&team_name=${encodeURIComponent(teamObj.name)}`;
+                }
+            }
+            if (adminSelectedDateStr) {
+                url += `&start_date=${adminSelectedDateStr}&end_date=${adminSelectedDateStr}`;
+            }
+        }
+
+        showToast(`Generating ${format.toUpperCase()} task fill report download...`);
+        window.location.href = url;
     }
 
     loadData();

@@ -67,31 +67,32 @@
 <div class="modal-overlay" id="employee-modal">
     <div class="glass-panel modal-box" style="max-width: 780px; width: 92%; padding: 22px 28px;">
         <div class="modal-header" style="margin-bottom: 14px;">
-            <div style="font-family: 'Outfit', sans-serif; font-size: 21px; font-weight: 700; color: #f8fafc;" id="modal-title">Add New Member</div>
+            <div style="font-family: 'Outfit', sans-serif; font-size: 21px; font-weight: 700; color: var(--text-main);" id="modal-title">Add New Member</div>
             <button class="close-btn" onclick="closeModal('employee-modal')">&times;</button>
         </div>
         
         <form id="employee-form" onsubmit="handleEmployeeSubmit(event)">
             <input type="hidden" id="emp-id">
             
+            <!-- High-Contrast Multi-Col Form Layout -->
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">Member Full Name</label>
-                    <input type="text" id="emp-name" class="form-control" required placeholder="e.g. Sachin">
+                    <label class="form-label">Full Name</label>
+                    <input type="text" id="emp-name" class="form-control" placeholder="e.g. Rahul Sharma" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Email Address</label>
-                    <input type="email" id="emp-email" class="form-control" required placeholder="e.g. sachin@company.com">
+                    <input type="email" id="emp-email" class="form-control" placeholder="rahul@company.com" required>
                 </div>
             </div>
 
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">User Role & Access Type</label>
-                    <select id="emp-role-select" class="form-control" onchange="onUserRoleChange()">
-                        <option value="employee">👤 Employee (Task Submission & Shift Reminders)</option>
-                        <option value="manager">👔 Manager (Team Management & Roster Access)</option>
-                        <option value="admin">🛡️ Admin (Full System Config Access)</option>
+                    <label class="form-label">System Role</label>
+                    <select id="emp-role" class="form-control" required onchange="handleRoleChange()">
+                        <option value="employee">👤 Employee (Personal Work Log Workspace)</option>
+                        <option value="manager">👔 Manager (Team Dashboard Access)</option>
+                        <option value="admin">🛡️ Admin (Full System Control)</option>
                     </select>
                 </div>
 
@@ -109,7 +110,7 @@
                 
                 <div class="form-group">
                     <label class="form-label">Associated Time Zone</label>
-                    <input type="text" id="emp-timezone" class="form-control" readonly style="background-color: #0f172a; color: #38bdf8; font-weight: 500;" value="India Standard Time">
+                    <input type="text" id="emp-timezone" class="form-control" readonly style="background-color: var(--form-control-bg); color: var(--link-color); font-weight: 500;" value="India Standard Time">
                 </div>
             </div>
 
@@ -201,6 +202,7 @@
 
     async function loadData() {
         await Promise.all([fetchEmployees(), fetchShifts(), fetchTeams(), fetchManagers(), fetchLocations()]);
+        renderEmployeesTable();
     }
 
     async function fetchEmployees() {
@@ -237,6 +239,7 @@
         if (data.success) {
             managersData = data.managers;
             populateManagerDropdowns();
+            renderEmployeesTable();
         }
     }
 
@@ -350,6 +353,13 @@
         if (found && found.name) {
             return found.name;
         }
+        const foundEmp = employeesData.find(e => 
+            (e.email && e.email.toLowerCase() === managerCc.toLowerCase()) ||
+            (e.name && e.name.toLowerCase() === managerCc.toLowerCase())
+        );
+        if (foundEmp && foundEmp.name) {
+            return foundEmp.name;
+        }
         if (managerCc.includes('@')) {
             const username = managerCc.split('@')[0];
             return username.charAt(0).toUpperCase() + username.slice(1);
@@ -404,9 +414,9 @@
                 if (emp.location.toLowerCase().includes('saudi')) badgeClass = 'badge-saudi';
                 
                 const roleStr = (emp.role || 'employee').toLowerCase();
-                let roleBadge = '<span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3);">👤 Employee</span>';
-                if (roleStr === 'admin') roleBadge = '<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3);">🛡️ Admin</span>';
-                if (roleStr === 'manager') roleBadge = '<span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.3);">👔 Manager</span>';
+                let roleBadge = '<span class="badge badge-role-employee">👤 Employee</span>';
+                if (roleStr === 'admin') roleBadge = '<span class="badge badge-role-admin">🛡️ Admin</span>';
+                if (roleStr === 'manager') roleBadge = '<span class="badge badge-role-manager">👔 Manager</span>';
 
                 const isEmp = roleStr === 'employee';
                 const rems = emp.reminders ? emp.reminders.join(', ') : '18:30, 18:45, 19:00';
@@ -473,9 +483,9 @@
                     if (emp.location.toLowerCase().includes('saudi')) badgeClass = 'badge-saudi';
                     
                     const roleStr = (emp.role || 'employee').toLowerCase();
-                    let roleBadge = '<span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3);">👤 Employee</span>';
-                    if (roleStr === 'admin') roleBadge = '<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3);">🛡️ Admin</span>';
-                    if (roleStr === 'manager') roleBadge = '<span class="badge" style="background: rgba(168, 85, 247, 0.2); color: #e9d5ff; border: 1px solid rgba(168,85,247,0.3);">👔 Manager</span>';
+                    let roleBadge = '<span class="badge badge-role-employee">👤 Employee</span>';
+                    if (roleStr === 'admin') roleBadge = '<span class="badge badge-role-admin">🛡️ Admin</span>';
+                    if (roleStr === 'manager') roleBadge = '<span class="badge badge-role-manager">👔 Manager</span>';
 
                     const isEmp = roleStr === 'employee';
                     const rems = emp.reminders ? emp.reminders.join(', ') : '18:30, 18:45, 19:00';
