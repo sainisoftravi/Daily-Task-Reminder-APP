@@ -7,17 +7,31 @@ Supports multi-timezone staff roster management (**India, UAE, Saudi Arabia, USA
 ---
 
 ## 📑 Table of Contents
-1. [Architecture & System Features](#1-architecture--system-features)
-2. [Web Application Pages Sitemap](#2-web-application-pages-sitemap)
-3. [Complete REST API Reference](#3-complete-rest-api-reference)
-4. [Automated Daemon Engine & Reminder Workflow](#4-automated-daemon-engine--reminder-workflow)
-5. [Rich HTML Email & Quote Rotator](#5-rich-html-email--quote-rotator)
-6. [Docker Deployment Guide](#6-docker-deployment-guide)
-7. [Prompt-by-Prompt Development & Optimization History](#7-prompt-by-prompt-development--optimization-history)
+1. [Default Application Credentials & Test Accounts](#1-default-application-credentials--test-accounts)
+2. [Architecture & System Features](#2-architecture--system-features)
+3. [Web Application Pages Sitemap](#3-web-application-pages-sitemap)
+4. [Complete REST API Reference](#4-complete-rest-api-reference)
+5. [Automated Daemon Engine & Reminder Workflow](#5-automated-daemon-engine--reminder-workflow)
+6. [Rich HTML Email & Quote Rotator](#6-rich-html-email--quote-rotator)
+7. [Docker Deployment Guide](#7-docker-deployment-guide)
+8. [Prompt-by-Prompt Development & Optimization History](#8-prompt-by-prompt-development--optimization-history)
 
 ---
 
-## 1. Architecture & System Features
+## 1. Default Application Credentials & Test Accounts
+
+The system comes pre-seeded with multi-role test accounts for immediate testing across all application roles and workspace views:
+
+| Role | Email Address | Password | Landing Page & Access Scope |
+| :--- | :--- | :--- | :--- |
+| 🛡️ **Admin** | `admin@company.com` | `admin123` | `/dashboard` (Full System Access, Roster, Shifts, SMTP, Audit Logs) |
+| 👔 **Manager** | `Ravi@d2backoffice.onmicrosoft.com` | `manager123` | `/dashboard` (Manager Access, Staff Roster, Shifts, Teams Management) |
+| 👤 **Employee (Sachin)** | `sachin@d2backoffice.onmicrosoft.com` | `emp123` | `/task-entry` (Personal Task Workspace & Work Log Submission) |
+| 👤 **Employee (Amin)** | `amin@d2backoffice.onmicrosoft.com` | `emp123` | `/task-entry` (Personal Task Workspace & Work Log Submission) |
+
+---
+
+## 2. Architecture & System Features
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -222,7 +236,7 @@ Database file is mounted at `./data:/app/data`, ensuring all roster updates, cus
 
 ---
 
-## 7. Prompt-by-Prompt Development & Optimization History
+## 8. Prompt-by-Prompt Development & Optimization History
 
 Below is the complete prompt-by-prompt history of user requests, technical implementations, affected codebase files, and visual/functional outcomes across the application development lifecycle:
 
@@ -240,3 +254,4 @@ Below is the complete prompt-by-prompt history of user requests, technical imple
 | **10** | *"on this side icon when i m clicking continuously it is showing the admin page icon in the flash i think that is some bug"* | **Issue**: Client-side JS (`fetch('/api/me')`) queried user role post-load and hid unauthorized menu items, causing a visible rendering delay (flash) of admin icons.<br>**Solution**: Implemented Flask Server-Side Rendering (SSR) via Jinja context processors (`@app.context_processor`). Injected `current_user` & `current_role` into server context and wrapped sidebar items with `{% if current_role in [...] %}`. Synchronized `window.currentUser` inline and removed post-load DOM query selector latency. | [`app.py`](file:///e:/Daily-Update-Email/app.py), [`templates/layout.html`](file:///e:/Daily-Update-Email/templates/layout.html) | 100% server-side role security. Zero flash of unauthorized admin links for Manager or Employee roles during rapid navigation. |
 | **11** | *"this email is coming in the signature remove the manager email id and add the logo of website in email body"* | **Requirements**: 1. Remove manager email address from email signature.<br>2. Add website brand logo at the top of email bodies.<br>**Implementation**: Removed `{mgr_email}` from welcome email signature in `app.py`. Added base64 image converter (`get_logo_b64()`) and embedded logo header banner (`<img src="data:image/png;base64,...">`) into `generate_html_email()` in `daily_reminder.py`. | [`app.py`](file:///e:/Daily-Update-Email/app.py), [`daily_reminder.py`](file:///e:/Daily-Update-Email/daily_reminder.py) | All HTML emails (Welcome & 3-stage reminders) now feature the official TickTask brand logo at the header and a clean signature without raw email strings. |
 | **12** | *"in the Readme file what changes we did with every prompt what changes happen all the things update in readme file"* | **Requirement**: Comprehensive documentation update reflecting all prompt history and architectural developments.<br>**Implementation**: Added full prompt-by-prompt development changelog, technical resolutions, affected file paths, and updated system sitemap. | [`README.md`](file:///e:/Daily-Update-Email/README.md) | Fully updated, professional `README.md` serving as an authoritative reference manual for administrators and developers. |
+| **13** | *"Role Email Address Password Landing Page ... add this like sample for application use in Readme file"* | **Requirement**: Add sample application test accounts and credentials reference matrix.<br>**Implementation**: Created Section 1 ("Default Application Credentials & Test Accounts") with formatted table detailing Admin, Manager, and Employee test accounts, default passwords, and landing page access scopes. | [`README.md`](file:///e:/Daily-Update-Email/README.md) | Prominently displays pre-seeded demo user credentials for instant testing and evaluation by system administrators. |
