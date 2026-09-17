@@ -125,9 +125,14 @@ def generate_xlsx_report(
 
             cell = ws.cell(row=row_num, column=col_num)
             if details and details.strip():
-                cell.value = details.strip()
-                cell.font = Font(name="Calibri", size=9.5, color="0F172A")
-                cell.fill = PatternFill(start_color="F0FDF4", end_color="F0FDF4", fill_type="solid")
+                det_strip = details.strip()
+                cell.value = det_strip
+                if "on leave" in det_strip.lower() or det_strip.startswith("🌴"):
+                    cell.font = Font(name="Calibri", size=9.5, bold=True, color="B45309")
+                    cell.fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+                else:
+                    cell.font = Font(name="Calibri", size=9.5, color="0F172A")
+                    cell.fill = PatternFill(start_color="F0FDF4", end_color="F0FDF4", fill_type="solid")
             else:
                 cell.value = "⚠️ Pending Log"
                 cell.font = Font(name="Calibri", size=9, italic=True, color="94A3B8")
@@ -158,16 +163,11 @@ def generate_pdf_report(
     downloaded_by: Optional[str] = None
 ) -> bytes:
     """
-    Generates a PDF user-wise task fill report matrix.
-    
-    Header format: [Team Name] - [Period] ([Locations])
-    Subheader: Downloaded By: [Full Name] | Generated: [Date Time]
-    Columns: Date | User 1 | User 2 | User 3 ...
-    Rows: Dates sorted chronologically.
+    Generates a PDF document task fill report matrix.
     """
-    output = io.BytesIO()
+    pdf_buffer = io.BytesIO()
     doc = SimpleDocTemplate(
-        output,
+        pdf_buffer,
         pagesize=landscape(letter),
         leftMargin=24,
         rightMargin=24,
@@ -176,57 +176,64 @@ def generate_pdf_report(
     )
 
     styles = getSampleStyleSheet()
-    
     title_style = ParagraphStyle(
-        "TitleStyle",
-        parent=styles["Heading1"],
-        fontName="Helvetica-Bold",
-        fontSize=13,
-        leading=16,
+        'TitleStyle',
+        parent=styles['Heading2'],
+        fontName='Helvetica-Bold',
+        fontSize=12,
+        leading=15,
         textColor=colors.HexColor("#0F172A"),
-        alignment=2 # Right align
+        alignment=2 # Right aligned
     )
-
     sub_style = ParagraphStyle(
-        "SubTitleStyle",
-        fontName="Helvetica-BoldOblique",
+        'SubStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-BoldOblique',
         fontSize=8.5,
         leading=11,
         textColor=colors.HexColor("#475569"),
-        alignment=2 # Right align
+        alignment=2
     )
-
     header_cell_style = ParagraphStyle(
-        "HeaderCellStyle",
-        fontName="Helvetica-Bold",
+        'HeaderCellStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
         fontSize=9,
         leading=11,
         textColor=colors.white,
-        alignment=1 # Center align
-    )
-
-    date_cell_style = ParagraphStyle(
-        "DateCellStyle",
-        fontName="Helvetica-Bold",
-        fontSize=8.5,
-        leading=11,
-        textColor=colors.HexColor("#1E293B"),
         alignment=1
     )
-
+    date_cell_style = ParagraphStyle(
+        'DateCellStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8.5,
+        leading=10,
+        textColor=colors.HexColor("#334155"),
+        alignment=1
+    )
     log_text_style = ParagraphStyle(
-        "LogTextStyle",
-        fontName="Helvetica",
-        fontSize=7.5,
-        leading=9.5,
+        'LogTextStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8,
+        leading=10,
         textColor=colors.HexColor("#0F172A")
     )
-
+    leave_text_style = ParagraphStyle(
+        'LeaveTextStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#B45309")
+    )
     pending_text_style = ParagraphStyle(
-        "PendingTextStyle",
-        fontName="Helvetica-Oblique",
-        fontSize=7.5,
-        leading=9.5,
+        'PendingTextStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=8,
+        leading=10,
         textColor=colors.HexColor("#94A3B8")
     )
 
@@ -258,8 +265,12 @@ def generate_pdf_report(
             details = logs_map.get(key, "")
 
             if details and details.strip():
-                safe_details = details.strip().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
-                row.append(Paragraph(safe_details, log_text_style))
+                det_strip = details.strip()
+                safe_details = det_strip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+                if "on leave" in det_strip.lower() or det_strip.startswith("🌴"):
+                    row.append(Paragraph(f"<b>🌴 {safe_details}</b>", leave_text_style))
+                else:
+                    row.append(Paragraph(safe_details, log_text_style))
             else:
                 row.append(Paragraph("⚠️ Pending", pending_text_style))
         table_data.append(row)
@@ -291,5 +302,5 @@ def generate_pdf_report(
     elements.append(pdf_table)
 
     doc.build(elements)
-    output.seek(0)
-    return output.read()
+    pdf_buffer.seek(0)
+    return pdf_buffer.read()

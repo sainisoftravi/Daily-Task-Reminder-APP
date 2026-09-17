@@ -55,6 +55,9 @@
                     <button class="btn btn-secondary" onclick="downloadReport('pdf')" style="padding: 9px 14px; font-size: 13px; color: #f43f5e; border-color: rgba(244, 63, 94, 0.3);" title="Download PDF Task Report">
                         <i class="fa-solid fa-file-pdf"></i> Export PDF
                     </button>
+                    <button class="btn btn-secondary" onclick="openBulkLeaveModal()" style="padding: 9px 14px; font-size: 13px; color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);" title="Apply Leave for Multiple Dates / Range (3 Days, 1 Week, etc.)">
+                        <i class="fa-solid fa-plane-departure"></i> Apply Bulk Leave
+                    </button>
                     <button class="btn btn-primary" onclick="openSubmitModalForActiveEmp()" style="padding: 9px 18px; font-size: 13px;">
                         <i class="fa-solid fa-pen-to-square"></i> Submit Today's Task Log
                     </button>
@@ -252,6 +255,21 @@
                 </div>
             </div>
 
+            <div class="form-group" style="margin-bottom: 16px;">
+
+                <label class="form-label" style="font-weight: 600;">Work Status for Selected Date</label>
+                <div style="display: flex; gap: 16px; align-items: center; background: var(--th-bg); padding: 10px 16px; border-radius: var(--radius-md); border: 1px solid var(--card-border);">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #34d399;">
+                        <input type="radio" name="work_status" value="Present" id="status-present" checked onchange="toggleLeaveMode(false)">
+                        <i class="fa-solid fa-briefcase"></i> Present / Working
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #fbbf24;">
+                        <input type="radio" name="work_status" value="Leave" id="status-leave" onchange="toggleLeaveMode(true)">
+                        <i class="fa-solid fa-plane-departure"></i> On Leave (Suppress Reminders)
+                    </label>
+                </div>
+            </div>
+
             <div class="form-group">
                 <label class="form-label">Daily Work Updates & Log Details</label>
                 <textarea id="task-details-input" class="form-control" rows="7" required placeholder="Enter bullet points of work completed today (e.g.&#10;1) Created SSL VPN user configuration&#10;2) Resolved gateway MQTT connection issue&#10;3) Updated task sheet documentation 100%)" style="resize: vertical; line-height: 1.5; font-family: 'Inter', sans-serif;"></textarea>
@@ -318,6 +336,77 @@
             <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('backdate-policy-modal')">Cancel</button>
                 <button type="submit" class="btn btn-primary" id="bd-submit-btn"><i class="fa-solid fa-floppy-disk"></i> Save Policy</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Bulk Leave & Multi-Date Range Application -->
+<div class="modal-overlay" id="bulk-leave-modal">
+    <div class="glass-panel modal-box" style="max-width: 640px;">
+        <div class="modal-header">
+            <div>
+                <div style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700; color: #fbbf24;" id="bulk-leave-modal-title">
+                    <i class="fa-solid fa-plane-departure"></i> Apply Bulk Leave / Multi-Date Range
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                    Select a date range (e.g. 3 days, 1 week) to mark On Leave for multiple days at once. Reminders will be auto-suppressed for all dates in the range.
+                </div>
+            </div>
+            <button class="close-btn" onclick="closeModal('bulk-leave-modal')">&times;</button>
+        </div>
+
+        <form id="bulk-leave-form" onsubmit="handleBulkLeaveSubmit(event)">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Employee Name</label>
+                    <select id="bulk-emp-select" class="form-control" required onchange="onBulkEmpChange()"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assigned Team</label>
+                    <input type="text" id="bulk-team-name" class="form-control" readonly style="background-color: var(--form-control-bg); color: var(--primary); font-weight: 600;">
+                    <input type="hidden" id="bulk-team-id">
+                    <input type="hidden" id="bulk-emp-email">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Leave Start Date</label>
+                    <input type="date" id="bulk-start-date" class="form-control" required style="background-color: var(--form-control-bg); color: var(--form-control-text);" onchange="calculateBulkLeaveDays()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Leave End Date</label>
+                    <input type="date" id="bulk-end-date" class="form-control" required style="background-color: var(--form-control-bg); color: var(--form-control-text);" onchange="calculateBulkLeaveDays()">
+                </div>
+            </div>
+
+            <!-- Weekend Exclude Option & Live Days Counter Banner -->
+            <div style="background: var(--th-bg); padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--card-border); margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-main);">
+                    <input type="checkbox" id="bulk-skip-weekends" checked onchange="calculateBulkLeaveDays()">
+                    <i class="fa-solid fa-calendar-minus" style="color: #fbbf24;"></i> Exclude Weekends (Saturdays & Sundays)
+                </label>
+                <div id="bulk-days-badge" style="font-size: 12px; font-weight: 700; color: #fbbf24; background: rgba(245, 158, 11, 0.15); padding: 4px 12px; border-radius: 20px; border: 1px solid rgba(245, 158, 11, 0.3);">
+                    Calculated: 1 Working Day
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Leave Reason / Optional Notes</label>
+                <textarea id="bulk-details-input" class="form-control" rows="3" placeholder="ON LEAVE (Optional notes e.g. Annual Leave, Sick Leave, Family Event)" style="resize: vertical; line-height: 1.4; font-family: 'Inter', sans-serif;">ON LEAVE</textarea>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px;">
+                <div style="font-size: 12px; color: var(--accent-emerald); font-weight: 500;">
+                    <i class="fa-solid fa-shield-halved"></i> Reminders Auto-Suppressed for All Dates
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('bulk-leave-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border: none;">
+                        <i class="fa-solid fa-plane-departure"></i> Apply Bulk Leave
+                    </button>
+                </div>
             </div>
         </form>
     </div>
@@ -513,43 +602,82 @@
         renderEmployeePortal();
     }
 
+    function formatDateLocal(d) {
+        if (!d) return '';
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
     function getFilteredEmpLogs() {
-        const emp = employeesData.find(e => e.name.toLowerCase() === activeEmpName.toLowerCase());
-        if (!emp) return [];
+        const emp = employeesData.find(e => e.name && activeEmpName && e.name.toLowerCase() === activeEmpName.toLowerCase());
 
         const now = new Date();
         let startDate = new Date();
+        let endDate = new Date();
 
         if (currentPeriod === 'day') {
             startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         } else if (currentPeriod === 'week') {
             startDate = new Date(now);
             startDate.setDate(now.getDate() - 7);
+            endDate = new Date(now);
+            endDate.setDate(now.getDate() + 14);
         } else if (currentPeriod === 'month') {
-            startDate = new Date(now);
-            startDate.setDate(now.getDate() - 30);
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         } else if (currentPeriod === 'year') {
-            startDate = new Date(now);
-            startDate.setDate(now.getDate() - 365);
+            startDate = new Date(now.getFullYear(), 0, 1);
+            endDate = new Date(now.getFullYear(), 11, 31);
         }
 
-        const startIso = currentPeriod === 'custom' && customStartDate ? customStartDate : startDate.toISOString().split('T')[0];
-        const endIso = currentPeriod === 'custom' && customEndDate ? customEndDate : now.toISOString().split('T')[0];
-        const query = (document.getElementById('emp-search-input').value || '').toLowerCase().trim();
+        const startIso = currentPeriod === 'custom' && customStartDate ? customStartDate : formatDateLocal(startDate);
+        const endIso = currentPeriod === 'custom' && customEndDate ? customEndDate : formatDateLocal(endDate);
+        const queryEl = document.getElementById('emp-search-input');
+        const query = (queryEl ? queryEl.value : '').toLowerCase().trim();
+
+        const activeNameLower = (activeEmpName || '').toLowerCase().trim();
+        const userEmailLower = (loggedInUser && loggedInUser.email ? loggedInUser.email : (emp ? emp.email : '')).toLowerCase().trim();
 
         return taskLogsData.filter(log => {
-            const matchesEmp = (log.employee_name && log.employee_name.toLowerCase() === activeEmpName.toLowerCase()) || 
-                               (log.email && emp.email && log.email.toLowerCase() === emp.email.toLowerCase());
+            const logNameLower = (log.employee_name || '').toLowerCase().trim();
+            const logEmailLower = (log.email || '').toLowerCase().trim();
+
+            let matchesEmp = false;
+
+            if (activeNameLower && logNameLower) {
+                if (logNameLower === activeNameLower || logNameLower.includes(activeNameLower) || activeNameLower.includes(logNameLower)) {
+                    matchesEmp = true;
+                }
+            }
+
+            if (!matchesEmp && userEmailLower && logEmailLower) {
+                if (logEmailLower === userEmailLower) {
+                    matchesEmp = true;
+                }
+            }
+
+            if (!matchesEmp && emp && emp.name) {
+                const empNameLower = emp.name.toLowerCase().trim();
+                if (logNameLower === empNameLower || logNameLower.includes(empNameLower) || empNameLower.includes(logNameLower)) {
+                    matchesEmp = true;
+                }
+            }
+
             if (!matchesEmp) return false;
 
             const logDate = log.date_str || log.dateStr;
-            if (logDate < startIso || logDate > endIso) return false;
+            if (startIso && logDate < startIso) return false;
+            if (endIso && logDate > endIso) return false;
 
-            if (query && !log.task_details.toLowerCase().includes(query)) return false;
+            if (query && log.task_details && !log.task_details.toLowerCase().includes(query)) return false;
 
             return true;
         }).sort((a, b) => (b.date_str || b.dateStr).localeCompare(a.date_str || a.dateStr));
     }
+
 
     function renderEmployeePortal() {
         const logs = getFilteredEmpLogs();
@@ -566,8 +694,15 @@
         );
 
         const todayBadge = document.getElementById('stat-today-badge');
-        if (todayLog && todayLog.task_details && todayLog.task_details.trim()) {
-            todayBadge.innerHTML = `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">✅ Submitted (No Reminder)</span>`;
+        if (todayLog) {
+            const isLeave = todayLog.is_leave == 1 || todayLog.work_status === 'Leave' || (todayLog.task_details && todayLog.task_details.toLowerCase().includes('on leave'));
+            if (isLeave) {
+                todayBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave (No Reminder)</span>`;
+            } else if (todayLog.task_details && todayLog.task_details.trim()) {
+                todayBadge.innerHTML = `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">✅ Submitted (No Reminder)</span>`;
+            } else {
+                todayBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Submission</span>`;
+            }
         } else {
             todayBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Submission</span>`;
         }
@@ -583,19 +718,20 @@
             const dtObj = new Date(dtStr);
             const formattedDate = dtObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
 
+            const isLeave = log.is_leave == 1 || log.work_status === 'Leave' || (log.task_details && log.task_details.toLowerCase().includes('on leave'));
+            const statusBadge = isLeave ? 
+                `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave (Suppressed)</span>` : 
+                `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">✅ Suppressed (Filled)</span>`;
+
             rowsHtml += `
                 <tr>
                     <td><strong>${formattedDate}</strong></td>
                     <td>
-                        <div style="font-size: 13px; color: var(--text-main); white-space: pre-line; line-height: 1.5; max-height: 120px; overflow-y: auto;">
-                            ${escapeHtml(log.task_details)}
+                        <div style="font-size: 13px; color: ${isLeave ? '#fbbf24' : 'var(--text-main)'}; white-space: pre-line; line-height: 1.5; max-height: 120px; overflow-y: auto;">
+                            ${isLeave ? '🌴 ' : ''}${escapeHtml(log.task_details)}
                         </div>
                     </td>
-                    <td>
-                        <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">
-                            ✅ Suppressed (Filled)
-                        </span>
-                    </td>
+                    <td>${statusBadge}</td>
                     <td><small style="color: var(--text-muted);">${log.updated_at || 'Just Now'}</small></td>
                     <td style="text-align: right;">
                         <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="editTaskLog('${log.id}')"><i class="fa-solid fa-pen"></i> Edit</button>
@@ -609,6 +745,28 @@
 
     function openSubmitModalForActiveEmp() {
         quickFillTask(activeEmpName, new Date().toISOString().split('T')[0]);
+    }
+
+    function toggleLeaveMode(isLeave) {
+        const txtArea = document.getElementById('task-details-input');
+        const radioLeave = document.getElementById('status-leave');
+        const radioPresent = document.getElementById('status-present');
+
+        if (isLeave) {
+            radioLeave.checked = true;
+            if (!txtArea.value.trim() || txtArea.value.trim() === 'ON LEAVE') {
+                txtArea.value = 'ON LEAVE';
+            }
+            txtArea.placeholder = 'On Leave (Optional notes, e.g. Casual Leave / Sick Leave)';
+            txtArea.removeAttribute('required');
+        } else {
+            radioPresent.checked = true;
+            if (txtArea.value.trim() === 'ON LEAVE') {
+                txtArea.value = '';
+            }
+            txtArea.placeholder = 'Enter bullet points of work completed today...';
+            txtArea.setAttribute('required', 'required');
+        }
     }
 
     // ====================================================
@@ -718,7 +876,12 @@
                 filteredEmps.forEach(emp => {
                     const foundLog = taskLogsData.find(l => (l.date_str === dtStr || l.dateStr === dtStr) && (l.employee_name.toLowerCase() === emp.name.toLowerCase()));
                     if (foundLog) {
-                        cells += `<td style="background: rgba(16,185,129,0.08); font-size:12px;"><span class="badge badge-uae">✅ Submitted</span><br>${escapeHtml(foundLog.task_details.slice(0, 70))}...</td>`;
+                        const isLeave = foundLog.is_leave == 1 || foundLog.work_status === 'Leave' || (foundLog.task_details && foundLog.task_details.toLowerCase().includes('on leave'));
+                        if (isLeave) {
+                            cells += `<td style="background: rgba(245, 158, 11, 0.1); font-size:12px;"><span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave</span><br><span style="color:#fbbf24;">${escapeHtml(foundLog.task_details)}</span></td>`;
+                        } else {
+                            cells += `<td style="background: rgba(16,185,129,0.08); font-size:12px;"><span class="badge badge-uae">✅ Submitted</span><br>${escapeHtml(foundLog.task_details.slice(0, 70))}...</td>`;
+                        }
                     } else {
                         cells += `<td style="background: rgba(255,255,255,0.01); font-size:12px;"><span class="badge badge-india">⚠️ Pending</span></td>`;
                     }
@@ -746,9 +909,18 @@
             let detailsSnippet = '';
             let actionBtn = '';
 
-            if (foundLog && foundLog.task_details && foundLog.task_details.trim()) {
-                statusCell = `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">✅ Submitted (No Reminder)</span>`;
-                detailsSnippet = `<div style="font-size: 12px; color: var(--text-main); white-space: pre-line; line-height: 1.4; max-height: 60px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(foundLog.task_details)}</div>`;
+            if (foundLog) {
+                const isLeave = foundLog.is_leave == 1 || foundLog.work_status === 'Leave' || (foundLog.task_details && foundLog.task_details.toLowerCase().includes('on leave'));
+                if (isLeave) {
+                    statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave (No Reminder)</span>`;
+                    detailsSnippet = `<div style="font-size: 12px; color: #fbbf24; font-weight: 600;">🌴 ${escapeHtml(foundLog.task_details)}</div>`;
+                } else if (foundLog.task_details && foundLog.task_details.trim()) {
+                    statusCell = `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">✅ Submitted (No Reminder)</span>`;
+                    detailsSnippet = `<div style="font-size: 12px; color: var(--text-main); white-space: pre-line; line-height: 1.4; max-height: 60px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(foundLog.task_details)}</div>`;
+                } else {
+                    statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Log</span>`;
+                    detailsSnippet = `<span style="font-size: 12px; color: var(--text-muted); italic;">No daily task log submitted for ${adminSelectedDateStr}.</span>`;
+                }
                 actionBtn = `<button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="viewTaskDetailDrawer('${foundLog.id}')"><i class="fa-solid fa-eye"></i> View Log</button>`;
             } else {
                 statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Log</span>`;
@@ -841,9 +1013,9 @@
         const empName = document.getElementById('task-emp-select').value;
         const emp = employeesData.find(e => e.name.toLowerCase() === empName.toLowerCase());
         if (emp) {
-            document.getElementById('task-emp-email').value = emp.email;
             document.getElementById('task-team-name').value = emp.teamName || 'Infra Team';
-            document.getElementById('task-team-id').value = emp.teamId || 'team_infra';
+            document.getElementById('task-team-id').value = emp.teamId || '';
+            document.getElementById('task-emp-email').value = emp.email || '';
         }
         onTaskDateChange();
     }
@@ -874,10 +1046,13 @@
         );
 
         if (existingLog) {
+            const isLeave = existingLog.is_leave == 1 || existingLog.work_status === 'Leave' || (existingLog.task_details && existingLog.task_details.toLowerCase().includes('on leave'));
+            toggleLeaveMode(isLeave);
             document.getElementById('task-details-input').value = existingLog.task_details;
             document.getElementById('task-log-id').value = existingLog.id;
             document.getElementById('task-modal-title').innerText = `Edit Work Log for ${empName} (${selectedDate})`;
         } else {
+            toggleLeaveMode(false);
             document.getElementById('task-details-input').value = '';
             document.getElementById('task-log-id').value = '';
             document.getElementById('task-modal-title').innerText = `Submit Daily Work Log for ${empName} (${selectedDate})`;
@@ -885,10 +1060,13 @@
     }
 
     function quickFillTask(empName, dateStr) {
+        document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+
         if (loggedInUser && loggedInUser.role === 'employee') {
             empName = loggedInUser.name;
         }
         document.getElementById('task-form').reset();
+        toggleLeaveMode(false);
         populateTaskModalDropdown();
         populateTaskModalDateLimits();
         document.getElementById('task-emp-select').value = empName;
@@ -903,7 +1081,10 @@
     }
 
     function editTaskLog(logId) {
+        document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+
         const log = taskLogsData.find(l => l.id === logId);
+
         if (!log) return;
 
         const logDateStr = log.date_str || log.dateStr;
@@ -934,6 +1115,9 @@
             document.getElementById('task-emp-select').disabled = true;
         }
         document.getElementById('task-date-input').value = logDateStr;
+        
+        const isLeave = log.is_leave == 1 || log.work_status === 'Leave' || (log.task_details && log.task_details.toLowerCase().includes('on leave'));
+        toggleLeaveMode(isLeave);
         document.getElementById('task-details-input').value = log.task_details;
         document.getElementById('task-log-id').value = log.id;
         document.getElementById('task-modal-title').innerText = `Edit Work Log for ${log.employee_name} (${logDateStr})`;
@@ -949,6 +1133,7 @@
         }
         const dateStr = document.getElementById('task-date-input').value;
         const details = document.getElementById('task-details-input').value;
+        const isLeave = document.getElementById('status-leave').checked;
 
         const payload = {
             id: document.getElementById('task-log-id').value,
@@ -957,7 +1142,9 @@
             teamName: document.getElementById('task-team-name').value,
             teamId: document.getElementById('task-team-id').value,
             dateStr: dateStr,
-            taskDetails: details
+            taskDetails: details || (isLeave ? 'ON LEAVE' : ''),
+            isLeave: isLeave,
+            workStatus: isLeave ? 'Leave' : 'Present'
         };
 
         const res = await fetch('/api/task-logs', {
@@ -1022,8 +1209,149 @@
             }
         }
 
-        showToast(`Generating ${format.toUpperCase()} task fill report download...`);
-        window.location.href = url;
+        window.open(url, '_blank');
+    }
+
+    // ====================================================
+    // 🌴 BULK LEAVE / MULTI-DATE RANGE LOGIC
+    // ====================================================
+
+    function openBulkLeaveModal() {
+        document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+
+        document.getElementById('bulk-leave-form').reset();
+        document.getElementById('bulk-details-input').value = 'ON LEAVE';
+        document.getElementById('bulk-skip-weekends').checked = true;
+
+
+        populateBulkEmpModalDropdown();
+        
+        const todayStr = new Date().toISOString().split('T')[0];
+        document.getElementById('bulk-start-date').value = todayStr;
+        document.getElementById('bulk-end-date').value = todayStr;
+        
+        onBulkEmpChange();
+        calculateBulkLeaveDays();
+        document.getElementById('bulk-leave-modal').classList.add('active');
+    }
+
+    function populateBulkEmpModalDropdown() {
+        const sel = document.getElementById('bulk-emp-select');
+        if (!sel) return;
+        sel.innerHTML = employeesData.map(e => `<option value="${e.name}">${e.name} (${e.teamName || 'Infra Team'})</option>`).join('');
+        if (activeEmpName) sel.value = activeEmpName;
+        if (loggedInUser && loggedInUser.role === 'employee') {
+            sel.value = loggedInUser.name;
+            sel.disabled = true;
+        } else {
+            sel.disabled = false;
+        }
+    }
+
+    function onBulkEmpChange() {
+        const sel = document.getElementById('bulk-emp-select');
+        let empName = sel ? sel.value : activeEmpName;
+        if (loggedInUser && loggedInUser.role === 'employee') {
+            empName = loggedInUser.name;
+        }
+        const emp = employeesData.find(e => e.name.toLowerCase() === empName.toLowerCase());
+        if (emp) {
+            document.getElementById('bulk-team-name').value = emp.teamName || 'Infra Team';
+            document.getElementById('bulk-team-id').value = emp.teamId || '';
+            document.getElementById('bulk-emp-email').value = emp.email || '';
+        }
+    }
+
+    function calculateBulkLeaveDays() {
+        const startVal = document.getElementById('bulk-start-date').value;
+        const endVal = document.getElementById('bulk-end-date').value;
+        const skipWeekends = document.getElementById('bulk-skip-weekends').checked;
+        const badge = document.getElementById('bulk-days-badge');
+
+        if (!startVal || !endVal) {
+            badge.innerHTML = `Calculated: 0 Days`;
+            return;
+        }
+
+        const startDt = new Date(startVal);
+        const endDt = new Date(endVal);
+
+        if (startDt > endDt) {
+            badge.innerHTML = `<span style="color:#f43f5e;">Invalid: Start Date after End Date</span>`;
+            return;
+        }
+
+        let totalDays = 0;
+        let workingDays = 0;
+        let curr = new Date(startDt);
+
+        while (curr <= endDt) {
+            totalDays++;
+            const dayOfWeek = curr.getDay(); // 0 = Sun, 6 = Sat
+            if (!(skipWeekends && (dayOfWeek === 0 || dayOfWeek === 6))) {
+                workingDays++;
+            }
+            curr.setDate(curr.getDate() + 1);
+        }
+
+        badge.innerHTML = `Calculated: ${workingDays} Leave Day${workingDays !== 1 ? 's' : ''} (${totalDays} total calendar days)`;
+    }
+
+    async function handleBulkLeaveSubmit(e) {
+        e.preventDefault();
+        let empName = document.getElementById('bulk-emp-select').value;
+        if (loggedInUser && loggedInUser.role === 'employee') {
+            empName = loggedInUser.name;
+        }
+        const startDate = document.getElementById('bulk-start-date').value;
+        const endDate = document.getElementById('bulk-end-date').value;
+        const details = document.getElementById('bulk-details-input').value;
+        const skipWeekends = document.getElementById('bulk-skip-weekends').checked;
+
+        if (!startDate || !endDate) {
+            showToast('Please select both Start Date and End Date for bulk leave.', 'error');
+            return;
+        }
+
+        if (startDate > endDate) {
+            showToast('Leave Start Date cannot be after End Date.', 'error');
+            return;
+        }
+
+        const payload = {
+            employeeName: empName,
+            email: document.getElementById('bulk-emp-email').value,
+            teamName: document.getElementById('bulk-team-name').value,
+            teamId: document.getElementById('bulk-team-id').value,
+            startDate: startDate,
+            endDate: endDate,
+            leaveNote: details || 'ON LEAVE',
+            skipWeekends: skipWeekends
+        };
+
+        showToast(`Applying Bulk Leave for ${empName}...`);
+
+        const res = await fetch('/api/task-logs/bulk-leave', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const resData = await res.json();
+        if (!resData.success) {
+            showToast(resData.error || 'Failed to apply bulk leave', 'error');
+            return;
+        }
+
+        closeModal('bulk-leave-modal');
+        showToast(resData.message || `Bulk Leave Applied successfully for ${empName}!`);
+        await fetchTaskLogs();
+
+        if (currentMode === 'employee') {
+            renderEmployeePortal();
+        } else {
+            renderAdminRosterTable();
+        }
     }
 
     loadData();

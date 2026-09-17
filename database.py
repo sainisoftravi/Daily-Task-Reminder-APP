@@ -16,6 +16,7 @@ import secrets
 import string
 from typing import List, Dict, Any, Optional
 from cryptography.fernet import Fernet
+from werkzeug.security import generate_password_hash, check_password_hash
 
 def generate_random_password(length: int = 12) -> str:
     """Generates a secure 12-character random password containing uppercase, lowercase, and numeric characters."""
@@ -32,6 +33,22 @@ def generate_random_password(length: int = 12) -> str:
     pwd += [secrets.choice(all_chars) for _ in range(length - 3)]
     secrets.SystemRandom().shuffle(pwd)
     return "".join(pwd)
+
+def hash_password(password_raw: str) -> str:
+    """Hashes a plaintext password using werkzeug pbkdf2/scrypt algorithm."""
+    if not password_raw:
+        return ""
+    if password_raw.startswith(("pbkdf2:", "scrypt:", "argon2:")):
+        return password_raw
+    return generate_password_hash(password_raw)
+
+def verify_password(stored_password: str, password_raw: str) -> bool:
+    """Verifies a password against stored password (handles hashed or legacy plaintext)."""
+    if not stored_password or not password_raw:
+        return False
+    if stored_password.startswith(("pbkdf2:", "scrypt:", "argon2:")):
+        return check_password_hash(stored_password, password_raw.strip())
+    return stored_password == password_raw.strip()
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 DB_FILE = os.path.join(DATA_DIR, "app_database.db")
@@ -291,7 +308,9 @@ def init_db():
             team_name TEXT NOT NULL,
             date_str TEXT NOT NULL,
             task_details TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            is_leave INTEGER DEFAULT 0,
+            work_status TEXT DEFAULT 'Present'
         )
     """)
 
@@ -321,7 +340,9 @@ def init_db():
         "ALTER TABLE employees ADD COLUMN role TEXT DEFAULT 'employee'",
         "ALTER TABLE employees ADD COLUMN location_id TEXT",
         "ALTER TABLE managers ADD COLUMN team_name TEXT",
-        "ALTER TABLE templates ADD COLUMN ignore_note TEXT"
+        "ALTER TABLE templates ADD COLUMN ignore_note TEXT",
+        "ALTER TABLE task_logs ADD COLUMN is_leave INTEGER DEFAULT 0",
+        "ALTER TABLE task_logs ADD COLUMN work_status TEXT DEFAULT 'Present'"
     ]:
         try:
             cursor.execute(alter_cmd)
@@ -513,7 +534,25 @@ def _seed_from_json(conn: sqlite3.Connection):
 
     # Seed Default User Accounts (Admin, Manager, Employees)
     _seed_users(conn)
+    _migrate_plaintext_passwords(conn)
     conn.commit()
+
+def _migrate_plaintext_passwords(conn):
+    """Automatically upgrades any plain text passwords in the users table to salted Werkzeug password hashes."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, password FROM users")
+        rows = cursor.fetchall()
+        for r in rows:
+            u_dict = dict(r)
+            u_id = u_dict.get("id")
+            pwd = u_dict.get("password") or ""
+            if pwd and not pwd.startswith(("pbkdf2:", "scrypt:", "argon2:")):
+                hashed = hash_password(pwd)
+                cursor.execute("UPDATE users SET password = ? WHERE id = ?", (hashed, u_id))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB MIGRATION WARNING] Failed migrating plain text passwords: {e}")
 
 def _seed_users(conn: sqlite3.Connection):
     cursor = conn.cursor()
@@ -522,10 +561,10 @@ def _seed_users(conn: sqlite3.Connection):
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         # Default Admin Account
         cursor.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                       ("u_admin", "System Administrator", "admin@company.com", "admin123", "admin", now_str))
+                       ("u_admin", "System Administrator", "admin@company.com", hash_password("admin123"), "admin", now_str))
         # Default Manager Account
         cursor.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                       ("u_mgr_1", "Ravi Saini", "Ravi@d2backoffice.onmicrosoft.com", "manager123", "manager", now_str))
+                       ("u_mgr_1", "Ravi Saini", "Ravi@d2backoffice.onmicrosoft.com", hash_password("manager123"), "manager", now_str))
 
         # Seed Employee Accounts from employee roster
         cursor.execute("SELECT name, email, team_id FROM employees")
@@ -534,7 +573,7 @@ def _seed_users(conn: sqlite3.Connection):
             e_dict = dict(emp)
             u_id = f"u_emp_{idx+1}"
             cursor.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, team_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                           (u_id, e_dict.get("name"), e_dict.get("email"), "emp123", "employee", e_dict.get("team_id", ""), now_str))
+                           (u_id, e_dict.get("name"), e_dict.get("email"), hash_password("emp123"), "employee", e_dict.get("team_id", ""), now_str))
 
 # --- User Authentication & Management Helpers ---
 
@@ -548,7 +587,18 @@ def authenticate_user(email: str, password_raw: str) -> Dict[str, Any]:
         return {"success": False, "error": "Invalid email or password. Please check your credentials."}
     
     user_dict = dict(row)
-    if user_dict.get("password") == password_raw.strip():
+    stored_pwd = user_dict.get("password") or ""
+    if verify_password(stored_pwd, password_raw):
+        # Auto-upgrade legacy plain text password to Werkzeug hash upon successful login
+        if not stored_pwd.startswith(("pbkdf2:", "scrypt:", "argon2:")):
+            try:
+                up_conn = get_db_connection()
+                up_conn.execute("UPDATE users SET password = ? WHERE id = ?", (hash_password(password_raw.strip()), user_dict["id"]))
+                up_conn.commit()
+                up_conn.close()
+            except Exception:
+                pass
+
         must_change = bool(user_dict.get("must_change_password"))
         expires_at = user_dict.get("pwd_expires_at")
         
@@ -584,6 +634,7 @@ def reset_user_password_with_expiry(email: str, hours: int = 4) -> Dict[str, Any
     
     user = dict(row)
     new_pass = generate_random_password(12)
+    hashed_pass = hash_password(new_pass)
     expires_dt = datetime.datetime.now() + datetime.timedelta(hours=hours)
     expires_str = expires_dt.isoformat()
     
@@ -591,7 +642,7 @@ def reset_user_password_with_expiry(email: str, hours: int = 4) -> Dict[str, Any
         UPDATE users
         SET password = ?, must_change_password = 1, pwd_expires_at = ?
         WHERE LOWER(email) = ?
-    """, (new_pass, expires_str, email_clean))
+    """, (hashed_pass, expires_str, email_clean))
     
     try:
         conn.execute("""
@@ -733,7 +784,7 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
                     UPDATE users 
                     SET name = ?, role = ?, team_id = ?, password = ?, must_change_password = 1, pwd_expires_at = ? 
                     WHERE LOWER(email) = ?
-                """, (name_val, role, team_id_val, custom_pwd, exp_4h, email_clean))
+                """, (name_val, role, team_id_val, hash_password(custom_pwd), exp_4h, email_clean))
                 emp_data["generated_password"] = custom_pwd
             else:
                 cursor.execute("UPDATE users SET name = ?, role = ?, team_id = ? WHERE LOWER(email) = ?",
@@ -745,7 +796,7 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
             cursor.execute("""
                 INSERT INTO users (id, name, email, password, role, team_id, created_at, must_change_password, pwd_expires_at) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
-            """, (u_id, name_val, email_clean, final_pwd, role, team_id_val, now_str, exp_4h))
+            """, (u_id, name_val, email_clean, hash_password(final_pwd), role, team_id_val, now_str, exp_4h))
             emp_data["generated_password"] = final_pwd
 
     # If role is manager, sync with managers table
@@ -773,15 +824,17 @@ def update_user_password(email: str, old_password: str, new_password: str, is_fo
         return {"success": False, "error": "User account not found."}
     
     user_dict = dict(row)
-    if not is_forced and old_password and user_dict.get("password") != old_password.strip():
+    stored_pwd = user_dict.get("password") or ""
+    if not is_forced and old_password and not verify_password(stored_pwd, old_password):
         conn.close()
         return {"success": False, "error": "Current password is incorrect."}
     
+    hashed_new = hash_password(new_password.strip())
     conn.execute("""
         UPDATE users 
         SET password = ?, must_change_password = 0, pwd_expires_at = NULL 
         WHERE LOWER(email) = ?
-    """, (new_password.strip(), email_clean))
+    """, (hashed_new, email_clean))
 
     try:
         conn.execute("""
@@ -1347,14 +1400,27 @@ def save_task_log(data: Dict[str, Any]) -> bool:
     team_name = data.get("teamName") or data.get("team_name", "Infra Team")
     team_id = data.get("teamId") or data.get("team_id", "")
     date_str = data.get("dateStr") or data.get("date_str") or datetime.datetime.now().strftime("%Y-%m-%d")
-    task_details = data.get("taskDetails") or data.get("task_details", "")
+    task_details = (data.get("taskDetails") or data.get("task_details") or "").strip()
+    
+    is_leave_val = data.get("isLeave") or data.get("is_leave")
+    work_status_val = str(data.get("workStatus") or data.get("work_status") or "").strip()
+    
+    if is_leave_val or work_status_val.lower() == "leave" or "on leave" in task_details.lower():
+        is_leave = 1
+        work_status = "Leave"
+        if not task_details:
+            task_details = "ON LEAVE"
+    else:
+        is_leave = 0
+        work_status = "Present"
+
     emp_id = data.get("employeeId") or data.get("employee_id", "")
     log_id = data.get("id") or f"log_{emp_name.lower().replace(' ', '_')}_{date_str}"
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     cursor.execute("""
-        INSERT INTO task_logs (id, employee_id, employee_name, email, team_id, team_name, date_str, task_details, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO task_logs (id, employee_id, employee_name, email, team_id, team_name, date_str, task_details, updated_at, is_leave, work_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             employee_name=excluded.employee_name,
             email=excluded.email,
@@ -1362,8 +1428,10 @@ def save_task_log(data: Dict[str, Any]) -> bool:
             team_name=excluded.team_name,
             date_str=excluded.date_str,
             task_details=excluded.task_details,
-            updated_at=excluded.updated_at
-    """, (log_id, emp_id, emp_name, email, team_id, team_name, date_str, task_details, now_str))
+            updated_at=excluded.updated_at,
+            is_leave=excluded.is_leave,
+            work_status=excluded.work_status
+    """, (log_id, emp_id, emp_name, email, team_id, team_name, date_str, task_details, now_str, is_leave, work_status))
     conn.commit()
     conn.close()
     return True
@@ -1396,21 +1464,46 @@ def get_task_logs(team_id: Optional[str] = None, team_name: Optional[str] = None
     conn.close()
     return [dict(r) for r in rows]
 
-def is_employee_task_filled(employee_name_or_email: str, date_str: str) -> bool:
-    """Checks if an employee has submitted a task log for the specified date."""
+def is_employee_on_leave(employee_name_or_email: str, date_str: str) -> bool:
+    """Checks if an employee is marked as On Leave for the specified date."""
     conn = get_db_connection()
     val = employee_name_or_email.strip().lower()
     
-    # Try exact YYYY-MM-DD match or alternate date representations
     row = conn.execute("""
-        SELECT task_details FROM task_logs 
+        SELECT is_leave, work_status, task_details FROM task_logs 
         WHERE (LOWER(employee_name) LIKE ? OR LOWER(email) LIKE ?) 
         AND (date_str = ? OR date_str LIKE ?)
     """, (f"%{val}%", f"%{val}%", date_str, f"%{date_str}%")).fetchone()
     
     conn.close()
-    if row and row["task_details"] and len(row["task_details"].strip()) > 5:
-        return True
+    if row:
+        d_row = dict(row)
+        if d_row.get("is_leave") == 1 or str(d_row.get("work_status")).lower() == "leave":
+            return True
+        details = str(d_row.get("task_details") or "").lower().strip()
+        if "on leave" in details or details == "leave":
+            return True
+    return False
+
+def is_employee_task_filled(employee_name_or_email: str, date_str: str) -> bool:
+    """Checks if an employee has submitted a task log or marked On Leave for the specified date."""
+    conn = get_db_connection()
+    val = employee_name_or_email.strip().lower()
+    
+    row = conn.execute("""
+        SELECT task_details, is_leave, work_status FROM task_logs 
+        WHERE (LOWER(employee_name) LIKE ? OR LOWER(email) LIKE ?) 
+        AND (date_str = ? OR date_str LIKE ?)
+    """, (f"%{val}%", f"%{val}%", date_str, f"%{date_str}%")).fetchone()
+    
+    conn.close()
+    if row:
+        d_row = dict(row)
+        if d_row.get("is_leave") == 1 or str(d_row.get("work_status")).lower() == "leave":
+            return True
+        details = str(d_row.get("task_details") or "").strip()
+        if details and (len(details) > 3 or "on leave" in details.lower()):
+            return True
     return False
 
 def get_task_log_by_id(log_id: str) -> Optional[Dict[str, Any]]:

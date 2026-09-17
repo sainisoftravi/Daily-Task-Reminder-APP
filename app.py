@@ -269,6 +269,68 @@ def manage_task_logs():
         log_event(f"Submitted Daily Task Log for '{emp_name}' on date '{date_str}'.")
         return jsonify({"success": True, "message": f"Task log submitted for {emp_name}"})
 
+@app.route("/api/task-logs/bulk-leave", methods=["POST"])
+def api_bulk_leave():
+    current_user = session.get("user") or {}
+    user_role = current_user.get("role", "employee")
+    user_name = current_user.get("name", "")
+    user_email = current_user.get("email", "")
+
+    data = request.json or {}
+    emp_name = (data.get("employeeName") or data.get("employee_name") or user_name).strip()
+    email = (data.get("email") or user_email).strip()
+    team_name = data.get("teamName") or data.get("team_name", "Infra Team")
+    team_id = data.get("teamId") or data.get("team_id", "")
+    leave_note = (data.get("leaveNote") or data.get("taskDetails") or "ON LEAVE").strip()
+    start_date_str = data.get("startDate") or data.get("start_date")
+    end_date_str = data.get("endDate") or data.get("end_date")
+    skip_weekends = bool(data.get("skipWeekends", True))
+
+    if user_role == "employee":
+        if emp_name.lower() != user_name.lower() and email.lower() != user_email.lower():
+            return jsonify({"success": False, "error": "Forbidden: Employees are only permitted to submit leave for themselves."}), 403
+        emp_name = user_name
+        email = user_email
+
+    if not start_date_str or not end_date_str:
+        return jsonify({"success": False, "error": "Please provide both Start Date and End Date for bulk leave."}), 400
+
+    try:
+        start_dt = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
+        end_dt = datetime.datetime.strptime(end_date_str, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"success": False, "error": "Invalid date format. Expected YYYY-MM-DD."}), 400
+
+    if start_dt > end_dt:
+        return jsonify({"success": False, "error": "Start Date cannot be after End Date."}), 400
+
+    count = 0
+    curr_dt = start_dt
+    while curr_dt <= end_dt:
+        # Check if weekend skipping requested (Saturday=5, Sunday=6)
+        if not (skip_weekends and curr_dt.weekday() in (5, 6)):
+            dt_str = curr_dt.strftime("%Y-%m-%d")
+            log_payload = {
+                "employeeName": emp_name,
+                "email": email,
+                "teamName": team_name,
+                "teamId": team_id,
+                "dateStr": dt_str,
+                "taskDetails": leave_note if leave_note else "ON LEAVE",
+                "isLeave": True,
+                "workStatus": "Leave"
+            }
+            database.save_task_log(log_payload)
+            count += 1
+        curr_dt += datetime.timedelta(days=1)
+
+    log_event(f"Bulk Leave applied for '{emp_name}' across {count} days ({start_date_str} to {end_date_str}).")
+    return jsonify({
+        "success": True,
+        "count": count,
+        "message": f"Successfully applied On Leave for {count} days for {emp_name} ({start_date_str} to {end_date_str}). Reminders auto-suppressed."
+    })
+
 @app.route("/api/task-logs/<log_id>", methods=["DELETE"])
 def delete_task_log_route(log_id):
     current_user = session.get("user") or {}

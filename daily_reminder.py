@@ -194,10 +194,13 @@ def check_task_sheet_local(file_path: str, sheet_name: str, target_date: str, em
     Checks local Excel sheet & SQLite Web Task Submissions database to determine if employee has filled their task details.
     Returns True if filled (reminder suppressed), False if blank/missing.
     """
-    # 1. First check Web Form SQLite Task Submissions
+    # 1. First check Web Form SQLite Task Submissions & On Leave status
     try:
         import database
         today_iso = datetime.datetime.now().strftime("%Y-%m-%d")
+        if database.is_employee_on_leave(employee_name, target_date) or database.is_employee_on_leave(employee_name, today_iso):
+            print(f"[ON LEAVE] Employee '{employee_name}' is ON LEAVE for '{target_date}'. Suppressing reminder email.")
+            return True
         if database.is_employee_task_filled(employee_name, target_date) or database.is_employee_task_filled(employee_name, today_iso):
             print(f"[SQLITE TASK SUBMISSION] Employee '{employee_name}' has submitted daily task log via Web Form for '{target_date}'. Suppressing reminder email.")
             return True
