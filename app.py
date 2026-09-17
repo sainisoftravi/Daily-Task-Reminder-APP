@@ -16,8 +16,9 @@ import time
 import datetime
 import threading
 import smtplib
+import io
 from typing import List, Dict, Any
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, Response
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, Response, send_file
 
 # Import database module, reminder engine, and report generator
 import database
@@ -583,23 +584,28 @@ def export_task_report():
     downloaded_by = user.get("name") or user.get("email") or "System User"
 
     # Generate output format
-    safe_team_name = team_name.replace(" ", "_")
+    safe_team_name = team_name.replace(" ", "_").replace("/", "_")
     safe_period_label = period_label.replace(" ", "_").replace(",", "")
 
-    if fmt == "pdf":
-        file_data = report_generator.generate_pdf_report(team_name, period_label, locations_str, dates_list, filtered_employees, logs_map, downloaded_by=downloaded_by)
-        filename = f"Task_Report_{safe_team_name}_{safe_period_label}.pdf"
-        mimetype = "application/pdf"
-    else:
-        file_data = report_generator.generate_xlsx_report(team_name, period_label, locations_str, dates_list, filtered_employees, logs_map, downloaded_by=downloaded_by)
-        filename = f"Task_Report_{safe_team_name}_{safe_period_label}.xlsx"
-        mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    try:
+        if fmt == "pdf":
+            file_data = report_generator.generate_pdf_report(team_name, period_label, locations_str, dates_list, filtered_employees, logs_map, downloaded_by=downloaded_by)
+            filename = f"Task_Report_{safe_team_name}_{safe_period_label}.pdf"
+            mimetype = "application/pdf"
+        else:
+            file_data = report_generator.generate_xlsx_report(team_name, period_label, locations_str, dates_list, filtered_employees, logs_map, downloaded_by=downloaded_by)
+            filename = f"Task_Report_{safe_team_name}_{safe_period_label}.xlsx"
+            mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-    return Response(
-        file_data,
-        mimetype=mimetype,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
-    )
+        return send_file(
+            io.BytesIO(file_data),
+            mimetype=mimetype,
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as err:
+        log_event(f"Error generating export report ({fmt}): {err}")
+        return jsonify({"success": False, "error": f"Failed to generate report: {str(err)}"}), 500
 
 @app.route("/api/quotes", methods=["GET", "POST"])
 def manage_quotes():

@@ -970,7 +970,12 @@
             if (startVal) url += `&start_date=${startVal}`;
             if (endVal) url += `&end_date=${endVal}`;
         }
-        window.open(url, '_blank');
+        const a = document.createElement('a');
+        a.href = url;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     }
 
     loadData();

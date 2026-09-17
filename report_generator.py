@@ -6,6 +6,8 @@ and includes the downloader's full name in the header banner.
 """
 
 import io
+import re
+import html
 import datetime
 from typing import List, Dict, Any, Optional
 
@@ -20,6 +22,13 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 
+def sanitize_str(val: Any) -> str:
+    """Removes illegal control characters for Excel/XML compatibility."""
+    if val is None:
+        return ""
+    return re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F]', '', str(val))
+
+
 def generate_xlsx_report(
     team_name: str,
     period_label: str,
@@ -31,11 +40,6 @@ def generate_xlsx_report(
 ) -> bytes:
     """
     Generates an Excel (.xlsx) user-wise task fill report matrix.
-    
-    Header format: [Team Name] - [Period] ([Locations])
-    Subheader: Downloaded By: [Full Name] | Generated: [Date Time]
-    Columns: Date | User 1 | User 2 | User 3 ...
-    Rows: Dates sorted chronologically.
     """
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -46,7 +50,7 @@ def generate_xlsx_report(
     last_col_letter = get_column_letter(total_cols)
 
     # 1. Top Title Banner (Merged Row 1)
-    banner_text = f"{team_name} - {period_label} ({locations_str})"
+    banner_text = sanitize_str(f"{team_name} - {period_label} ({locations_str})")
     ws.merge_cells(f"A1:{last_col_letter}1")
     banner_cell = ws["A1"]
     banner_cell.value = banner_text
@@ -60,7 +64,7 @@ def generate_xlsx_report(
         ws.merge_cells(f"A2:{last_col_letter}2")
         sub_cell = ws["A2"]
         curr_time_str = datetime.datetime.now().strftime("%d-%b-%Y %I:%M %p")
-        sub_cell.value = f"Downloaded By: {downloaded_by}   |   Generated On: {curr_time_str}"
+        sub_cell.value = sanitize_str(f"Downloaded By: {downloaded_by}   |   Generated On: {curr_time_str}")
         sub_cell.font = Font(name="Calibri", size=9.5, italic=True, bold=True, color="475569")
         sub_cell.fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
         sub_cell.alignment = Alignment(horizontal="right", vertical="center")
@@ -85,7 +89,7 @@ def generate_xlsx_report(
 
     for idx, emp in enumerate(employees_list):
         col_idx = idx + 2
-        cell = ws.cell(row=header_row_num, column=col_idx, value=emp.get("name", "Employee"))
+        cell = ws.cell(row=header_row_num, column=col_idx, value=sanitize_str(emp.get("name", "Employee")))
         bg_color = col_palette[idx % len(col_palette)]
         cell.font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
         cell.fill = PatternFill(start_color=bg_color, end_color=bg_color, fill_type="solid")
@@ -112,7 +116,7 @@ def generate_xlsx_report(
         ws.row_dimensions[row_num].height = 40
 
         # Date column
-        dt_cell = ws.cell(row=row_num, column=1, value=date_str)
+        dt_cell = ws.cell(row=row_num, column=1, value=sanitize_str(date_str))
         dt_cell.font = Font(name="Calibri", size=10, bold=True, color="334155")
         dt_cell.alignment = Alignment(horizontal="center", vertical="top")
         dt_cell.border = thin_border
@@ -126,7 +130,7 @@ def generate_xlsx_report(
 
             cell = ws.cell(row=row_num, column=col_num)
             if details and details.strip():
-                det_strip = details.strip()
+                det_strip = sanitize_str(details.strip())
                 det_lower = det_strip.lower()
                 cell.value = det_strip
                 if "week off" in det_lower or "weekoff" in det_lower or det_strip.startswith("🏖️"):
@@ -259,20 +263,21 @@ def generate_pdf_report(
     elements = []
 
     # 1. Header Banner
-    banner_text = f"<b>{team_name} - {period_label} ({locations_str})</b>"
-    elements.append(Paragraph(banner_text, title_style))
+    safe_title = html.escape(f"{team_name} - {period_label} ({locations_str})")
+    elements.append(Paragraph(f"<b>{safe_title}</b>", title_style))
 
     if downloaded_by:
         curr_time_str = datetime.datetime.now().strftime("%d-%b-%Y %I:%M %p")
-        sub_text = f"Downloaded By: {downloaded_by} &nbsp;|&nbsp; Generated On: {curr_time_str}"
-        elements.append(Paragraph(sub_text, sub_style))
+        safe_dl = html.escape(downloaded_by)
+        elements.append(Paragraph(f"Downloaded By: {safe_dl} &nbsp;|&nbsp; Generated On: {curr_time_str}", sub_style))
 
     elements.append(Spacer(1, 8))
 
     # 2. Build Table Data Matrix & Custom Cell Backgrounds
     header_row = [Paragraph("<b>Date</b>", header_cell_style)]
     for emp in employees_list:
-        header_row.append(Paragraph(f"<b>{emp.get('name', 'Employee')}</b>", header_cell_style))
+        emp_name_clean = html.escape(emp.get('name', 'Employee'))
+        header_row.append(Paragraph(f"<b>{emp_name_clean}</b>", header_cell_style))
 
     table_data = [header_row]
 
@@ -290,11 +295,11 @@ def generate_pdf_report(
 
     for r_idx, date_str in enumerate(dates_list):
         row_num = r_idx + 1 # Table row index (1-based after header)
-        row = [Paragraph(date_str, date_cell_style)]
+        row = [Paragraph(html.escape(date_str), date_cell_style)]
         
         # Default alternating row background for row
         base_bg = colors.HexColor("#F8FAFC") if r_idx % 2 == 1 else colors.white
-        t_style.append(('BACKGROUND', (0, row_num), (-1, row_num), base_bg))
+        t_style.append(('BACKGROUND', (0, row_num), (0, row_num), base_bg))
 
         for c_idx, emp in enumerate(employees_list):
             col_num = c_idx + 1 # Table column index (1-based after date)
@@ -305,7 +310,7 @@ def generate_pdf_report(
             if details and details.strip():
                 det_strip = details.strip()
                 det_lower = det_strip.lower()
-                safe_details = det_strip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+                safe_details = html.escape(det_strip).replace("\n", "<br/>")
                 
                 if "week off" in det_lower or "weekoff" in det_lower or det_strip.startswith("🏖️"):
                     row.append(Paragraph(f"<b>🏖️ {safe_details}</b>", weekoff_text_style))
@@ -315,6 +320,7 @@ def generate_pdf_report(
                     t_style.append(('BACKGROUND', (col_num, row_num), (col_num, row_num), colors.HexColor("#FEF3C7")))
                 else:
                     row.append(Paragraph(safe_details, log_text_style))
+                    t_style.append(('BACKGROUND', (col_num, row_num), (col_num, row_num), colors.HexColor("#F0FDF4")))
             else:
                 emp_ident = emp.get("email") or emp_name
                 if database.is_employee_week_off(emp_ident, date_str):
@@ -322,6 +328,7 @@ def generate_pdf_report(
                     t_style.append(('BACKGROUND', (col_num, row_num), (col_num, row_num), colors.HexColor("#E0F2FE")))
                 else:
                     row.append(Paragraph("⚠️ Pending", pending_text_style))
+                    t_style.append(('BACKGROUND', (col_num, row_num), (col_num, row_num), colors.HexColor("#FFFBEB")))
         table_data.append(row)
 
     printable_width = 744
@@ -329,22 +336,6 @@ def generate_pdf_report(
     remaining_w = printable_width - date_col_w
     emp_col_w = max(70, remaining_w / max(1, len(employees_list)))
     col_widths = [date_col_w] + [emp_col_w] * len(employees_list)
-
-    # 3. Table Style
-    t_style = [
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1E293B")),
-        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('LEFTPADDING', (0, 0), (-1, -1), 4),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-    ]
-
-    for r in range(1, len(table_data)):
-        bg = colors.HexColor("#F8FAFC") if r % 2 == 0 else colors.white
-        t_style.append(('BACKGROUND', (0, r), (-1, r), bg))
 
     pdf_table = Table(table_data, colWidths=col_widths, repeatRows=1)
     pdf_table.setStyle(TableStyle(t_style))
