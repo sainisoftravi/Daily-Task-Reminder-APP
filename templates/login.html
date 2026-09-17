@@ -243,13 +243,14 @@
                     <input type="email" id="login-email" required placeholder="Enter the email">
                 </div>
 
-                <div class="floating-field">
+                <div class="floating-field" style="position: relative;">
                     <label for="login-password">Password</label>
-                    <input type="password" id="login-password" required placeholder="Enter the Password">
+                    <input type="password" id="login-password" required placeholder="Enter the Password" style="padding-right: 48px;">
+                    <i class="fa-solid fa-eye" id="toggle-pwd-icon" onclick="togglePasswordVisibility('login-password', 'toggle-pwd-icon')" style="position: absolute; right: 16px; top: 18px; cursor: pointer; color: #64748b; font-size: 16px; z-index: 5;" title="Click to show/hide password"></i>
                 </div>
 
                 <div class="forgot-wrapper">
-                    <a href="javascript:void(0)" onclick="alert('Please contact your administrator to reset your password.')">Forgot password?</a>
+                    <a href="javascript:void(0)" onclick="openResetPasswordModal()">Forgot or Expired Password? Request New Password</a>
                 </div>
 
                 <button type="submit" class="btn-signin" id="submit-btn">Sign in</button>
@@ -266,7 +267,202 @@
         </div>
     </div>
 
+    <!-- Reset Password Modal -->
+    <div id="reset-password-modal" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.65); backdrop-filter: blur(5px); z-index: 9999; justify-content: center; align-items: center; padding: 20px;">
+        <div style="background: #ffffff; width: 100%; max-width: 450px; border-radius: 20px; padding: 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.25); text-align: left; position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div style="font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 20px; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-rotate-left" style="color: #6366f1;"></i> Request Password Reset
+                </div>
+                <span onclick="closeResetModal()" style="cursor: pointer; font-size: 24px; color: #94a3b8; font-weight: bold; line-height: 1;">&times;</span>
+            </div>
+            <p style="font-size: 13px; color: #64748b; margin-bottom: 20px; line-height: 1.5;">
+                Enter your registered email address below. System will generate a fresh <strong>12-character temporary password</strong> (valid for 4 hours) and send it to your email.
+            </p>
+
+            <div id="reset-msg-box" style="display: none; padding: 12px 14px; border-radius: 12px; font-size: 13px; margin-bottom: 20px; line-height: 1.4;"></div>
+
+            <div class="floating-field" style="margin-bottom: 24px;">
+                <label for="reset-email">Registered Email Address</label>
+                <input type="email" id="reset-email" required placeholder="e.g. user@company.com">
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button type="button" class="btn-signin" style="background: #f1f5f9; color: #475569; width: auto; padding: 0 20px;" onclick="closeResetModal()">Cancel</button>
+                <button type="button" class="btn-signin" id="reset-submit-btn" style="width: auto; padding: 0 24px;" onclick="submitPasswordResetRequest()">Send New Password</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mandatory Password Change Modal -->
+    <div id="force-change-modal" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.75); backdrop-filter: blur(8px); z-index: 9999; justify-content: center; align-items: center; padding: 20px;">
+        <div style="background: #ffffff; width: 100%; max-width: 480px; border-radius: 24px; padding: 32px; box-shadow: 0 24px 60px rgba(0,0,0,0.3); text-align: left;">
+            <div style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 22px; color: #0f172a; margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
+                <i class="fa-solid fa-shield-halved" style="color: #10b981;"></i> First-Time Password Setup Required
+            </div>
+            <p style="font-size: 13.5px; color: #64748b; margin-bottom: 24px; line-height: 1.5;">
+                You are logged in with a temporary 12-character password. For your account security, please create your new permanent password below.
+            </p>
+
+            <div id="force-err-box" class="error-alert" style="margin-bottom: 20px;"></div>
+
+            <div class="floating-field" style="margin-bottom: 20px; position: relative;">
+                <label for="force-new-pwd">New Permanent Password</label>
+                <input type="password" id="force-new-pwd" required placeholder="Enter new password (min 4 chars)" style="padding-right: 48px;">
+                <i class="fa-solid fa-eye" id="toggle-force-1" onclick="togglePasswordVisibility('force-new-pwd', 'toggle-force-1')" style="position: absolute; right: 16px; top: 18px; cursor: pointer; color: #64748b; font-size: 16px; z-index: 5;"></i>
+            </div>
+            <div class="floating-field" style="margin-bottom: 28px; position: relative;">
+                <label for="force-confirm-pwd">Confirm New Password</label>
+                <input type="password" id="force-confirm-pwd" required placeholder="Confirm new password" style="padding-right: 48px;">
+                <i class="fa-solid fa-eye" id="toggle-force-2" onclick="togglePasswordVisibility('force-confirm-pwd', 'toggle-force-2')" style="position: absolute; right: 16px; top: 18px; cursor: pointer; color: #64748b; font-size: 16px; z-index: 5;"></i>
+            </div>
+
+            <button type="button" class="btn-signin" id="force-submit-btn" onclick="submitForcePasswordChange()">Set New Password & Continue</button>
+        </div>
+    </div>
+
     <script>
+        let pendingLoginRedirectRole = 'employee';
+
+        function togglePasswordVisibility(inputId, iconId) {
+            const pwdInput = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            if (!pwdInput || !icon) return;
+            if (pwdInput.type === 'password') {
+                pwdInput.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                pwdInput.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        function openResetPasswordModal() {
+            const loginEmail = document.getElementById('login-email').value;
+            if (loginEmail) {
+                document.getElementById('reset-email').value = loginEmail;
+            }
+            const msgBox = document.getElementById('reset-msg-box');
+            msgBox.style.display = 'none';
+            document.getElementById('reset-password-modal').style.display = 'flex';
+        }
+
+        function closeResetModal() {
+            document.getElementById('reset-password-modal').style.display = 'none';
+        }
+
+        async function submitPasswordResetRequest() {
+            const email = document.getElementById('reset-email').value.trim();
+            const msgBox = document.getElementById('reset-msg-box');
+            msgBox.style.display = 'none';
+
+            if (!email) {
+                msgBox.innerText = 'Please enter your registered email address.';
+                msgBox.style.background = '#fef2f2';
+                msgBox.style.color = '#b91c1c';
+                msgBox.style.border = '1px solid #fca5a5';
+                msgBox.style.display = 'block';
+                return;
+            }
+
+            const btn = document.getElementById('reset-submit-btn');
+            btn.innerText = 'Sending...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/request-password-reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    msgBox.innerText = data.message || 'A new 12-character temporary password (valid for 4 hours) has been sent to your email.';
+                    msgBox.style.background = '#f0fdf4';
+                    msgBox.style.color = '#15803d';
+                    msgBox.style.border = '1px solid #86efac';
+                    msgBox.style.display = 'block';
+                    setTimeout(() => {
+                        closeResetModal();
+                    }, 4000);
+                } else {
+                    msgBox.innerText = data.error || 'Failed to send password reset request.';
+                    msgBox.style.background = '#fef2f2';
+                    msgBox.style.color = '#b91c1c';
+                    msgBox.style.border = '1px solid #fca5a5';
+                    msgBox.style.display = 'block';
+                }
+            } catch (err) {
+                msgBox.innerText = 'Server error. Please try again.';
+                msgBox.style.background = '#fef2f2';
+                msgBox.style.color = '#b91c1c';
+                msgBox.style.border = '1px solid #fca5a5';
+                msgBox.style.display = 'block';
+            } finally {
+                btn.innerText = 'Send New Password';
+                btn.disabled = false;
+            }
+        }
+
+        async function submitForcePasswordChange() {
+            const newPassword = document.getElementById('force-new-pwd').value;
+            const confirmPassword = document.getElementById('force-confirm-pwd').value;
+            const errBox = document.getElementById('force-err-box');
+            errBox.style.display = 'none';
+
+            if (!newPassword || !confirmPassword) {
+                errBox.innerText = 'Please fill out both password fields.';
+                errBox.style.display = 'block';
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                errBox.innerText = 'Passwords do not match.';
+                errBox.style.display = 'block';
+                return;
+            }
+
+            if (newPassword.length < 4) {
+                errBox.innerText = 'Password must be at least 4 characters long.';
+                errBox.style.display = 'block';
+                return;
+            }
+
+            const btn = document.getElementById('force-submit-btn');
+            btn.innerText = 'Updating Password...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/force-change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newPassword })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    if (pendingLoginRedirectRole === 'employee') {
+                        window.location.href = '/task-entry';
+                    } else {
+                        window.location.href = '/dashboard';
+                    }
+                } else {
+                    errBox.innerText = data.error || 'Failed to update password.';
+                    errBox.style.display = 'block';
+                    btn.innerText = 'Set New Password & Continue';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                errBox.innerText = 'Server error. Please try again.';
+                errBox.style.display = 'block';
+                btn.innerText = 'Set New Password & Continue';
+                btn.disabled = false;
+            }
+        }
+
         async function handleLoginSubmit(e) {
             e.preventDefault();
             const email = document.getElementById('login-email').value;
@@ -288,8 +484,15 @@
 
                 const data = await res.json();
                 if (data.success && data.user) {
-                    const role = data.user.role || 'employee';
-                    if (role === 'employee') {
+                    pendingLoginRedirectRole = data.user.role || 'employee';
+                    if (data.mustChangePassword) {
+                        document.getElementById('force-change-modal').style.display = 'flex';
+                        submitBtn.innerText = 'Sign in';
+                        submitBtn.disabled = false;
+                        return;
+                    }
+
+                    if (pendingLoginRedirectRole === 'employee') {
                         window.location.href = '/task-entry';
                     } else {
                         window.location.href = '/dashboard';
@@ -308,5 +511,6 @@
             }
         }
     </script>
+
 </body>
 </html>

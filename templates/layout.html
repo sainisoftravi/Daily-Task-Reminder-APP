@@ -223,6 +223,74 @@
             box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
         }
 
+        /* Submenu Accordion / Dropdown Styles */
+        .nav-dropdown {
+            margin: 2px 0;
+        }
+
+        .nav-dropdown-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 9px 12px;
+            color: var(--nav-text-color);
+            border-radius: var(--radius-md);
+            font-size: 13.5px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .nav-dropdown-header:hover {
+            color: var(--nav-hover-color);
+            background: var(--nav-hover-bg);
+        }
+
+        .nav-dropdown.active-parent .nav-dropdown-header {
+            color: var(--text-main);
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+        }
+
+        .nav-dropdown-header .chevron-icon {
+            font-size: 11px;
+            transition: transform 0.25s ease;
+            color: var(--text-muted);
+        }
+
+        .nav-dropdown.open .nav-dropdown-header .chevron-icon {
+            transform: rotate(180deg);
+        }
+
+        .nav-submenu {
+            list-style: none;
+            padding: 4px 0 4px 10px;
+            margin: 4px 0 4px 8px;
+            border-left: 2px solid rgba(99, 102, 241, 0.3);
+            display: none;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .nav-dropdown.open .nav-submenu {
+            display: flex;
+        }
+
+        .nav-submenu .nav-item a {
+            padding: 7.5px 10px;
+            font-size: 12.8px;
+            font-weight: 500;
+        }
+
+        .nav-submenu .nav-item.active a {
+            background: var(--primary-gradient);
+            color: #ffffff !important;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+
         .sidebar-footer {
             padding: 12px 14px;
             border-top: 1px solid var(--card-border);
@@ -715,57 +783,78 @@
             </li>
 
             {% if current_role in ['admin', 'manager'] %}
+            <li class="nav-item nav-admin nav-manager {% if active_page in ['users', 'employees', 'managers'] %}active{% endif %}">
+                <a href="/users"><i class="fa-solid fa-users-gear"></i> User Management</a>
+            </li>
             <li class="nav-item nav-admin nav-manager {% if active_page == 'dashboard' %}active{% endif %}">
                 <a href="/dashboard"><i class="fa-solid fa-chart-pie"></i> Realtime Dashboard</a>
             </li>
-            <li class="nav-item nav-admin nav-manager {% if active_page == 'employees' %}active{% endif %}">
-                <a href="/employees"><i class="fa-solid fa-user-gear"></i> Employee Roster</a>
-            </li>
-            <li class="nav-item nav-admin nav-manager {% if active_page == 'shifts' %}active{% endif %}">
-                <a href="/shifts"><i class="fa-solid fa-clock"></i> Shifts Creation</a>
-            </li>
-            <li class="nav-item nav-admin nav-manager {% if active_page == 'teams' %}active{% endif %}">
-                <a href="/teams"><i class="fa-solid fa-sitemap"></i> Teams Management</a>
-            </li>
-            <li class="nav-item nav-admin nav-manager {% if active_page == 'settings' %}active{% endif %}">
-                <a href="/settings"><i class="fa-solid fa-sliders"></i> System SMTP Config</a>
+
+            <!-- Settings Accordion Dropdown -->
+            {% set is_settings_active = active_page in ['settings', 'shifts', 'teams', 'locations', 'templates', 'quotes', 'logs'] %}
+            <li class="nav-dropdown nav-admin nav-manager {% if is_settings_active %}open active-parent{% endif %}" id="settings-dropdown">
+                <div class="nav-dropdown-header" onclick="toggleSettingsDropdown()">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <i class="fa-solid fa-gear" style="color: #c084fc;"></i>
+                        <span>Settings</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down chevron-icon"></i>
+                </div>
+                <ul class="nav-submenu">
+                    <li class="nav-item {% if active_page == 'settings' %}active{% endif %}">
+                        <a href="/settings"><i class="fa-solid fa-sliders"></i> System SMTP Config</a>
+                    </li>
+                    <li class="nav-item {% if active_page == 'shifts' %}active{% endif %}">
+                        <a href="/shifts"><i class="fa-solid fa-clock"></i> Shifts Creation</a>
+                    </li>
+                    <li class="nav-item {% if active_page == 'teams' %}active{% endif %}">
+                        <a href="/teams"><i class="fa-solid fa-sitemap"></i> Teams Management</a>
+                    </li>
+                    {% if current_role == 'admin' %}
+                    <li class="nav-item {% if active_page == 'locations' %}active{% endif %}">
+                        <a href="/locations"><i class="fa-solid fa-earth-americas"></i> Locations Management</a>
+                    </li>
+                    <li class="nav-item {% if active_page == 'templates' %}active{% endif %}">
+                        <a href="/templates"><i class="fa-solid fa-envelope-open-text"></i> Email Templates</a>
+                    </li>
+                    <li class="nav-item {% if active_page == 'quotes' %}active{% endif %}">
+                        <a href="/quotes"><i class="fa-solid fa-lightbulb"></i> Thought of the Day</a>
+                    </li>
+                    <li class="nav-item {% if active_page == 'logs' %}active{% endif %}">
+                        <a href="/logs"><i class="fa-solid fa-terminal"></i> Daemon Logs & Audit</a>
+                    </li>
+                    {% endif %}
+                </ul>
             </li>
             {% endif %}
 
-            {% if current_role == 'admin' %}
-            <li class="nav-item nav-admin {% if active_page == 'locations' %}active{% endif %}">
-                <a href="/locations"><i class="fa-solid fa-earth-americas"></i> Locations Management</a>
-            </li>
-            <li class="nav-item nav-admin {% if active_page == 'managers' %}active{% endif %}">
-                <a href="/managers"><i class="fa-solid fa-user-tie"></i> Managers Directory</a>
-            </li>
-            <li class="nav-item nav-admin {% if active_page == 'templates' %}active{% endif %}">
-                <a href="/templates"><i class="fa-solid fa-envelope-open-text"></i> Email Templates</a>
-            </li>
-            <li class="nav-item nav-admin {% if active_page == 'quotes' %}active{% endif %}">
-                <a href="/quotes"><i class="fa-solid fa-lightbulb"></i> Thought of the Day</a>
-            </li>
-            <li class="nav-item nav-admin {% if active_page == 'logs' %}active{% endif %}">
-                <a href="/logs"><i class="fa-solid fa-terminal"></i> Daemon Logs & Audit</a>
-            </li>
-            {% endif %}
         </ul>
 
         <div class="sidebar-footer">
-            <div id="user-profile-badge" style="margin-bottom: 8px; text-align: left; padding: 6px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--card-border);">
-                {% if current_user and current_user.name %}
-                    <div style="font-size:12px; font-weight:700; color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ current_user.name }}</div>
-                    <div style="font-size:11px; color:{% if current_role == 'admin' %}#f43f5e{% elif current_role == 'manager' %}#c084fc{% else %}#34d399{% endif %}; margin-top:2px;">
-                        {% if current_role == 'admin' %}🛡️ Admin{% elif current_role == 'manager' %}👔 Manager{% else %}👤 Employee{% endif %}
+            <div id="user-profile-badge" style="margin-bottom: 10px; text-align: left; padding: 10px; background: rgba(255,255,255,0.03); border-radius: var(--radius-md); border: 1px solid var(--card-border); cursor: pointer; transition: all 0.2s ease;" onclick="openUserProfileModal()" title="Click to view My Complete Profile & Account Settings">
+                {% if current_user and (current_user.name or current_user.email) %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <div style="font-size:13px; font-weight:700; color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ current_user.name or 'User Account' }}</div>
+                        <span class="badge" style="font-size: 10px; padding: 2px 6px; background: {% if current_role == 'admin' %}rgba(244,63,94,0.15){% elif current_role == 'manager' %}rgba(192,132,252,0.15){% else %}rgba(52,211,153,0.15){% endif %}; color: {% if current_role == 'admin' %}#f43f5e{% elif current_role == 'manager' %}#c084fc{% else %}#34d399{% endif %}; border: 1px solid {% if current_role == 'admin' %}rgba(244,63,94,0.3){% elif current_role == 'manager' %}rgba(192,132,252,0.3){% else %}rgba(52,211,153,0.3){% endif %}; font-weight: 600;">
+                            {% if current_role == 'admin' %}🛡️ Admin{% elif current_role == 'manager' %}👔 Manager{% else %}👤 Employee{% endif %}
+                        </span>
+                    </div>
+                    <div style="font-size:11px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom: 6px;">
+                        <i class="fa-solid fa-envelope" style="font-size: 10px; margin-right: 4px; color: var(--link-color);"></i> {{ current_user.email }}
+                    </div>
+                    <div style="display: flex; gap: 4px; font-size: 10px; flex-wrap: wrap;">
+                        <span class="badge badge-team" style="padding: 2px 6px; font-size: 10px;">🏢 {{ current_user.teamName or 'Infra Team' }}</span>
+                        <span class="badge badge-india" style="padding: 2px 6px; font-size: 10px;">📍 {{ current_user.location or 'India' }}</span>
                     </div>
                 {% endif %}
             </div>
+
             <div style="display: flex; gap: 6px;">
                 <button class="btn btn-secondary theme-toggle-btn" style="padding: 6px 8px; font-size: 11px; flex: 1;" onclick="toggleAppTheme()" title="Toggle Dark / Light Mode">
                     <i class="fa-solid fa-moon"></i> <span class="theme-label-text">Theme</span>
                 </button>
-                <button class="btn btn-secondary" style="padding: 6px 8px; font-size: 11px; flex: 1;" onclick="openChangePasswordModal()" title="Change Account Password">
-                    <i class="fa-solid fa-key"></i> Password
+                <button class="btn btn-secondary" style="padding: 6px 8px; font-size: 11px; flex: 1;" onclick="openUserProfileModal()" title="View Profile & Security Settings">
+                    <i class="fa-solid fa-id-badge"></i> Profile
                 </button>
                 <button class="btn btn-secondary" style="padding: 6px 8px; font-size: 11px; flex: 1;" onclick="handleLogout()" title="Sign Out of System">
                     <i class="fa-solid fa-right-from-bracket"></i> Sign Out
@@ -817,37 +906,89 @@
         </div>
     </div>
 
-    <!-- Modal: Change Password -->
+    <!-- Modal: My Complete Profile & Account Security Settings -->
     <div class="modal-overlay" id="change-password-modal">
-        <div class="glass-panel modal-box" style="max-width: 440px;">
+        <div class="glass-panel modal-box" style="max-width: 520px;">
             <div class="modal-header">
-                <div style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600;">Change Account Password</div>
+                <div>
+                    <div style="font-family: 'Outfit', sans-serif; font-size: 19px; font-weight: 700; color: var(--text-main);">
+                        <i class="fa-solid fa-id-card" style="color: var(--primary); margin-right: 6px;"></i> My Profile & Account Security
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                        Manage your personal profile details and update your system login password.
+                    </div>
+                </div>
                 <button class="close-btn" onclick="closeModal('change-password-modal')">&times;</button>
             </div>
-            
-            <form onsubmit="handleChangePasswordSubmit(event)">
-                <div class="form-group">
-                    <label class="form-label">Current Password</label>
-                    <input type="password" id="cp-current-password" class="form-control" required placeholder="Enter current password">
+
+            <!-- Profile Summary Card Section -->
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); padding: 16px; border-radius: var(--radius-md); margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 14px;">
+                    <div style="width: 46px; height: 46px; border-radius: 50%; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fff; font-weight: 700; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
+                        {{ (current_user.name[0] if current_user and current_user.name else 'U') | upper }}
+                    </div>
+                    <div>
+                        <div style="font-size: 16px; font-weight: 700; color: var(--text-main);">{{ current_user.name or 'User Account' }}</div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                            <span class="badge" style="padding: 2px 8px; font-size: 11px; background: {% if current_role == 'admin' %}rgba(244,63,94,0.15){% elif current_role == 'manager' %}rgba(192,132,252,0.15){% else %}rgba(52,211,153,0.15){% endif %}; color: {% if current_role == 'admin' %}#f43f5e{% elif current_role == 'manager' %}#c084fc{% else %}#34d399{% endif %}; border: 1px solid {% if current_role == 'admin' %}rgba(244,63,94,0.3){% elif current_role == 'manager' %}rgba(192,132,252,0.3){% else %}rgba(52,211,153,0.3){% endif %}; font-weight: 600;">
+                                {% if current_role == 'admin' %}🛡️ Administrator (Full Access){% elif current_role == 'manager' %}👔 Manager (Team Oversight){% else %}👤 Employee (Personal Workspace){% endif %}
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">New Password</label>
-                    <input type="password" id="cp-new-password" class="form-control" required placeholder="Enter new password">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12.5px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                    <div>
+                        <span style="color: var(--text-muted); font-size: 11px; display: block;">EMAIL ADDRESS</span>
+                        <strong style="color: var(--link-color);">{{ current_user.email }}</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-muted); font-size: 11px; display: block;">TEAM WORKSPACE</span>
+                        <span class="badge badge-team" style="font-size: 11px;">🏢 {{ current_user.teamName or 'Infra Team' }}</span>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-muted); font-size: 11px; display: block;">LOCATION / TIMEZONE</span>
+                        <span class="badge badge-india" style="font-size: 11px;">📍 {{ current_user.location or 'India' }} ({{ current_user.timezone or 'Asia/Kolkata' }})</span>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-muted); font-size: 11px; display: block;">ASSIGNED SHIFT</span>
+                        <strong style="color: var(--text-main);">{{ current_user.shiftName or 'Standard Day Shift' }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Password Change Section -->
+            <div style="border-top: 1px solid var(--card-border); padding-top: 16px;">
+                <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-key" style="color: var(--accent-emerald);"></i> Change Account Password
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Confirm New Password</label>
-                    <input type="password" id="cp-confirm-password" class="form-control" required placeholder="Re-enter new password">
-                </div>
+                <form onsubmit="handleChangePasswordSubmit(event)">
+                    <div class="form-group">
+                        <label class="form-label">Current Password</label>
+                        <input type="password" id="cp-current-password" class="form-control" required placeholder="Enter current password">
+                    </div>
 
-                <div id="cp-error-box" style="color: #fca5a5; font-size: 13px; margin-bottom: 14px; display: none;"></div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">New Password</label>
+                            <input type="password" id="cp-new-password" class="form-control" required placeholder="Enter new password">
+                        </div>
 
-                <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('change-password-modal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="cp-submit-btn"><i class="fa-solid fa-key"></i> Update Password</button>
-                </div>
-            </form>
+                        <div class="form-group">
+                            <label class="form-label">Confirm New Password</label>
+                            <input type="password" id="cp-confirm-password" class="form-control" required placeholder="Re-enter new password">
+                        </div>
+                    </div>
+
+                    <div id="cp-error-box" style="color: #fca5a5; font-size: 13px; margin-bottom: 14px; display: none;"></div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 18px;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('change-password-modal')">Close</button>
+                        <button type="submit" class="btn btn-primary" id="cp-submit-btn"><i class="fa-solid fa-key"></i> Update Password</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -939,12 +1080,16 @@
             setTimeout(() => { t.style.display = 'none'; }, 3000);
         }
 
-        function openChangePasswordModal() {
+        function openUserProfileModal() {
             document.getElementById('cp-current-password').value = '';
             document.getElementById('cp-new-password').value = '';
             document.getElementById('cp-confirm-password').value = '';
             document.getElementById('cp-error-box').style.display = 'none';
             document.getElementById('change-password-modal').classList.add('active');
+        }
+
+        function openChangePasswordModal() {
+            openUserProfileModal();
         }
 
         async function handleChangePasswordSubmit(e) {
@@ -992,6 +1137,13 @@
             } finally {
                 btn.innerHTML = `<i class="fa-solid fa-key"></i> Update Password`;
                 btn.disabled = false;
+            }
+        }
+
+        function toggleSettingsDropdown() {
+            const dropdown = document.getElementById('settings-dropdown');
+            if (dropdown) {
+                dropdown.classList.toggle('open');
             }
         }
 

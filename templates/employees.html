@@ -1,40 +1,52 @@
 {% extends "layout.html" %}
 
-{% block title %}Employee Roster | Daily Task Reminder{% endblock %}
-{% block page_title %}Employee Roster Management{% endblock %}
+{% block title %}User Management & Access Control | Daily Task Reminder{% endblock %}
+{% block page_title %}User Management & System Access Control{% endblock %}
 
 {% block content %}
 <div class="glass-panel" style="padding: 24px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <!-- Page Header & Action Bar -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
         <div>
-            <div style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600;">Staff Roster & Shift Assignments</div>
-            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Filter by Team, Location, or Search instantly. Assign shifts and managers.</div>
+            <div style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700;">User Accounts & Role Permissions</div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Manage all system user accounts (Employees, Managers, Admins), assign team workspaces, shifts, and access permissions from one central panel.</div>
         </div>
-        <div style="display: flex; gap: 12px;">
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
             <button class="btn btn-secondary" onclick="openTestModal()">
                 <i class="fa-solid fa-paper-plane"></i> Test Trigger Email
             </button>
-            <button class="btn btn-primary" onclick="openAddModal()">
-                <i class="fa-solid fa-user-plus"></i> Add Employee
+            <button class="btn btn-primary" onclick="openAddModal()" style="padding: 10px 20px;">
+                <i class="fa-solid fa-user-plus"></i> Create New User Account
             </button>
         </div>
     </div>
 
     <!-- Filter & Search Controls Toolbar -->
-    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); padding: 16px; border-radius: var(--radius-md); margin-bottom: 20px;">
+    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); padding: 18px; border-radius: var(--radius-md); margin-bottom: 20px;">
+        <!-- Role Filter Pills Bar -->
+        <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <span style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; min-width: 100px;">Filter By Role:</span>
+            <div id="role-pills-bar" style="display: inline-flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn btn-primary" id="role-pill-all" style="padding:4px 12px; font-size:12px;" onclick="selectRoleFilter('ALL')">All Roles</button>
+                <button class="btn btn-secondary" id="role-pill-admin" style="padding:4px 12px; font-size:12px;" onclick="selectRoleFilter('admin')">🛡️ Admins</button>
+                <button class="btn btn-secondary" id="role-pill-manager" style="padding:4px 12px; font-size:12px;" onclick="selectRoleFilter('manager')">👔 Managers</button>
+                <button class="btn btn-secondary" id="role-pill-employee" style="padding:4px 12px; font-size:12px;" onclick="selectRoleFilter('employee')">👤 Employees</button>
+            </div>
+        </div>
+
         <!-- Team Filter Pills Bar -->
-        <div style="margin-bottom: 14px;">
-            <span style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-right: 12px; display: inline-block;">Filter By Team:</span>
+        <div style="margin-bottom: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <span style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; min-width: 100px;">Filter By Team:</span>
             <div id="team-pills-bar" style="display: inline-flex; gap: 8px; flex-wrap: wrap;">
                 <!-- JS Populated -->
             </div>
         </div>
 
         <!-- Search Input & Secondary Filters -->
-        <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">
+        <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 14px;">
             <div style="flex: 1; min-width: 260px; position: relative;">
                 <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                <input type="text" id="search-input" class="form-control" style="padding-left: 40px;" placeholder="Search employee name, email, location, manager..." oninput="handleSearchInput()">
+                <input type="text" id="search-input" class="form-control" style="padding-left: 40px;" placeholder="Search user name, email, location, manager, team..." oninput="handleSearchInput()">
             </div>
 
             <div style="min-width: 160px; flex: 1; max-width: 220px;">
@@ -57,51 +69,61 @@
         </div>
     </div>
 
-    <!-- Container for Roster (Grouped vs Table) -->
+    <!-- Container for User Roster Table -->
     <div id="roster-view-container">
         <!-- JS Populated -->
     </div>
 </div>
 
-<!-- Modal: Add / Edit Employee -->
+<!-- Modal: Unified User Creation & Permission Alignment -->
 <div class="modal-overlay" id="employee-modal">
     <div class="glass-panel modal-box" style="max-width: 780px; width: 92%; padding: 22px 28px;">
         <div class="modal-header" style="margin-bottom: 14px;">
-            <div style="font-family: 'Outfit', sans-serif; font-size: 21px; font-weight: 700; color: var(--text-main);" id="modal-title">Add New Member</div>
+            <div style="font-family: 'Outfit', sans-serif; font-size: 21px; font-weight: 700; color: var(--text-main);" id="modal-title">Create New User Account</div>
             <button class="close-btn" onclick="closeModal('employee-modal')">&times;</button>
         </div>
         
         <form id="employee-form" onsubmit="handleEmployeeSubmit(event)">
             <input type="hidden" id="emp-id">
             
-            <!-- High-Contrast Multi-Col Form Layout -->
+            <!-- User Basic Identity Information -->
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Full Name</label>
                     <input type="text" id="emp-name" class="form-control" placeholder="e.g. Rahul Sharma" required>
                 </div>
+
                 <div class="form-group">
-                    <label class="form-label">Email Address</label>
+                    <label class="form-label">Email Address (Login Username)</label>
                     <input type="email" id="emp-email" class="form-control" placeholder="rahul@company.com" required>
                 </div>
             </div>
 
+            <!-- Role & Password Configuration -->
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">System Role</label>
-                    <select id="emp-role" class="form-control" required onchange="handleRoleChange()">
-                        <option value="employee">👤 Employee (Personal Work Log Workspace)</option>
-                        <option value="manager">👔 Manager (Team Dashboard Access)</option>
-                        <option value="admin">🛡️ Admin (Full System Control)</option>
+                    <label class="form-label">System Access Role & Permissions</label>
+                    <select id="emp-role-select" class="form-control" required onchange="onUserRoleChange()">
+                        <option value="employee">👤 Employee (Personal Work Log & Shift Reminders)</option>
+                        <option value="manager">👔 Manager (Team Dashboard & Staff Roster Access)</option>
+                        <option value="admin">🛡️ Admin (Full System Control & Settings)</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Account Password</label>
-                    <input type="password" id="emp-password" class="form-control" placeholder="Set initial password (e.g. Pass@123)">
+                    <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Account Password</span>
+                        <button type="button" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px; font-weight: 600; color: var(--accent-cyan);" onclick="generateRandomFormPassword()"><i class="fa-solid fa-dice"></i> 12-Char Password</button>
+                    </label>
+                    <input type="text" id="emp-password" class="form-control" placeholder="Leave blank for auto 12-char random password">
+                    <small style="font-size: 11px; color: var(--text-muted); margin-top: 4px; display: block;">
+                        Valid for 4 hours. User will be prompted to change password upon first login.
+                    </small>
                 </div>
             </div>
 
+
+            <!-- Location & Team Assignment -->
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Location (Directory)</label>
@@ -115,11 +137,11 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">Assigned Team</label>
+                <label class="form-label">Assigned Team Workspace</label>
                 <select id="emp-team-select" class="form-control" onchange="updateTeamSheetName()"></select>
             </div>
 
-            <!-- Employee-Specific Shift & Reminder Categories (Hidden for Manager & Admin) -->
+            <!-- Employee-Specific Permission & Shift Categories (Hidden for Manager & Admin) -->
             <div id="employee-shift-categories">
                 <div class="form-group">
                     <label class="form-label">Working Days Selection</label>
@@ -141,16 +163,21 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Manager CC (Directory)</label>
+                        <label class="form-label">Manager CC Oversight</label>
                         <select id="emp-manager-select" class="form-control"></select>
                         <input type="hidden" id="emp-sheetname" value="Technical Infra Team-Aug-2026">
                     </div>
                 </div>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 18px;">
+            <!-- Role Permission Badge Indicator -->
+            <div id="role-permission-badge-info" style="margin-top: 10px;">
+                <!-- JS Populated -->
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('employee-modal')">Cancel</button>
-                <button type="submit" class="btn btn-primary" style="padding: 10px 20px;"><i class="fa-solid fa-floppy-disk"></i> Save Member Record</button>
+                <button type="submit" class="btn btn-primary" style="padding: 10px 20px;"><i class="fa-solid fa-floppy-disk"></i> Save User Account</button>
             </div>
         </form>
     </div>
@@ -195,10 +222,29 @@
     let teamsData = [];
     let managersData = [];
     let locationsData = [];
+    let currentRoleFilter = 'ALL';
     let currentTeamFilter = 'ALL';
     let currentLocationFilter = 'ALL';
     let searchQuery = '';
     let currentViewMode = 'table';
+
+    function generateRandomFormPassword() {
+        const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const lower = 'abcdefghijklmnopqrstuvwxyz';
+        const digits = '0123456789';
+        const all = upper + lower + digits;
+        let pwd = [
+            upper.charAt(Math.floor(Math.random() * upper.length)),
+            lower.charAt(Math.floor(Math.random() * lower.length)),
+            digits.charAt(Math.floor(Math.random() * digits.length))
+        ];
+        for (let i = 0; i < 9; i++) {
+            pwd.push(all.charAt(Math.floor(Math.random() * all.length)));
+        }
+        pwd = pwd.sort(() => 0.5 - Math.random()).join('');
+        document.getElementById('emp-password').value = pwd;
+    }
+
 
     async function loadData() {
         await Promise.all([fetchEmployees(), fetchShifts(), fetchTeams(), fetchManagers(), fetchLocations()]);
@@ -307,6 +353,17 @@
         renderEmployeesTable();
     }
 
+    function selectRoleFilter(roleName) {
+        currentRoleFilter = roleName;
+        ['all', 'admin', 'manager', 'employee'].forEach(r => {
+            const pill = document.getElementById(`role-pill-${r}`);
+            if (pill) {
+                pill.className = (r.toLowerCase() === roleName.toLowerCase()) ? 'btn btn-primary' : 'btn btn-secondary';
+            }
+        });
+        renderEmployeesTable();
+    }
+
     function selectTeamFilter(teamName) {
         currentTeamFilter = teamName;
         renderTeamPills();
@@ -334,10 +391,12 @@
 
     function getFilteredEmployees() {
         return employeesData.filter(emp => {
+            const roleStr = (emp.role || 'employee').toLowerCase();
+            if (currentRoleFilter !== 'ALL' && roleStr !== currentRoleFilter.toLowerCase()) return false;
             if (currentTeamFilter !== 'ALL' && (emp.teamName || 'Infra Team').toLowerCase() !== currentTeamFilter.toLowerCase()) return false;
             if (currentLocationFilter !== 'ALL' && !emp.location.toLowerCase().includes(currentLocationFilter.toLowerCase())) return false;
             if (searchQuery) {
-                const haystack = `${emp.name} ${emp.email} ${emp.location} ${emp.timezone} ${emp.teamName} ${emp.sheetName} ${emp.managerCc}`.toLowerCase();
+                const haystack = `${emp.name} ${emp.email} ${emp.role} ${emp.location} ${emp.timezone} ${emp.teamName} ${emp.sheetName} ${emp.managerCc}`.toLowerCase();
                 if (!haystack.includes(searchQuery)) return false;
             }
             return true;
@@ -350,16 +409,14 @@
             (m.email && m.email.toLowerCase() === managerCc.toLowerCase()) ||
             (m.name && m.name.toLowerCase() === managerCc.toLowerCase())
         );
-        if (found && found.name) {
-            return found.name;
-        }
+        if (found && found.name) return found.name;
+
         const foundEmp = employeesData.find(e => 
             (e.email && e.email.toLowerCase() === managerCc.toLowerCase()) ||
             (e.name && e.name.toLowerCase() === managerCc.toLowerCase())
         );
-        if (foundEmp && foundEmp.name) {
-            return foundEmp.name;
-        }
+        if (foundEmp && foundEmp.name) return foundEmp.name;
+
         if (managerCc.includes('@')) {
             const username = managerCc.split('@')[0];
             return username.charAt(0).toUpperCase() + username.slice(1);
@@ -431,7 +488,7 @@
                 rows += `
                     <tr>
                         <td><strong>${emp.name}</strong></td>
-                        <td><a href="mailto:${emp.email}" style="color: #38bdf8;">${emp.email}</a></td>
+                        <td><a href="mailto:${emp.email}" style="color: var(--link-color);">${emp.email}</a></td>
                         <td>${roleBadge}</td>
                         <td><span class="badge badge-team">${emp.teamName || 'Infra Team'}</span></td>
                         <td><span class="badge ${badgeClass}" style="display:inline-flex; align-items:center; gap:4px;">${getCountryFlagHTML(emp.location)} ${emp.location}</span> (${emp.timezone})</td>
@@ -439,8 +496,8 @@
                         <td>${shiftCell}</td>
                         <td>${mgrCell}</td>
                         <td>
-                            <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="editEmployee('${emp.id}')"><i class="fa-solid fa-pen"></i></button>
-                            <button class="btn btn-danger" style="padding:6px 12px; font-size:12px;" onclick="deleteEmployee('${emp.id}')"><i class="fa-solid fa-trash"></i></button>
+                            <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="editEmployee('${emp.id}')" title="Edit User & Permissions"><i class="fa-solid fa-pen"></i></button>
+                            <button class="btn btn-danger" style="padding:6px 12px; font-size:12px;" onclick="deleteEmployee('${emp.id}')" title="Delete User Account"><i class="fa-solid fa-trash"></i></button>
                         </td>
                     </tr>
                 `;
@@ -500,15 +557,15 @@
                     teamRows += `
                         <tr>
                             <td><strong>${emp.name}</strong></td>
-                            <td><a href="mailto:${emp.email}" style="color: #38bdf8;">${emp.email}</a></td>
+                            <td><a href="mailto:${emp.email}" style="color: var(--link-color);">${emp.email}</a></td>
                             <td>${roleBadge}</td>
                             <td><span class="badge ${badgeClass}" style="display:inline-flex; align-items:center; gap:4px;">${getCountryFlagHTML(emp.location)} ${emp.location}</span> (${emp.timezone})</td>
                             <td>${workingDaysCell}</td>
                             <td>${shiftCell}</td>
                             <td>${mgrCell}</td>
                             <td>
-                                <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="editEmployee('${emp.id}')"><i class="fa-solid fa-pen"></i></button>
-                                <button class="btn btn-danger" style="padding:6px 12px; font-size:12px;" onclick="deleteEmployee('${emp.id}')"><i class="fa-solid fa-trash"></i></button>
+                                <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="editEmployee('${emp.id}')" title="Edit User & Permissions"><i class="fa-solid fa-pen"></i></button>
+                                <button class="btn btn-danger" style="padding:6px 12px; font-size:12px;" onclick="deleteEmployee('${emp.id}')" title="Delete User Account"><i class="fa-solid fa-trash"></i></button>
                             </td>
                         </tr>
                     `;
@@ -546,13 +603,25 @@
     function onUserRoleChange() {
         const role = document.getElementById('emp-role-select').value;
         const shiftBox = document.getElementById('employee-shift-categories');
+        const badgeInfoBox = document.getElementById('role-permission-badge-info');
+
         if (shiftBox) {
             shiftBox.style.display = (role === 'manager' || role === 'admin') ? 'none' : 'block';
+        }
+
+        if (badgeInfoBox) {
+            if (role === 'admin') {
+                badgeInfoBox.innerHTML = `<div class="badge badge-role-admin" style="padding: 10px 14px; width: 100%; border-radius: 8px; font-size: 12px; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-user-shield"></i> <strong>Administrative Rights:</strong> Full control over Users, Shifts, Teams, SMTP Config, Locations, and System Audit Logs.</div>`;
+            } else if (role === 'manager') {
+                badgeInfoBox.innerHTML = `<div class="badge badge-role-manager" style="padding: 10px 14px; width: 100%; border-radius: 8px; font-size: 12px; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-shield"></i> <strong>Manager Oversight Rights:</strong> Access to Realtime Dashboard, Staff Task Logs, Team Workspaces, and Roster Oversight.</div>`;
+            } else {
+                badgeInfoBox.innerHTML = `<div class="badge badge-role-employee" style="padding: 10px 14px; width: 100%; border-radius: 8px; font-size: 12px; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-user-check"></i> <strong>Employee Workspace Rights:</strong> Access to Personal Daily Task Submission Portal & Automated Shift Reminders.</div>`;
+            }
         }
     }
 
     function openAddModal() {
-        document.getElementById('modal-title').innerText = "Add New Member";
+        document.getElementById('modal-title').innerText = "Create New User Account";
         document.getElementById('employee-form').reset();
         document.getElementById('emp-id').value = '';
         document.getElementById('emp-password').value = '';
@@ -571,7 +640,7 @@
         const emp = employeesData.find(e => e.id === id);
         if (!emp) return;
 
-        document.getElementById('modal-title').innerText = "Edit Member Record";
+        document.getElementById('modal-title').innerText = "Edit User Account & Permissions";
         document.getElementById('emp-id').value = emp.id;
         document.getElementById('emp-name').value = emp.name;
         document.getElementById('emp-email').value = emp.email;
@@ -648,14 +717,14 @@
         });
 
         closeModal('employee-modal');
-        showToast('Member Saved to SQLite DB');
+        showToast('User Account & Role Permissions Saved!');
         fetchEmployees();
     }
 
     async function deleteEmployee(id) {
-        if (!confirm('Delete employee record?')) return;
+        if (!confirm('Delete user account record?')) return;
         await fetch(`/api/employees/${id}`, { method: 'DELETE' });
-        showToast('Employee Deleted');
+        showToast('User Account Deleted');
         fetchEmployees();
     }
 

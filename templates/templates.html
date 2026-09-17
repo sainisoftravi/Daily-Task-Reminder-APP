@@ -26,7 +26,9 @@
                     <option value="second_reminder">Reminder 2 (15 Mins Before Shift End)</option>
                     <option value="final_reminder">Reminder 3 (Shift Close / End)</option>
                     <option value="ignore_filled">Log Hours Filled - Courtesy / Ignore Template</option>
+                    <option value="welcome_email">Welcome Email - New User Account Onboarding Template</option>
                 </select>
+
             </div>
 
             <div class="form-group">
@@ -35,9 +37,10 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">Email Message Body (Variables: <code>{name}</code>, <code>{date}</code>, <code>{quote}</code>)</label>
+                <label class="form-label">Email Message Body (Variables: <code>{name}</code>, <code>{email}</code>, <code>{password}</code>, <code>{portal_url}</code>, <code>{role}</code>, <code>{mgr_email}</code>, <code>{date}</code>, <code>{quote}</code>)</label>
                 <textarea id="template-body" class="form-control" rows="8" oninput="updateLivePreview()" placeholder="Enter main email message body..."></textarea>
             </div>
+
 
             <div class="form-group" style="margin-top: 16px;">
                 <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
@@ -85,7 +88,8 @@
         'first_reminder': "💡 THOUGHT OF THE DAY:\n\"Excellence is not an act, but a habit. What we build today lays the foundation for tomorrow.\"",
         'second_reminder': "💡 THOUGHT OF THE DAY:\n\"Individually we are one drop; together, we build a seamless system.\"",
         'final_reminder': "💡 THOUGHT OF THE DAY:\n\"Rest is not a reward for work completed; it is a prerequisite for tomorrow’s best performance.\"",
-        'ignore_filled': "💡 THOUGHT OF THE DAY:\n\"Continuous, deliberate improvement is what turns good engineering into great engineering.\""
+        'ignore_filled': "💡 THOUGHT OF THE DAY:\n\"Continuous, deliberate improvement is what turns good engineering into great engineering.\"",
+        'welcome_email': "💡 THOUGHT OF THE DAY:\n\"Welcome aboard! Great teams build great systems together.\""
     };
 
     async function fetchTemplates() {
@@ -120,7 +124,8 @@
                 'first_reminder': 'focus',
                 'second_reminder': 'teamwork',
                 'final_reminder': 'recharge',
-                'ignore_filled': 'focus'
+                'ignore_filled': 'focus',
+                'welcome_email': 'teamwork'
             };
             const catKey = catMap[key] || 'focus';
             const matched = dbQuotesData.filter(q => (q.category || '').toLowerCase().includes(catKey));
@@ -131,6 +136,7 @@
         return STAGE_SAMPLE_QUOTES[key] || STAGE_SAMPLE_QUOTES['first_reminder'];
     }
 
+
     function updateLivePreview() {
         const key = document.getElementById('template-select').value;
         const subj = document.getElementById('template-subject').value;
@@ -140,19 +146,32 @@
         // Dynamically get the stage-matched Thought of the Day quote
         const currentStageQuote = getQuoteForStage(key);
 
-        document.getElementById('preview-subject').innerText = subj.replace(/{date}/g, '16-Sep-26').replace(/{quote}/g, currentStageQuote);
-        document.getElementById('preview-body').innerText = body.replace(/{name}/g, 'Sachin').replace(/{date}/g, '16-Sep-26').replace(/{quote}/g, currentStageQuote);
+        const applyReplacements = (str) => {
+            if (!str) return '';
+            return str.replace(/{name}/g, 'Ravi Saini')
+                      .replace(/{email}/g, 'ravi.saini@digital-twin-solutions.com')
+                      .replace(/{password}/g, 'Amin@123')
+                      .replace(/{portal_url}/g, 'http://192.168.1.163:5050/login')
+                      .replace(/{role}/g, 'Employee')
+                      .replace(/{mgr_email}/g, 'Ravi@d2backoffice.onmicrosoft.com')
+                      .replace(/{date}/g, '17-Sep-2026')
+                      .replace(/{quote}/g, currentStageQuote);
+        };
+
+        document.getElementById('preview-subject').innerText = applyReplacements(subj);
+        document.getElementById('preview-body').innerText = applyReplacements(body);
         
         const ignoreBox = document.getElementById('preview-ignore-box');
         const ignoreTextSpan = document.getElementById('preview-ignore-note');
         
         if (ignoreNote && ignoreNote.trim() !== '') {
             ignoreBox.style.display = 'flex';
-            ignoreTextSpan.innerText = ignoreNote.replace(/{name}/g, 'Sachin').replace(/{date}/g, '16-Sep-26').replace(/{quote}/g, currentStageQuote);
+            ignoreTextSpan.innerText = applyReplacements(ignoreNote);
         } else {
             ignoreBox.style.display = 'none';
         }
     }
+
 
     async function saveTemplates() {
         const key = document.getElementById('template-select').value;

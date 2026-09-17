@@ -16,8 +16,9 @@
             </div>
         </div>
 
-        <!-- Mode Switcher Tabs -->
-        <div style="display: flex; background: var(--btn-sec-bg); padding: 4px; border-radius: var(--radius-md); border: 1px solid var(--card-border);">
+        {% if current_role in ['admin', 'manager'] %}
+        <!-- Mode Switcher Tabs (For Admin & Manager Roles) -->
+        <div style="display: flex; background: var(--btn-sec-bg); padding: 4px; border-radius: var(--radius-md); border: 1px solid var(--card-border);" id="mode-switcher-container">
             <button class="btn" id="mode-emp-btn" style="padding: 8px 18px; font-size: 13px; border-radius: 8px; font-weight: 600;" onclick="switchMode('employee')">
                 <i class="fa-solid fa-user-check"></i> Employee Portal
             </button>
@@ -25,23 +26,24 @@
                 <i class="fa-solid fa-shield-halved"></i> Admin Master View
             </button>
         </div>
+        {% endif %}
     </div>
 
     <!-- ========================================== -->
     <!-- SECTION 1: EMPLOYEE PERSONAL PORTAL VIEW   -->
     <!-- ========================================== -->
     <div id="employee-view-section">
-        <!-- Employee Profile & Controls Card -->
+        <!-- Controls & Actions Toolbar Card -->
         <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); padding: 20px; border-radius: var(--radius-md); margin-bottom: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-                <!-- Profile Selector -->
-                <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; flex: 1; min-width: 240px;">
-                    <span style="font-size: 13px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Select Profile:</span>
-                    <div style="min-width: 200px; flex: 1; max-width: 320px;">
-                        <select id="emp-profile-select" class="form-control" style="font-weight: 600; color: var(--link-color);" onchange="handleEmpProfileChange()"></select>
+                <!-- Workspace Context Label -->
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 16px;">
+                        <i class="fa-solid fa-list-check"></i>
                     </div>
-                    <div id="emp-profile-badge" style="font-size: 12px; color: var(--text-muted);">
-                        <!-- Location & Team Info -->
+                    <div>
+                        <div style="font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-main);">My Task Submissions Workspace</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Manage daily logs, auto-suppress reminders & export reports.</div>
                     </div>
                 </div>
 
@@ -173,6 +175,10 @@
                         <i class="fa-solid fa-table-cells"></i> Spreadsheet Matrix
                     </button>
 
+                    <button class="btn btn-secondary" onclick="openBackdatePolicyModal()" style="padding: 6px 12px; font-size: 12px; color: #c084fc; border-color: rgba(192, 132, 252, 0.3);" title="Configure Back-Date Logging Window Limit">
+                        <i class="fa-solid fa-calendar-check"></i> Back-Date Policy
+                    </button>
+
                     <button class="btn btn-secondary" onclick="downloadReport('xlsx')" style="padding: 6px 12px; font-size: 12px; color: #10b981; border-color: rgba(16, 185, 129, 0.3);" title="Download Task Report (.xlsx)">
                         <i class="fa-solid fa-file-excel"></i> Export XLSX
                     </button>
@@ -229,7 +235,7 @@
 
                 <div class="form-group">
                     <label class="form-label">Task Log Date</label>
-                    <input type="date" id="task-date-input" class="form-control" required style="background-color: var(--form-control-bg); color: var(--form-control-text);">
+                    <input type="date" id="task-date-input" class="form-control" required style="background-color: var(--form-control-bg); color: var(--form-control-text);" onchange="onTaskDateChange()">
                 </div>
             </div>
 
@@ -281,6 +287,41 @@
         </div>
     </div>
 </div>
+
+<!-- Modal: Back-Date Logging Policy Settings -->
+<div class="modal-overlay" id="backdate-policy-modal">
+    <div class="glass-panel modal-box" style="max-width: 480px;">
+        <div class="modal-header">
+            <div>
+                <div style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; color: var(--text-main);">
+                    <i class="fa-solid fa-calendar-check" style="color: #c084fc; margin-right: 6px;"></i> Back-Date Logging Policy Settings
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                    Set how many past days employees are permitted to submit or edit work logs.
+                </div>
+            </div>
+            <button class="close-btn" onclick="closeModal('backdate-policy-modal')">&times;</button>
+        </div>
+
+        <form onsubmit="handleBackdatePolicySubmit(event)">
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label class="form-label">Maximum Allowed Back-Date Logging Window (Days)</label>
+                <input type="number" id="bd-max-days" class="form-control" min="0" max="365" required placeholder="e.g. 2 for last 2 days">
+                <small style="font-size: 11px; color: var(--text-muted); margin-top: 6px; display: block;">
+                    • <strong>2</strong> = Employees can log/edit today and the last 2 past days.<br>
+                    • <strong>0</strong> = Employees can log/edit today ONLY.<br>
+                    • <strong>7</strong> = Employees can log/edit up to 7 past days.<br>
+                    • Admin and Manager roles can log/edit any date without restriction.
+                </small>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('backdate-policy-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="bd-submit-btn"><i class="fa-solid fa-floppy-disk"></i> Save Policy</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -288,6 +329,8 @@
     let employeesData = [];
     let teamsData = [];
     let taskLogsData = [];
+    let loggedInUser = null;
+    let maxBackdateDays = 7;
 
     // State Variables
     let currentMode = 'employee'; // 'employee' or 'admin'
@@ -300,28 +343,67 @@
     let adminSelectedDateStr = new Date().toISOString().split('T')[0];
     let showExcelMatrix = false;
 
+    async function fetchSystemSettings() {
+        try {
+            const res = await fetch('/api/settings');
+            const data = await res.json();
+            if (data.success && data.config) {
+                maxBackdateDays = data.config.max_backdate_days !== undefined ? parseInt(data.config.max_backdate_days) : 7;
+            }
+        } catch (err) {
+            console.error("Fetch settings error:", err);
+        }
+    }
+
+    function openBackdatePolicyModal() {
+        document.getElementById('bd-max-days').value = maxBackdateDays;
+        document.getElementById('backdate-policy-modal').classList.add('active');
+    }
+
+    async function handleBackdatePolicySubmit(e) {
+        e.preventDefault();
+        const val = parseInt(document.getElementById('bd-max-days').value || 7);
+        
+        const resSettings = await fetch('/api/settings');
+        const dataSettings = await resSettings.json();
+        const currentConfig = dataSettings.config || {};
+        currentConfig.max_backdate_days = val;
+
+        await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(currentConfig)
+        });
+
+        maxBackdateDays = val;
+        closeModal('backdate-policy-modal');
+        showToast(`Back-Date Logging Limit set to ${val} Days`);
+    }
+
     async function loadData() {
         const todayStr = new Date().toISOString().split('T')[0];
         document.getElementById('admin-date-picker').value = adminSelectedDateStr;
 
-        await Promise.all([fetchTeams(), fetchEmployees(), fetchTaskLogs()]);
-
         // Check logged-in user role
         const userRes = await fetch('/api/me');
         const userData = await userRes.json();
-        let loggedInUser = userData.success ? userData.user : null;
+        loggedInUser = userData.success ? userData.user : null;
+
+        await Promise.all([fetchTeams(), fetchEmployees(), fetchTaskLogs(), fetchSystemSettings()]);
 
         if (loggedInUser && loggedInUser.role === 'employee') {
             activeEmpName = loggedInUser.name;
             const adminTabBtn = document.getElementById('mode-admin-btn');
             if (adminTabBtn) adminTabBtn.style.display = 'none';
             populateEmpProfileDropdown(true);
+            populateTaskModalDropdown();
             switchMode('employee');
         } else {
             if (employeesData.length > 0 && !activeEmpName) {
                 activeEmpName = employeesData[0].name;
             }
             populateEmpProfileDropdown(false);
+            populateTaskModalDropdown();
             switchMode(loggedInUser && loggedInUser.role === 'admin' ? 'admin' : 'employee');
         }
     }
@@ -725,6 +807,34 @@
         const sel = document.getElementById('task-emp-select');
         if (!sel) return;
         sel.innerHTML = employeesData.map(e => `<option value="${e.name}">${e.name} (${e.teamName || 'Infra Team'})</option>`).join('');
+        if (loggedInUser && loggedInUser.role === 'employee') {
+            sel.value = loggedInUser.name;
+            sel.disabled = true;
+            sel.style.opacity = "0.75";
+            sel.style.cursor = "not-allowed";
+        } else {
+            sel.disabled = false;
+            sel.style.opacity = "1";
+            sel.style.cursor = "default";
+        }
+    }
+
+    function populateTaskModalDateLimits() {
+        const dateInput = document.getElementById('task-date-input');
+        if (!dateInput) return;
+
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        dateInput.max = todayStr;
+
+        if (loggedInUser && loggedInUser.role === 'employee') {
+            const minDateObj = new Date(today);
+            minDateObj.setDate(today.getDate() - maxBackdateDays);
+            const minDateStr = minDateObj.toISOString().split('T')[0];
+            dateInput.min = minDateStr;
+        } else {
+            dateInput.removeAttribute('min');
+        }
     }
 
     function onTaskEmpChange() {
@@ -735,14 +845,59 @@
             document.getElementById('task-team-name').value = emp.teamName || 'Infra Team';
             document.getElementById('task-team-id').value = emp.teamId || 'team_infra';
         }
+        onTaskDateChange();
+    }
+
+    function onTaskDateChange() {
+        populateTaskModalDateLimits();
+        const dateInput = document.getElementById('task-date-input');
+        let selectedDate = dateInput.value;
+        const empName = (document.getElementById('task-emp-select') && document.getElementById('task-emp-select').value) || activeEmpName;
+
+        if (loggedInUser && loggedInUser.role === 'employee') {
+            const today = new Date();
+            const minDateObj = new Date(today);
+            minDateObj.setDate(today.getDate() - maxBackdateDays);
+            const minDateStr = minDateObj.toISOString().split('T')[0];
+
+            if (selectedDate && selectedDate < minDateStr) {
+                showToast(`Submitting/editing tasks older than ${maxBackdateDays} days (${minDateStr}) is restricted by policy.`, 'error');
+                dateInput.value = minDateStr;
+                selectedDate = minDateStr;
+            }
+        }
+
+        // Dynamic lookup of existing task log for the selected date and employee
+        const existingLog = taskLogsData.find(l => 
+            (l.date_str === selectedDate || l.dateStr === selectedDate) &&
+            (l.employee_name.toLowerCase() === empName.toLowerCase())
+        );
+
+        if (existingLog) {
+            document.getElementById('task-details-input').value = existingLog.task_details;
+            document.getElementById('task-log-id').value = existingLog.id;
+            document.getElementById('task-modal-title').innerText = `Edit Work Log for ${empName} (${selectedDate})`;
+        } else {
+            document.getElementById('task-details-input').value = '';
+            document.getElementById('task-log-id').value = '';
+            document.getElementById('task-modal-title').innerText = `Submit Daily Work Log for ${empName} (${selectedDate})`;
+        }
     }
 
     function quickFillTask(empName, dateStr) {
-        document.getElementById('task-modal-title').innerText = `Submit Daily Work Log for ${empName}`;
+        if (loggedInUser && loggedInUser.role === 'employee') {
+            empName = loggedInUser.name;
+        }
         document.getElementById('task-form').reset();
-        document.getElementById('task-log-id').value = '';
+        populateTaskModalDropdown();
+        populateTaskModalDateLimits();
         document.getElementById('task-emp-select').value = empName;
-        document.getElementById('task-date-input').value = dateStr || new Date().toISOString().split('T')[0];
+        if (loggedInUser && loggedInUser.role === 'employee') {
+            document.getElementById('task-emp-select').disabled = true;
+        }
+
+        const targetDate = dateStr || new Date().toISOString().split('T')[0];
+        document.getElementById('task-date-input').value = targetDate;
         onTaskEmpChange();
         document.getElementById('task-modal').classList.add('active');
     }
@@ -751,18 +906,47 @@
         const log = taskLogsData.find(l => l.id === logId);
         if (!log) return;
 
-        document.getElementById('task-modal-title').innerText = `Edit Work Log for ${log.employee_name}`;
-        document.getElementById('task-log-id').value = log.id;
+        const logDateStr = log.date_str || log.dateStr;
+
+        if (loggedInUser && loggedInUser.role === 'employee') {
+            const isSelf = log.employee_name.toLowerCase() === loggedInUser.name.toLowerCase() || 
+                           (log.email && log.email.toLowerCase() === loggedInUser.email.toLowerCase());
+            if (!isSelf) {
+                showToast("You are only permitted to edit your own daily task logs!", "error");
+                return;
+            }
+
+            const today = new Date();
+            const minDateObj = new Date(today);
+            minDateObj.setDate(today.getDate() - maxBackdateDays);
+            const minDateStr = minDateObj.toISOString().split('T')[0];
+
+            if (logDateStr < minDateStr) {
+                showToast(`Editing task logs older than ${maxBackdateDays} days (${minDateStr}) is restricted by administrator policy.`, "error");
+                return;
+            }
+        }
+
+        populateTaskModalDropdown();
+        populateTaskModalDateLimits();
         document.getElementById('task-emp-select').value = log.employee_name;
-        document.getElementById('task-date-input').value = log.date_str || log.dateStr;
+        if (loggedInUser && loggedInUser.role === 'employee') {
+            document.getElementById('task-emp-select').disabled = true;
+        }
+        document.getElementById('task-date-input').value = logDateStr;
         document.getElementById('task-details-input').value = log.task_details;
+        document.getElementById('task-log-id').value = log.id;
+        document.getElementById('task-modal-title').innerText = `Edit Work Log for ${log.employee_name} (${logDateStr})`;
         onTaskEmpChange();
         document.getElementById('task-modal').classList.add('active');
     }
 
     async function handleTaskSubmit(e) {
         e.preventDefault();
-        const empName = document.getElementById('task-emp-select').value;
+        let empName = document.getElementById('task-emp-select').value;
+        if (loggedInUser && loggedInUser.role === 'employee') {
+            empName = loggedInUser.name;
+        }
         const dateStr = document.getElementById('task-date-input').value;
         const details = document.getElementById('task-details-input').value;
 
@@ -776,11 +960,17 @@
             taskDetails: details
         };
 
-        await fetch('/api/task-logs', {
+        const res = await fetch('/api/task-logs', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
+
+        const resData = await res.json();
+        if (!resData.success) {
+            showToast(resData.error || 'Failed to submit task log', 'error');
+            return;
+        }
 
         closeModal('task-modal');
         showToast(`Task Log Saved for ${empName}! Reminders Auto-Suppressed.`);

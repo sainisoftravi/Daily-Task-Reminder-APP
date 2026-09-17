@@ -12,8 +12,26 @@ import os
 import json
 import sqlite3
 import datetime
+import secrets
+import string
 from typing import List, Dict, Any, Optional
 from cryptography.fernet import Fernet
+
+def generate_random_password(length: int = 12) -> str:
+    """Generates a secure 12-character random password containing uppercase, lowercase, and numeric characters."""
+    uppercase = string.ascii_uppercase
+    lowercase = string.ascii_lowercase
+    digits = string.digits
+    
+    pwd = [
+        secrets.choice(uppercase),
+        secrets.choice(lowercase),
+        secrets.choice(digits)
+    ]
+    all_chars = uppercase + lowercase + digits
+    pwd += [secrets.choice(all_chars) for _ in range(length - 3)]
+    secrets.SystemRandom().shuffle(pwd)
+    return "".join(pwd)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 DB_FILE = os.path.join(DATA_DIR, "app_database.db")
@@ -21,6 +39,7 @@ DB_FILE = os.path.join(DATA_DIR, "app_database.db")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 def get_db_connection() -> sqlite3.Connection:
+
     conn = sqlite3.connect(DB_FILE, timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
@@ -177,6 +196,26 @@ def init_db():
     """)
 
     try:
+        cursor.execute("ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN pwd_expires_at TEXT")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE employees ADD COLUMN must_change_password INTEGER DEFAULT 0")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE employees ADD COLUMN pwd_expires_at TEXT")
+    except Exception:
+        pass
+
+    try:
         cursor.execute("ALTER TABLE employees ADD COLUMN role TEXT DEFAULT 'employee'")
     except Exception:
         pass
@@ -195,6 +234,7 @@ def init_db():
         cursor.execute("ALTER TABLE templates ADD COLUMN ignore_note TEXT")
     except Exception:
         pass
+
 
     conn.commit()
 
@@ -274,20 +314,32 @@ def _seed_from_json(conn: sqlite3.Connection):
                 print(f"[DB SEED WARN] Employees seed error: {e}")
 
     # Seed Templates
-    cursor.execute("SELECT COUNT(*) FROM templates")
-    if cursor.fetchone()[0] == 0:
-        json_file = os.path.join(DATA_DIR, "templates.json")
-        if os.path.exists(json_file):
-            try:
-                with open(json_file, "r", encoding="utf-8") as f:
-                    tpls = json.load(f)
-                    for k, v in tpls.items():
+    json_file = os.path.join(DATA_DIR, "templates.json")
+    if os.path.exists(json_file):
+        try:
+            with open(json_file, "r", encoding="utf-8") as f:
+                tpls = json.load(f)
+                for k, v in tpls.items():
+                    if k == 'welcome_email':
                         cursor.execute(
-                            "INSERT INTO templates (key, name, subject, body, ignore_note) VALUES (?, ?, ?, ?, ?)",
+                            """INSERT INTO templates (key, name, subject, body, ignore_note)
+                               VALUES (?, ?, ?, ?, ?)
+                               ON CONFLICT(key) DO UPDATE SET
+                                   name=excluded.name,
+                                   subject=excluded.subject,
+                                   body=excluded.body,
+                                   ignore_note=excluded.ignore_note""",
                             (k, v.get("name", k), v.get("subject", ""), v.get("body", ""), v.get("ignore_note", ""))
                         )
-            except Exception as e:
-                print(f"[DB SEED WARN] Templates seed error: {e}")
+                    else:
+                        cursor.execute(
+                            "INSERT INTO templates (key, name, subject, body, ignore_note) VALUES (?, ?, ?, ?, ?) ON CONFLICT(key) DO NOTHING",
+                            (k, v.get("name", k), v.get("subject", ""), v.get("body", ""), v.get("ignore_note", ""))
+                        )
+        except Exception as e:
+            print(f"[DB SEED WARN] Templates seed error: {e}")
+
+
 
     # Seed Settings & Ensure SMTP credentials
     default_cfg = {
@@ -391,21 +443,79 @@ def _seed_users(conn: sqlite3.Connection):
 
 # --- User Authentication & Management Helpers ---
 
-def authenticate_user(email: str, password_raw: str) -> Optional[Dict[str, Any]]:
+def authenticate_user(email: str, password_raw: str) -> Dict[str, Any]:
     conn = get_db_connection()
     email_clean = email.strip().lower()
     row = conn.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email_clean,)).fetchone()
     conn.close()
 
     if not row:
-        return None
+        return {"success": False, "error": "Invalid email or password. Please check your credentials."}
     
     user_dict = dict(row)
-    # Check password match (plain text or encrypted fallback)
     if user_dict.get("password") == password_raw.strip():
+        must_change = bool(user_dict.get("must_change_password"))
+        expires_at = user_dict.get("pwd_expires_at")
+        
+        if must_change and expires_at:
+            try:
+                exp_dt = datetime.datetime.fromisoformat(expires_at)
+                if datetime.datetime.now() > exp_dt:
+                    return {
+                        "success": False,
+                        "expired": True,
+                        "error": "Your temporary password has expired (valid for 4 hours). Please use 'Forgot password?' below to request a new password."
+                    }
+            except Exception:
+                pass
+
         user_dict.pop("password", None)
-        return user_dict
-    return None
+        return {
+            "success": True,
+            "user": user_dict,
+            "mustChangePassword": must_change
+        }
+    
+    return {"success": False, "error": "Invalid email or password. Please check your credentials."}
+
+def reset_user_password_with_expiry(email: str, hours: int = 4) -> Dict[str, Any]:
+    """Resets user password to a 12-char random string valid for specified hours (default 4h) requiring change on login."""
+    conn = get_db_connection()
+    email_clean = email.strip().lower()
+    row = conn.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email_clean,)).fetchone()
+    if not row:
+        conn.close()
+        return {"success": False, "error": "No account found registered with this email address."}
+    
+    user = dict(row)
+    new_pass = generate_random_password(12)
+    expires_dt = datetime.datetime.now() + datetime.timedelta(hours=hours)
+    expires_str = expires_dt.isoformat()
+    
+    conn.execute("""
+        UPDATE users
+        SET password = ?, must_change_password = 1, pwd_expires_at = ?
+        WHERE LOWER(email) = ?
+    """, (new_pass, expires_str, email_clean))
+    
+    try:
+        conn.execute("""
+            UPDATE employees
+            SET must_change_password = 1, pwd_expires_at = ?
+            WHERE LOWER(email) = ?
+        """, (expires_str, email_clean))
+    except Exception:
+        pass
+    
+    conn.commit()
+    conn.close()
+    
+    return {
+        "success": True,
+        "user": user,
+        "new_password": new_pass,
+        "expires_at": expires_str
+    }
 
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
@@ -416,6 +526,7 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
         u.pop("password", None)
         return u
     return None
+
 
 def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
@@ -519,19 +630,28 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
 
     if email_clean:
         existing_user = cursor.execute("SELECT id, password FROM users WHERE LOWER(email) = ?", (email_clean,)).fetchone()
+        exp_4h = (datetime.datetime.now() + datetime.timedelta(hours=4)).isoformat()
+
         if existing_user:
             if custom_pwd:
-                cursor.execute("UPDATE users SET name = ?, role = ?, team_id = ?, password = ? WHERE LOWER(email) = ?",
-                               (name_val, role, team_id_val, custom_pwd, email_clean))
+                cursor.execute("""
+                    UPDATE users 
+                    SET name = ?, role = ?, team_id = ?, password = ?, must_change_password = 1, pwd_expires_at = ? 
+                    WHERE LOWER(email) = ?
+                """, (name_val, role, team_id_val, custom_pwd, exp_4h, email_clean))
+                emp_data["generated_password"] = custom_pwd
             else:
                 cursor.execute("UPDATE users SET name = ?, role = ?, team_id = ? WHERE LOWER(email) = ?",
                                (name_val, role, team_id_val, email_clean))
         else:
-            def_pass = custom_pwd if custom_pwd else ("admin123" if role == "admin" else ("mgr123" if role == "manager" else "emp123"))
+            final_pwd = custom_pwd if custom_pwd else generate_random_password(12)
             u_id = f"u_{emp_id}"
             now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute("INSERT INTO users (id, name, email, password, role, team_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                           (u_id, name_val, email_clean, def_pass, role, team_id_val, now_str))
+            cursor.execute("""
+                INSERT INTO users (id, name, email, password, role, team_id, created_at, must_change_password, pwd_expires_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+            """, (u_id, name_val, email_clean, final_pwd, role, team_id_val, now_str, exp_4h))
+            emp_data["generated_password"] = final_pwd
 
     # If role is manager, sync with managers table
     if role == "manager" and email_clean:
@@ -549,7 +669,7 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
     conn.close()
     return True
 
-def update_user_password(email: str, old_password: str, new_password: str) -> Dict[str, Any]:
+def update_user_password(email: str, old_password: str, new_password: str, is_forced: bool = False) -> Dict[str, Any]:
     conn = get_db_connection()
     email_clean = email.strip().lower()
     row = conn.execute("SELECT * FROM users WHERE LOWER(email) = ?", (email_clean,)).fetchone()
@@ -558,14 +678,29 @@ def update_user_password(email: str, old_password: str, new_password: str) -> Di
         return {"success": False, "error": "User account not found."}
     
     user_dict = dict(row)
-    if user_dict.get("password") != old_password.strip():
+    if not is_forced and old_password and user_dict.get("password") != old_password.strip():
         conn.close()
         return {"success": False, "error": "Current password is incorrect."}
     
-    conn.execute("UPDATE users SET password = ? WHERE LOWER(email) = ?", (new_password.strip(), email_clean))
+    conn.execute("""
+        UPDATE users 
+        SET password = ?, must_change_password = 0, pwd_expires_at = NULL 
+        WHERE LOWER(email) = ?
+    """, (new_password.strip(), email_clean))
+
+    try:
+        conn.execute("""
+            UPDATE employees 
+            SET must_change_password = 0, pwd_expires_at = NULL 
+            WHERE LOWER(email) = ?
+        """, (email_clean,))
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
     return {"success": True, "message": "Password updated successfully!"}
+
 
 def delete_employee_record(emp_id: str) -> bool:
     conn = get_db_connection()
@@ -1190,6 +1325,12 @@ def is_employee_task_filled(employee_name_or_email: str, date_str: str) -> bool:
     if row and row["task_details"] and len(row["task_details"].strip()) > 5:
         return True
     return False
+
+def get_task_log_by_id(log_id: str) -> Optional[Dict[str, Any]]:
+    conn = get_db_connection()
+    row = conn.execute("SELECT * FROM task_logs WHERE id = ?", (log_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 def delete_task_log(log_id: str) -> bool:
     conn = get_db_connection()

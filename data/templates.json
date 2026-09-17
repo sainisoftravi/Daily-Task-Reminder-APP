@@ -22,5 +22,11 @@
     "subject": "Status Confirmation: Daily Log Hours Recorded - {date}",
     "body": "{quote}\n\nDear {name},\n\nThank you for updating your daily work log hours for today ({date}).\n\nYour daily time logs have been verified as filled in the Daily Task and Update Sheet. You may safely ignore any reminder notifications sent for today.\n\nThank you for keeping your daily project records up to date!\n\nWarm regards,\nIT & Infrastructure Team",
     "ignore_note": "Your daily log hours have been recorded. You can safely ignore all reminder notifications for today."
+  },
+  "welcome_email": {
+    "name": "Welcome Email - New User Account Onboarding Template",
+    "subject": "Welcome to Daily Task Reminder System - Your Login Credentials",
+    "body": "Hello {name},\n\nWelcome to the Daily Task Reminder & Multi-Role Task Management System!\n\nYour employee account has been created by your Manager ({mgr_email}). Below are your official login details:\n\n• Portal Login URL: {portal_url}\n• Assigned Role: {role}\n• Username (Email): {email}\n• Password: {password}\n\n⚠️ IMPORTANT SECURITY NOTICE:\nFor your security, your temporary password is valid for 4 HOURS ONLY. You will be required to change your password upon your first login.\n\nIf you do not log in within 4 hours, your password will expire, and you can request a new temporary password on the login page using 'Forgot password?'.\n\nPlease log in to the portal using your Username ({email}) and Password to set up your permanent credentials.\n\nBest regards,\nDaily Task Reminder System Team",
+    "ignore_note": "⚠️ Temporary Password Notice: Valid for 4 hours only. Must be changed upon first login."
   }
 }

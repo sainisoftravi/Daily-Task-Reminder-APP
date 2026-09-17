@@ -1,14 +1,45 @@
 {% extends "layout.html" %}
 
-{% block title %}SMTP & Multi-Account Config | Daily Task Reminder{% endblock %}
-{% block page_title %}System Configuration & Multi-Manager SMTP Settings{% endblock %}
+{% block title %}System Settings | Daily Task Reminder{% endblock %}
+{% block page_title %}System Settings & Policy Controls{% endblock %}
 
 {% block content %}
-<!-- Multi-SMTP Accounts Control Panel -->
+<!-- SECTION 1: Employee Task Logging & Back-Date Restriction Settings -->
+<div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <div style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
+                <i class="fa-solid fa-calendar-check" style="color: #c084fc;"></i>
+                Employee Back-Date Task Logging Policy
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                Configure the maximum number of past days employees are permitted to log or edit work updates (e.g. 2 = Last 2 Days & Today allowed; 0 = Today only; 365 = Unlimited).
+            </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveSystemConfig()">
+            <i class="fa-solid fa-floppy-disk"></i> Save Policy
+        </button>
+    </div>
+
+    <div style="max-width: 800px;">
+        <div class="form-group">
+            <label class="form-label">Maximum Allowed Back-Date Logging Window (Days)</label>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <input type="number" id="cfg-max-backdate" class="form-control" min="0" max="365" value="7" placeholder="e.g. 2 for last 2 days" style="max-width: 220px; font-weight: 700; color: var(--link-color);">
+                <span style="font-size: 13px; color: var(--text-muted);">Days Allowed</span>
+            </div>
+            <small style="font-size: 12px; color: var(--text-muted); margin-top: 8px; display: block; line-height: 1.5;">
+                <i class="fa-solid fa-shield-halved" style="color: var(--accent-emerald);"></i> <strong>Calendar Restriction Rule:</strong> Dates prior to this limit will automatically be greyed out and disabled in the employee calendar. Administrators and Managers can log/edit any past date without restriction.
+            </small>
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 2: Multi-SMTP Accounts Control Panel -->
 <div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 14px;">
         <div>
-            <div style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+            <div style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
                 <i class="fa-solid fa-envelope-circle-check" style="color: #38bdf8;"></i>
                 Manager & System SMTP Server Accounts
             </div>
@@ -45,11 +76,11 @@
     </div>
 </div>
 
-<!-- SharePoint Workbook & General System Config -->
+<!-- SECTION 3: SharePoint Workbook & General System Config -->
 <div class="glass-panel" style="padding: 24px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
         <div>
-            <div style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+            <div style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text-main);">
                 <i class="fa-solid fa-file-excel" style="color: var(--accent-emerald);"></i>
                 SharePoint Workbook & Excel Path Integration
             </div>
@@ -345,6 +376,22 @@
         }
     }
 
+    async function loadSystemConfig() {
+        const resSettings = await fetch('/api/settings');
+        const dataSettings = await resSettings.json();
+        const currentConfig = dataSettings.config || {};
+
+        if (document.getElementById('cfg-sharepoint') && currentConfig.sharepoint_url) {
+            document.getElementById('cfg-sharepoint').value = currentConfig.sharepoint_url;
+        }
+        if (document.getElementById('cfg-excel-path') && currentConfig.excel_file_path) {
+            document.getElementById('cfg-excel-path').value = currentConfig.excel_file_path;
+        }
+        if (document.getElementById('cfg-max-backdate')) {
+            document.getElementById('cfg-max-backdate').value = currentConfig.max_backdate_days !== undefined ? currentConfig.max_backdate_days : 7;
+        }
+    }
+
     async function saveSystemConfig() {
         const resSettings = await fetch('/api/settings');
         const dataSettings = await resSettings.json();
@@ -352,15 +399,17 @@
 
         currentConfig.sharepoint_url = document.getElementById('cfg-sharepoint').value;
         currentConfig.excel_file_path = document.getElementById('cfg-excel-path').value;
+        currentConfig.max_backdate_days = parseInt(document.getElementById('cfg-max-backdate').value || 7);
 
         await fetch('/api/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(currentConfig)
         });
-        showToast('System Configuration Saved');
+        showToast('System Configuration & Logging Policy Saved');
     }
 
     fetchSmtpAccounts();
+    loadSystemConfig();
 </script>
 {% endblock %}

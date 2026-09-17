@@ -28,7 +28,8 @@ app = Flask(__name__, template_folder="templates")
 app.secret_key = os.environ.get("SECRET_KEY", "daily_task_reminder_system_secret_key_2026")
 
 # --- Authentication Middleware ---
-EXEMPT_ROUTES = {'/login', '/api/login', '/api/logout', '/api/me', '/static'}
+EXEMPT_ROUTES = {'/login', '/api/login', '/api/logout', '/api/me', '/static', '/api/request-password-reset'}
+
 
 @app.before_request
 def check_authentication():
@@ -50,7 +51,24 @@ def check_authentication():
 @app.context_processor
 def inject_user_context():
     user = session.get("user") or {}
-    return dict(current_user=user, current_role=user.get("role", "employee"))
+    enriched_user = dict(user)
+    if user and (user.get("email") or user.get("name")):
+        employees = database.get_all_employees()
+        email_clean = (user.get("email") or "").strip().lower()
+        name_clean = (user.get("name") or "").strip().lower()
+        emp_match = next((e for e in employees if (e.get("email") or "").strip().lower() == email_clean or (e.get("name") or "").strip().lower() == name_clean), None)
+        if emp_match:
+            enriched_user["teamName"] = emp_match.get("teamName") or "Infra Team"
+            enriched_user["location"] = emp_match.get("location") or "India"
+            enriched_user["timezone"] = emp_match.get("timezone") or "Asia/Kolkata"
+            enriched_user["shiftName"] = emp_match.get("shiftName") or "Standard Day Shift"
+            enriched_user["managerCc"] = emp_match.get("managerCc") or ""
+        else:
+            enriched_user.setdefault("teamName", "Infra Team")
+            enriched_user.setdefault("location", "India")
+            enriched_user.setdefault("timezone", "Asia/Kolkata")
+            enriched_user.setdefault("shiftName", "Standard Day Shift")
+    return dict(current_user=enriched_user, current_role=user.get("role", "employee"))
 
 # --- CORS (Cross-Origin Resource Sharing) Middleware ---
 @app.after_request
@@ -86,13 +104,19 @@ def api_login():
     email = data.get("email", "")
     password = data.get("password", "")
 
-    user = database.authenticate_user(email, password)
-    if not user:
-        return jsonify({"success": False, "error": "Invalid email or password. Please check your credentials."}), 401
+    res = database.authenticate_user(email, password)
+    if not res.get("success"):
+        return jsonify({"success": False, "error": res.get("error", "Invalid email or password.")}), 401
 
+    user = res.get("user")
     session["user"] = user
     log_event(f"User '{user.get('name')}' ({user.get('email')}) logged in successfully as role '{user.get('role')}'.")
-    return jsonify({"success": True, "user": user})
+    return jsonify({
+        "success": True,
+        "user": user,
+        "mustChangePassword": res.get("mustChangePassword", False)
+    })
+
 
 @app.route("/api/logout", methods=["POST"])
 def api_logout():
@@ -106,7 +130,23 @@ def api_logout():
 def api_me():
     user = session.get("user")
     if user:
-        return jsonify({"success": True, "user": user})
+        enriched_user = dict(user)
+        employees = database.get_all_employees()
+        email_clean = (user.get("email") or "").strip().lower()
+        name_clean = (user.get("name") or "").strip().lower()
+        emp_match = next((e for e in employees if (e.get("email") or "").strip().lower() == email_clean or (e.get("name") or "").strip().lower() == name_clean), None)
+        if emp_match:
+            enriched_user["teamName"] = emp_match.get("teamName") or "Infra Team"
+            enriched_user["location"] = emp_match.get("location") or "India"
+            enriched_user["timezone"] = emp_match.get("timezone") or "Asia/Kolkata"
+            enriched_user["shiftName"] = emp_match.get("shiftName") or "Standard Day Shift"
+            enriched_user["managerCc"] = emp_match.get("managerCc") or ""
+        else:
+            enriched_user.setdefault("teamName", "Infra Team")
+            enriched_user.setdefault("location", "India")
+            enriched_user.setdefault("timezone", "Asia/Kolkata")
+            enriched_user.setdefault("shiftName", "Standard Day Shift")
+        return jsonify({"success": True, "user": enriched_user})
     return jsonify({"success": False, "user": None})
 
 # --- PAGE ROUTING ENDPOINTS ---
@@ -130,9 +170,10 @@ def dashboard_page():
         history=history
     )
 
+@app.route("/users")
 @app.route("/employees")
-def employees_page():
-    return render_template("employees.html", active_page="employees")
+def users_page():
+    return render_template("employees.html", active_page="users")
 
 @app.route("/shifts")
 def shifts_page():
@@ -148,7 +189,7 @@ def locations_page():
 
 @app.route("/managers")
 def managers_page():
-    return render_template("managers.html", active_page="managers")
+    return redirect(url_for("users_page"))
 
 @app.route("/quotes")
 def quotes_page():
@@ -174,6 +215,11 @@ def task_entry_page():
 
 @app.route("/api/task-logs", methods=["GET", "POST"])
 def manage_task_logs():
+    current_user = session.get("user") or {}
+    user_role = current_user.get("role", "employee")
+    user_name = current_user.get("name", "")
+    user_email = current_user.get("email", "")
+
     if request.method == "GET":
         team_id = request.args.get("team_id")
         team_name = request.args.get("team_name")
@@ -182,10 +228,41 @@ def manage_task_logs():
         end_date = request.args.get("end_date")
 
         logs = database.get_task_logs(team_id=team_id, team_name=team_name, date_str=date_str, start_date=start_date, end_date=end_date)
+
+        # Security enforcement for Employee role: Employees can only view their own task logs
+        if user_role == "employee" and user_name:
+            logs = [
+                l for l in logs 
+                if (l.get("employee_name", "").strip().lower() == user_name.strip().lower() or 
+                    l.get("email", "").strip().lower() == user_email.strip().lower())
+            ]
+
         return jsonify({"success": True, "logs": logs})
 
     elif request.method == "POST":
         data = request.json or {}
+
+        # Security enforcement for Employee role: Employees can only fill/update their own task logs
+        if user_role == "employee":
+            req_emp_name = (data.get("employeeName") or data.get("employee_name") or "").strip().lower()
+            req_email = (data.get("email") or "").strip().lower()
+
+            if req_emp_name and req_emp_name != user_name.strip().lower() and req_email and req_email != user_email.strip().lower():
+                return jsonify({"success": False, "error": "Forbidden: Employees are only permitted to submit or edit their own daily task logs."}), 403
+
+            # Enforce back-date logging window restriction policy
+            sys_config = database.get_system_settings()
+            max_backdate = int(sys_config.get("max_backdate_days", 7))
+            task_date_str = data.get("dateStr") or data.get("date_str") or datetime.datetime.now().strftime("%Y-%m-%d")
+            cutoff_date_str = (datetime.datetime.now() - datetime.timedelta(days=max_backdate)).strftime("%Y-%m-%d")
+
+            if task_date_str < cutoff_date_str:
+                return jsonify({"success": False, "error": f"Forbidden: Submitting or editing task logs older than {max_backdate} days ({cutoff_date_str}) is restricted by administrator policy."}), 403
+
+            # Override/lock employee details to logged-in user
+            data["employeeName"] = user_name
+            data["email"] = user_email
+
         database.save_task_log(data)
         emp_name = data.get("employeeName") or data.get("employee_name", "Employee")
         date_str = data.get("dateStr") or data.get("date_str") or datetime.datetime.now().strftime("%Y-%m-%d")
@@ -194,6 +271,19 @@ def manage_task_logs():
 
 @app.route("/api/task-logs/<log_id>", methods=["DELETE"])
 def delete_task_log_route(log_id):
+    current_user = session.get("user") or {}
+    user_role = current_user.get("role", "employee")
+    user_name = current_user.get("name", "")
+    user_email = current_user.get("email", "")
+
+    if user_role == "employee":
+        log = database.get_task_log_by_id(log_id)
+        if log:
+            log_emp = (log.get("employee_name") or "").strip().lower()
+            log_email = (log.get("email") or "").strip().lower()
+            if log_emp != user_name.strip().lower() and log_email != user_email.strip().lower():
+                return jsonify({"success": False, "error": "Forbidden: You cannot delete task logs belonging to other employees."}), 403
+
     database.delete_task_log(log_id)
     log_event(f"Deleted Task Log ID: {log_id}")
     return jsonify({"success": True})
@@ -207,6 +297,10 @@ def export_task_report():
     custom_start = request.args.get("start_date")
     custom_end = request.args.get("end_date")
     emp_name_filter = request.args.get("employee_name")
+
+    current_user = session.get("user") or {}
+    if current_user.get("role") == "employee" and current_user.get("name"):
+        emp_name_filter = current_user.get("name")
 
     all_teams = database.get_all_teams()
     all_employees = database.get_all_employees()
@@ -344,6 +438,7 @@ def delete_quote(quote_id):
     quotes = database.get_all_quotes()
     return jsonify({"success": True, "quotes": quotes})
 
+@app.route("/api/users", methods=["GET", "POST"])
 @app.route("/api/employees", methods=["GET", "POST"])
 def manage_employees():
     if request.method == "GET":
@@ -362,7 +457,7 @@ def manage_employees():
         emp_email = (data.get("email") or "").strip()
         pwd_raw = (data.get("password") or "").strip()
         role_str = (data.get("role") or "employee").lower()
-        pwd = pwd_raw if pwd_raw else ("admin123" if role_str == "admin" else ("mgr123" if role_str == "manager" else "emp123"))
+        pwd = data.get("generated_password") or pwd_raw or database.generate_random_password(12)
 
         # Determine Manager Email (from form managerCc or logged-in user)
         mgr_email = (data.get("managerCc") or "").strip()
@@ -373,30 +468,123 @@ def manage_employees():
             try:
                 portal_url = request.host_url.rstrip('/') + '/login'
                 role_label = role_str.capitalize()
-                subject = f"Welcome to Daily Task Reminder System - Your Login Credentials"
-                body = f"""Hello {data.get('name')},
+                date_today = datetime.date.today().strftime('%d-%b-%Y')
+
+                # Retrieve customizable Welcome Email template from database
+                all_tpls = database.get_all_templates()
+                welcome_tpl = all_tpls.get("welcome_email") or {}
+
+                default_subj = "Welcome to Daily Task Reminder System - Your Login Credentials"
+                default_body = """Hello {name},
 
 Welcome to the Daily Task Reminder & Multi-Role Task Management System!
 
-Your employee account has been created by your Manager ({mgr_email if mgr_email else 'System Administrator'}). Below are your official login details:
+Your employee account has been created by your Manager ({mgr_email}). Below are your official login details:
 
-- Portal Login URL: {portal_url}
-- Assigned Role: {role_label}
-- Username (Email): {emp_email}
-- Password: {pwd}
+• Portal Login URL: {portal_url}
+• Assigned Role: {role}
+• Username (Email): {email}
+• Password: {password}
 
-Please log in to the portal using your Username ({emp_email}) and Password to submit your daily tasks and track your work logs.
+⚠️ IMPORTANT SECURITY NOTICE:
+For your security, your temporary password is valid for 4 HOURS ONLY. You will be required to change your password upon your first login.
+
+If you do not log in within 4 hours, your password will expire, and you can request a new temporary password on the login page using 'Forgot password?'.
+
+Please log in to the portal using your Username ({email}) and Password to set up your permanent credentials.
 
 Best regards,
-Daily Task Reminder System Team
-"""
+Daily Task Reminder System Team"""
+
+                raw_subj = welcome_tpl.get("subject") or default_subj
+                raw_body = welcome_tpl.get("body") or default_body
+
+                subject = raw_subj.replace("{name}", data.get('name', 'User')) \
+                                  .replace("{email}", emp_email) \
+                                  .replace("{role}", role_label) \
+                                  .replace("{password}", pwd) \
+                                  .replace("{portal_url}", portal_url) \
+                                  .replace("{mgr_email}", mgr_email if mgr_email else 'System Administrator') \
+                                  .replace("{date}", date_today)
+
+                body = raw_body.replace("{name}", data.get('name', 'User')) \
+                               .replace("{email}", emp_email) \
+                               .replace("{role}", role_label) \
+                               .replace("{password}", pwd) \
+                               .replace("{portal_url}", portal_url) \
+                               .replace("{mgr_email}", mgr_email if mgr_email else 'System Administrator') \
+                               .replace("{date}", date_today)
+
                 daily_reminder.send_email(emp_email, mgr_email, subject, body)
-                log_event(f"Dispatched Welcome Email to '{emp_email}' from Manager '{mgr_email}'.")
+                log_event(f"Dispatched Welcome Email with 12-char random password to '{emp_email}' from Manager '{mgr_email}'.")
             except Exception as err:
                 log_event(f"[WARN] Welcome Email dispatch error for '{emp_email}': {err}")
 
         employees = database.get_all_employees()
         return jsonify({"success": True, "employees": employees})
+
+@app.route("/api/request-password-reset", methods=["POST"])
+def request_password_reset():
+    data = request.json or {}
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        return jsonify({"success": False, "error": "Registered email address is required."}), 400
+
+    res = database.reset_user_password_with_expiry(email, hours=4)
+    if not res.get("success"):
+        return jsonify({"success": False, "error": res.get("error")}), 404
+
+    user = res["user"]
+    new_pass = res["new_password"]
+    portal_url = request.host_url.rstrip('/') + '/login'
+    mgr_email = user.get("manager_cc") or user.get("managerCc") or "System Administrator"
+
+    subject = "Daily Task Reminder System - Your New Temporary Password"
+    body = f"""Hello {user.get('name')},
+
+You have requested a new temporary password for your Daily Task Reminder System account. Below are your updated official login credentials:
+
+• Portal Login URL: {portal_url}
+• Assigned Role: {(user.get('role') or 'employee').capitalize()}
+• Username (Email): {user.get('email')}
+• Temporary Password: {new_pass}
+
+⚠️ IMPORTANT SECURITY NOTICE:
+For your security, your temporary password is valid for 4 HOURS ONLY. You will be required to change your password upon your first login.
+
+If you do not log in within 4 hours, your password will expire, and you can request another temporary password on the login page using 'Forgot password?'.
+
+Best regards,
+Daily Task Reminder System Team"""
+
+    try:
+        daily_reminder.send_email(user.get("email"), mgr_email, subject, body)
+        log_event(f"Dispatched Password Reset Email with 12-char random password to '{user.get('email')}' (valid for 4h).")
+    except Exception as err:
+        log_event(f"[WARN] Password Reset Email dispatch error for '{user.get('email')}': {err}")
+
+    return jsonify({
+        "success": True,
+        "message": f"A new 12-character temporary password (valid for 4 hours) has been sent to {user.get('email')}."
+    })
+
+@app.route("/api/force-change-password", methods=["POST"])
+def force_change_password():
+    user = session.get("user")
+    if not user:
+        return jsonify({"success": False, "error": "Authentication required."}), 401
+    
+    data = request.json or {}
+    new_pass = (data.get("newPassword") or "").strip()
+    if not new_pass or len(new_pass) < 4:
+        return jsonify({"success": False, "error": "New password must be at least 4 characters long."})
+
+    res = database.update_user_password(user["email"], old_password="", new_password=new_pass, is_forced=True)
+    if res.get("success"):
+        log_event(f"User '{user['email']}' completed mandatory first-time password setup.")
+        session["user"]["password"] = new_pass
+        session.modified = True
+    return jsonify(res)
 
 @app.route("/api/change-password", methods=["POST"])
 def change_password():
@@ -412,6 +600,7 @@ def change_password():
         return jsonify({"success": False, "error": "Current password and new password are required."})
 
     res = database.update_user_password(user["email"], curr_pass, new_pass)
+
     if res.get("success"):
         log_event(f"User '{user['email']}' successfully changed their account password.")
         session["user"]["password"] = new_pass
