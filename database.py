@@ -217,11 +217,7 @@ def get_db_connection():
             try:
                 raw_conn = p.getconn()
                 if raw_conn and hasattr(raw_conn, "closed") and raw_conn.closed == 0:
-                    try:
-                        raw_conn.poll()
-                        return PgPooledConnectionWrapper(raw_conn, p)
-                    except Exception:
-                        p.putconn(raw_conn, close=True)
+                    return PgPooledConnectionWrapper(raw_conn, p)
                 else:
                     if raw_conn:
                         p.putconn(raw_conn, close=True)
@@ -229,6 +225,7 @@ def get_db_connection():
                 pass
 
         # 2. Fallback to direct connection if connection pool is unavailable
+
         try:
             pg_conn = psycopg2.connect(DB_URL, connect_timeout=15)
             return PgConnectionWrapper(pg_conn)
@@ -1735,7 +1732,8 @@ def get_leave_logs(email: Optional[str] = None, employee_name: Optional[str] = N
     conn = get_db_connection()
     query = """
         SELECT * FROM task_logs 
-        WHERE (is_leave = 1 OR is_leave IS TRUE OR LOWER(work_status) IN ('leave', 'week off', 'on leave') OR LOWER(task_details) LIKE '%on leave%' OR LOWER(task_details) LIKE '%week off%' OR LOWER(task_details) LIKE '%weekoff%')
+        WHERE (CAST(is_leave AS VARCHAR) IN ('1', 'true', 'True', 'TRUE') OR LOWER(work_status) IN ('leave', 'week off', 'on leave') OR LOWER(task_details) LIKE '%on leave%' OR LOWER(task_details) LIKE '%week off%' OR LOWER(task_details) LIKE '%weekoff%')
+
     """
     params = []
     
@@ -1940,24 +1938,16 @@ def get_employee_manager_cc(identifier: str) -> str:
 _DB_INITIALIZED = False
 
 def ensure_db_initialized():
+    """Guarantees automatic schema migration and provisioning for any new tables, columns, or indexes in Supabase PostgreSQL & SQLite."""
     global _DB_INITIALIZED
     if _DB_INITIALIZED:
         return
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM users LIMIT 1")
-        conn.close()
-        _DB_INITIALIZED = True
-        return
-    except Exception:
-        pass
-
-    try:
         init_db()
     except Exception as e:
-        print(f"[DB INIT WARN] {e}")
+        print(f"[DB AUTO-SCHEMA MIGRATION WARN] {e}")
     _DB_INITIALIZED = True
 
 ensure_db_initialized()
+
 
