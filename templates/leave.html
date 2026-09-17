@@ -533,8 +533,6 @@
             skipWeekends: skipWeekends
         };
 
-        showToast(`Applying Leave for ${empName}...`);
-
         const res = await fetch('/api/task-logs/bulk-leave', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

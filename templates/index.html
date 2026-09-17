@@ -482,17 +482,7 @@
         }
 
         .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            padding: 14px 24px;
-            border-radius: var(--radius-md);
-            background: rgba(16, 185, 129, 0.95);
-            color: #fff;
-            font-weight: 500;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-            display: none;
-            z-index: 2000;
+            display: none !important;
         }
     </style>
 </head>
@@ -1898,10 +1888,8 @@
         }
 
         function showToast(msg) {
-            const t = document.getElementById('toast-msg');
-            t.innerText = msg;
-            t.style.display = 'block';
-            setTimeout(() => { t.style.display = 'none'; }, 3000);
+            // Floating toast popup notifications disabled per user request
+            return;
         }
 
         fetchAllData();
