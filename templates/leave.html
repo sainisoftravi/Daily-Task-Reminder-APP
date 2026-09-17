@@ -166,12 +166,53 @@
         return `/api/leave-logs?user_email=${encodeURIComponent(userEmail)}&user_name=${encodeURIComponent(userName)}&role=${encodeURIComponent(userRole)}`;
     }
 
+    function showLoadingSkeleton() {
+        const tbody = document.getElementById('leave-logs-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="padding: 30px; text-align: center;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 12px; color: #fbbf24; font-weight: 600; font-size: 14px;">
+                        <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 20px;"></i> Syncing latest leave records...
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
     async function fetchLeaveLogsData() {
         try {
             const logsRes = await fetch(getLeaveApiUrl());
             const logsData = await logsRes.json();
-            if (logsData.success) {
-                taskLogsData = logsData.logs || [];
+            if (logsData.success && logsData.logs && logsData.logs.length > 0) {
+                taskLogsData = logsData.logs;
+                sessionStorage.setItem('TICKTASK_LEAVE_LOGS_CACHE', JSON.stringify(taskLogsData));
+                return;
+            }
+
+            // Fallback: If /api/leave-logs returned 0 logs, try fetching /api/task-logs (same as /reports) to guarantee leave logs render
+            const fallbackRes = await fetch('/api/task-logs');
+            const fallbackData = await fallbackRes.json();
+            if (fallbackData.success && fallbackData.logs) {
+                const u = loggedInUser || window.SESSION_USER || {};
+                const cleanName = (u.name || activeEmpName || '').split(' (')[0].trim().toLowerCase();
+                const cleanEmail = (u.email || '').trim().toLowerCase();
+                const userRole = u.role || 'employee';
+
+                taskLogsData = fallbackData.logs.filter(l => {
+                    const isLeaveRecord = l.is_leave == 1 || 
+                                          (l.work_status && ['leave', 'week off', 'on leave'].includes(l.work_status.toLowerCase())) ||
+                                          (l.task_details && (l.task_details.toLowerCase().includes('on leave') || l.task_details.toLowerCase().includes('week off') || l.task_details.toLowerCase().includes('weekoff')));
+                    if (!isLeaveRecord) return false;
+                    if (userRole !== 'employee') return true;
+                    const empNameInLog = (l.employee_name || '').split(' (')[0].trim().toLowerCase();
+                    const empEmailInLog = (l.email || '').trim().toLowerCase();
+                    return (cleanName && empNameInLog === cleanName) || 
+                           (cleanEmail && empEmailInLog === cleanEmail) || 
+                           (cleanName && empNameInLog.includes(cleanName)) ||
+                           (cleanName && cleanName.includes(empNameInLog));
+                });
+                sessionStorage.setItem('TICKTASK_LEAVE_LOGS_CACHE', JSON.stringify(taskLogsData));
             }
         } catch (e) {
             console.error('Error fetching leave logs:', e);
@@ -179,6 +220,17 @@
     }
 
     async function loadData() {
+        // Instant SWR cache render for 0ms UI perception
+        const cached = sessionStorage.getItem('TICKTASK_LEAVE_LOGS_CACHE');
+        if (cached) {
+            try {
+                taskLogsData = JSON.parse(cached);
+                renderLeaveLogs();
+            } catch(e) {}
+        } else {
+            showLoadingSkeleton();
+        }
+
         if (!loggedInUser) {
             try {
                 const userRes = await fetch('/api/me');
@@ -192,23 +244,17 @@
             }
         }
 
-        const [empRes, logsRes] = await Promise.all([
-            fetch('/api/employees'),
-            fetch(getLeaveApiUrl())
-        ]);
-
         try {
+            const empRes = await fetch('/api/employees');
             const empData = await empRes.json();
             if (empData.success) employeesData = empData.employees;
         } catch(e) {}
 
-        try {
-            const logsData = await logsRes.json();
-            if (logsData.success) taskLogsData = logsData.logs || [];
-        } catch(e) {}
-
+        await fetchLeaveLogsData();
         renderLeaveLogs();
     }
+
+
 
     function renderLeaveLogs() {
         const tbody = document.getElementById('leave-logs-tbody');

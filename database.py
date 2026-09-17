@@ -1578,7 +1578,9 @@ def save_task_logs_batch(payload_list: List[Dict[str, Any]]) -> bool:
     """, rows_to_insert)
     conn.commit()
     conn.close()
+    invalidate_leave_cache()
     return True
+
 
 
 def get_employee_working_days(employee_name_or_email: str) -> List[str]:
@@ -1651,25 +1653,70 @@ def get_task_logs(team_id: Optional[str] = None, team_name: Optional[str] = None
     conn.close()
     return [dict(r) for r in rows]
 
+_LEAVE_CACHE = {}
+_LEAVE_CACHE_TTL = 5.0
+
+def invalidate_leave_cache():
+    global _LEAVE_CACHE
+    _LEAVE_CACHE = {}
+
 def get_leave_logs(email: Optional[str] = None, employee_name: Optional[str] = None, team_name: Optional[str] = None, limit: int = 500) -> List[Dict[str, Any]]:
-    """Ultra-fast indexed database lookup for Leave & Week Off records."""
+    """Ultra-fast indexed database lookup for Leave & Week Off records with comprehensive alias matching and TTL caching."""
+    cache_key = f"{email}:{employee_name}:{team_name}:{limit}"
+    now = time.time()
+    if cache_key in _LEAVE_CACHE:
+        c_time, c_data = _LEAVE_CACHE[cache_key]
+        if now - c_time < _LEAVE_CACHE_TTL:
+            return c_data
+
     conn = get_db_connection()
     query = """
         SELECT * FROM task_logs 
-        WHERE (is_leave = 1 OR LOWER(work_status) IN ('leave', 'week off', 'on leave') OR LOWER(task_details) LIKE '%on leave%' OR LOWER(task_details) LIKE '%week off%' OR LOWER(task_details) LIKE '%weekoff%')
+        WHERE (is_leave = 1 OR is_leave IS TRUE OR LOWER(work_status) IN ('leave', 'week off', 'on leave') OR LOWER(task_details) LIKE '%on leave%' OR LOWER(task_details) LIKE '%week off%' OR LOWER(task_details) LIKE '%weekoff%')
     """
     params = []
     
-    if email or employee_name:
+    target_emails = set()
+    target_names = set()
+
+    if email and email.strip():
+        e_clean = email.strip().lower()
+        target_emails.add(e_clean)
+        if "@" in e_clean:
+            prefix = e_clean.split("@")[0].strip()
+            if prefix:
+                target_names.add(prefix)
+
+    if employee_name and employee_name.strip():
+        n_clean = employee_name.split(" (")[0].strip().lower()
+        if n_clean:
+            target_names.add(n_clean)
+
+    if target_emails or target_names:
+        # Cross-reference with employee roster to include linked emails & names
+        try:
+            emps = get_all_employees()
+            for emp in emps:
+                emp_e = (emp.get("email") or "").strip().lower()
+                emp_n = (emp.get("name") or "").split(" (")[0].strip().lower()
+                if (emp_e and emp_e in target_emails) or (emp_n and emp_n in target_names):
+                    if emp_e:
+                        target_emails.add(emp_e)
+                    if emp_n:
+                        target_names.add(emp_n)
+        except Exception:
+            pass
+
+    if target_emails or target_names:
         conds = []
-        if email:
-            clean_email = email.strip().lower()
+        for e in target_emails:
             conds.append("LOWER(email) = ?")
-            params.append(clean_email)
-        if employee_name:
-            clean_name = employee_name.split(" (")[0].strip().lower()
+            params.append(e)
+            conds.append("LOWER(email) LIKE ?")
+            params.append(f"%{e}%")
+        for n in target_names:
             conds.append("LOWER(employee_name) LIKE ?")
-            params.append(f"%{clean_name}%")
+            params.append(f"%{n}%")
         if conds:
             query += " AND (" + " OR ".join(conds) + ")"
 
@@ -1683,7 +1730,11 @@ def get_leave_logs(email: Optional[str] = None, employee_name: Optional[str] = N
 
     rows = conn.execute(query, params).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    res = [dict(r) for r in rows]
+    _LEAVE_CACHE[cache_key] = (now, res)
+    return res
+
+
 
 def is_employee_week_off(employee_name_or_email: str, date_input: Any) -> bool:
     """
@@ -1791,6 +1842,7 @@ def delete_task_log(log_id: str) -> bool:
     conn.execute("DELETE FROM task_logs WHERE id = ?", (log_id,))
     conn.commit()
     conn.close()
+    invalidate_leave_cache()
     return True
 
 def delete_task_logs_batch(log_ids: List[str]) -> int:
@@ -1803,7 +1855,9 @@ def delete_task_logs_batch(log_ids: List[str]) -> int:
     deleted_count = cursor.rowcount
     conn.commit()
     conn.close()
+    invalidate_leave_cache()
     return deleted_count
+
 
 def get_employee_manager_cc(identifier: str) -> str:
     """Returns the manager CC email address for a given employee name or email."""

@@ -295,7 +295,7 @@ def manage_task_logs():
 
 @task_bp.route("/api/leave-logs", methods=["GET"])
 def api_get_leave_logs():
-    """Dedicated fast endpoint for leave & week-off logs with zero-latency SQL filtering."""
+    """Dedicated fast endpoint for leave & week-off logs with zero-latency SQL filtering and fallback alias matching."""
     current_user = session.get("user") or {}
     user_role = current_user.get("role") or request.args.get("role") or "employee"
     user_name = request.args.get("user_name") or current_user.get("name") or ""
@@ -307,13 +307,41 @@ def api_get_leave_logs():
     # Security scoping: Employee sees their own leave logs, Manager sees team leave logs, Admin sees all
     if user_role == "employee":
         logs = database.get_leave_logs(email=clean_email, employee_name=clean_name)
+        if not logs and (clean_email or clean_name):
+            # Fallback alias matching: fetch all leave logs and match via employee roster
+            all_leave_logs = database.get_leave_logs()
+            all_emps = database.get_all_employees()
+            matching_names = set()
+            matching_emails = set()
+            if clean_email:
+                matching_emails.add(clean_email)
+            if clean_name:
+                matching_names.add(clean_name.lower())
+
+            for emp in all_emps:
+                emp_e = (emp.get("email") or "").strip().lower()
+                emp_n = (emp.get("name") or "").split(" (")[0].strip().lower()
+                if (emp_e and emp_e in matching_emails) or (emp_n and emp_n in matching_names):
+                    if emp_e: matching_emails.add(emp_e)
+                    if emp_n: matching_names.add(emp_n)
+
+            logs = [
+                l for l in all_leave_logs
+                if ((l.get("email") or "").strip().lower() in matching_emails or
+                    (l.get("employee_name") or "").split(" (")[0].strip().lower() in matching_names or
+                    any(mn and mn in (l.get("employee_name") or "").lower() for mn in matching_names))
+            ]
     elif user_role == "manager":
         mgr_team = current_user.get("teamName") or current_user.get("team_name")
         logs = database.get_leave_logs(team_name=mgr_team)
     else:
         logs = database.get_leave_logs()
 
-    return jsonify({"success": True, "logs": logs, "count": len(logs)})
+    res = jsonify({"success": True, "logs": logs, "count": len(logs)})
+    res.headers["Cache-Control"] = "private, max-age=5, stale-while-revalidate=15"
+    return res
+
+
 
 
 @task_bp.route("/api/task-logs/bulk-leave", methods=["POST"])
