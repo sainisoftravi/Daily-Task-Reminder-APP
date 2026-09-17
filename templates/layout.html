@@ -14,6 +14,10 @@
         (function() {
             const savedTheme = localStorage.getItem('ticktask_theme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
+            const savedCollapsed = localStorage.getItem('ticktask_sidebar_collapsed') === 'true';
+            if (savedCollapsed && window.innerWidth > 768) {
+                document.documentElement.classList.add('sidebar-collapsed-init');
+            }
         })();
         window.SESSION_USER = {{ session.get('user', {}) | tojson | safe }};
     </script>
@@ -155,6 +159,22 @@
             left: 0;
             z-index: 1000;
             overflow: hidden;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, visibility 0.25s ease;
+        }
+
+        /* Collapsed Sidebar State (Desktop & Viewport Toggle) */
+        html.sidebar-collapsed-init .sidebar,
+        body.sidebar-collapsed .sidebar {
+            transform: translateX(-105%);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        html.sidebar-collapsed-init .workspace,
+        body.sidebar-collapsed .workspace {
+            margin-left: 0 !important;
+            max-width: 100% !important;
         }
 
         .sidebar-brand {
@@ -308,6 +328,53 @@
             flex-direction: column;
             min-height: 100vh;
             max-width: calc(100% - var(--sidebar-width));
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Universal Burger Menu Sidebar Toggle Button */
+        .sidebar-toggle-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            border-radius: var(--radius-md);
+            background: var(--btn-sec-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-main);
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar-toggle-btn:hover {
+            background: var(--primary-gradient);
+            color: #ffffff;
+            border-color: transparent;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+        }
+
+        .sidebar-brand-toggle-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .sidebar-brand-toggle-btn:hover {
+            background: var(--primary-gradient);
+            color: #ffffff;
+            border-color: transparent;
         }
 
         /* Header Bar */
@@ -773,9 +840,16 @@
 
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="app-sidebar">
-        <div class="sidebar-brand">
-            <img src="/static/images/app_logo_dark.png" id="sidebar-brand-logo" alt="TickTask Logo" style="max-height: 42px; max-width: 185px; object-fit: contain;">
-            <button class="close-btn" onclick="toggleMobileSidebar(false)" style="display: none;" id="sidebar-close-btn">&times;</button>
+        <div class="sidebar-brand" style="justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <img src="/static/images/app_logo_dark.png" id="sidebar-brand-logo" alt="TickTask Logo" style="max-height: 42px; max-width: 170px; object-fit: contain;">
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <button class="sidebar-brand-toggle-btn" onclick="toggleSidebarNav()" title="Hide Sidebar Navigation">
+                    <i class="fa-solid fa-angles-left"></i>
+                </button>
+                <button class="close-btn" onclick="toggleMobileSidebar(false)" style="display: none;" id="sidebar-close-btn">&times;</button>
+            </div>
         </div>
 
         <ul class="nav-list" id="sidebar-nav-list">
@@ -874,9 +948,9 @@
     <!-- Workspace Area -->
     <div class="workspace">
         <header>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <button class="mobile-toggle-btn" onclick="toggleMobileSidebar(true)" title="Toggle Navigation Menu">
-                    <i class="fa-solid fa-bars"></i>
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <button class="sidebar-toggle-btn" id="header-sidebar-toggle" onclick="toggleSidebarNav()" title="Toggle Sidebar Navigation (View / Hide Menu)">
+                    <i class="fa-solid fa-bars" id="sidebar-toggle-icon"></i>
                 </button>
                 <div class="page-header-title">{% block page_title %}Dashboard{% endblock %}</div>
             </div>
@@ -1032,15 +1106,35 @@
             const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
             const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
             applyTheme(nextTheme);
-            if (typeof showToast === 'function') {
-                showToast(`Switched to ${nextTheme === 'light' ? 'Light' : 'Dark'} Theme`);
+        }
+
+        function toggleSidebarNav() {
+            if (window.innerWidth <= 768) {
+                toggleMobileSidebar();
+            } else {
+                const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
+                localStorage.setItem('ticktask_sidebar_collapsed', isCollapsed);
+                const toggleIcon = document.getElementById('sidebar-toggle-icon');
+                if (toggleIcon) {
+                    toggleIcon.className = isCollapsed ? 'fa-solid fa-bars-staggered' : 'fa-solid fa-bars';
+                }
             }
         }
 
-        // Apply theme state on DOM load
+        // Apply theme state & sidebar state on DOM load
         document.addEventListener('DOMContentLoaded', function() {
             const savedTheme = localStorage.getItem('ticktask_theme') || 'dark';
             applyTheme(savedTheme);
+
+            const savedCollapsed = localStorage.getItem('ticktask_sidebar_collapsed') === 'true';
+            if (savedCollapsed && window.innerWidth > 768) {
+                document.body.classList.add('sidebar-collapsed');
+                const toggleIcon = document.getElementById('sidebar-toggle-icon');
+                if (toggleIcon) {
+                    toggleIcon.className = 'fa-solid fa-bars-staggered';
+                }
+            }
+            document.documentElement.classList.remove('sidebar-collapsed-init');
         });
 
         function toggleMobileSidebar(open) {
