@@ -723,7 +723,11 @@ def get_all_employees() -> List[Dict[str, Any]]:
     result = []
     for r in rows:
         d = dict(r)
-        d["workingDays"] = [w.strip() for w in d["working_days"].split(",") if w.strip()] if d["working_days"] else []
+        if d.get("working_days"):
+            raw_w = str(d["working_days"]).replace("[", "").replace("]", "").replace('"', "").replace("'", "")
+            d["workingDays"] = [w.strip() for w in raw_w.split(",") if w.strip()]
+        else:
+            d["workingDays"] = []
         d["reminders"] = [rem.strip() for rem in d["reminders"].split(",") if rem.strip()] if d["reminders"] else ["18:30", "18:45", "19:00"]
         d["locationId"] = d.get("location_id")
         d["shiftId"] = d.get("shift_id")
@@ -740,7 +744,12 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
     emp_id = emp_data.get("id") or f"emp_{int(datetime.datetime.now().timestamp() * 1000)}"
-    w_days = ",".join(emp_data.get("workingDays", [])) if isinstance(emp_data.get("workingDays"), list) else str(emp_data.get("workingDays", ""))
+    raw_w = emp_data.get("workingDays") or emp_data.get("working_days") or []
+    if isinstance(raw_w, list):
+        clean_items = [str(x).replace("[", "").replace("]", "").replace('"', "").replace("'", "").strip() for x in raw_w]
+        w_days = ",".join([x for x in clean_items if x])
+    else:
+        w_days = str(raw_w).replace("[", "").replace("]", "").replace('"', "").replace("'", "").strip()
     rems = ",".join(emp_data.get("reminders", [])) if isinstance(emp_data.get("reminders"), list) else "18:30,18:45,19:00"
     role = (emp_data.get("role") or "employee").lower()
 
@@ -1502,11 +1511,12 @@ def is_employee_week_off(employee_name_or_email: str, date_input: Any) -> bool:
         ).fetchone()
         conn.close()
         if row and row["working_days"]:
-            raw_days = [w.strip() for w in row["working_days"].split(",") if w.strip()]
+            raw_str = str(row["working_days"]).replace("[", "").replace("]", "").replace('"', "").replace("'", "")
+            raw_days = [w.strip() for w in raw_str.split(",") if w.strip()]
 
     if not raw_days:
-        # Default standard working days: Mon, Tue, Wed, Thu, Fri (Sat & Sun are week off)
-        raw_days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+        # Default standard working days: Mon, Tue, Wed, Thu, Fri, Sat (Sunday week off)
+        raw_days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
     working_days_lower = [w.lower() for w in raw_days]
     is_working = False

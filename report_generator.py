@@ -9,6 +9,7 @@ import io
 import datetime
 from typing import List, Dict, Any, Optional
 
+import database
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -138,9 +139,15 @@ def generate_xlsx_report(
                     cell.font = Font(name="Calibri", size=9.5, color="0F172A")
                     cell.fill = PatternFill(start_color="F0FDF4", end_color="F0FDF4", fill_type="solid")
             else:
-                cell.value = "⚠️ Pending Log"
-                cell.font = Font(name="Calibri", size=9, italic=True, color="94A3B8")
-                cell.fill = PatternFill(start_color="FFFBEB", end_color="FFFBEB", fill_type="solid")
+                emp_ident = emp.get("email") or emp_name
+                if database.is_employee_week_off(emp_ident, date_str):
+                    cell.value = "🏖️ Week Off"
+                    cell.font = Font(name="Calibri", size=9.5, bold=True, color="0369A1")
+                    cell.fill = PatternFill(start_color="E0F2FE", end_color="E0F2FE", fill_type="solid")
+                else:
+                    cell.value = "⚠️ Pending Log"
+                    cell.font = Font(name="Calibri", size=9, italic=True, color="94A3B8")
+                    cell.fill = PatternFill(start_color="FFFBEB", end_color="FFFBEB", fill_type="solid")
 
             cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
             cell.border = thin_border
@@ -309,7 +316,12 @@ def generate_pdf_report(
                 else:
                     row.append(Paragraph(safe_details, log_text_style))
             else:
-                row.append(Paragraph("⚠️ Pending", pending_text_style))
+                emp_ident = emp.get("email") or emp_name
+                if database.is_employee_week_off(emp_ident, date_str):
+                    row.append(Paragraph("<b>🏖️ Week Off</b>", weekoff_text_style))
+                    t_style.append(('BACKGROUND', (col_num, row_num), (col_num, row_num), colors.HexColor("#E0F2FE")))
+                else:
+                    row.append(Paragraph("⚠️ Pending", pending_text_style))
         table_data.append(row)
 
     printable_width = 744
