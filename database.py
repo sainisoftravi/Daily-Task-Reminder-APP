@@ -997,25 +997,17 @@ def save_system_settings(config_dict: Dict[str, Any]) -> bool:
 
 # --- Multi-SMTP Accounts Encryption & Management Functions ---
 
+import base64
+import hashlib
+
 SECRET_KEY_FILE = os.path.join(DATA_DIR, "app_secret.key")
 
 def get_or_create_fernet_key() -> bytes:
-    if os.path.exists(SECRET_KEY_FILE):
-        try:
-            with open(SECRET_KEY_FILE, "rb") as f:
-                key = f.read().strip()
-                if key:
-                    return key
-        except Exception as e:
-            print(f"[KEY READ ERROR] {e}")
-    
-    key = Fernet.generate_key()
-    try:
-        with open(SECRET_KEY_FILE, "wb") as f:
-            f.write(key)
-    except Exception as e:
-        print(f"[KEY WRITE ERROR] {e}")
-    return key
+    """Returns a deterministic, persistent Fernet key derived from SECRET_KEY environment variable."""
+    secret = os.environ.get("SECRET_KEY", "ticktask-master-fernet-secret-key-2026")
+    key_bytes = hashlib.sha256(secret.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(key_bytes)
+
 
 def encrypt_password(plaintext: str) -> str:
     if not plaintext or plaintext.startswith("gAAAAA") or plaintext == "••••••••••••":
