@@ -177,22 +177,38 @@ def export_task_report():
     end_date = dates_list[-1] if dates_list else None
     logs = database.get_task_logs(start_date=start_date, end_date=end_date)
 
-    logs_map = {}
+    raw_logs_map = {}
     for l in logs:
         d_str = l.get("date_str") or l.get("dateStr")
-        e_name = (l.get("employee_name") or l.get("employeeName") or "").strip().lower()
-        if d_str and e_name:
-            logs_map[(d_str, e_name)] = l.get("task_details", "")
+        e_name = (l.get("employee_name") or l.get("employeeName") or "").split(" (")[0].strip().lower()
+        e_email = (l.get("email") or "").strip().lower()
+        t_det = (l.get("task_details") or l.get("taskDetails") or "").strip()
+        if d_str:
+            if e_name:
+                raw_logs_map[(d_str, e_name)] = t_det
+            if e_email:
+                raw_logs_map[(d_str, e_email)] = t_det
 
-    # Auto-detect Week Off days for each employee if no log was explicitly submitted
+    logs_map = {}
     for d_str in dates_list:
         for emp in filtered_employees:
-            emp_name_lower = (emp.get("name") or "").strip().lower()
-            emp_ident = emp.get("email") or emp.get("name") or ""
-            key = (d_str, emp_name_lower)
-            if key not in logs_map or not logs_map[key].strip():
-                if database.is_employee_week_off(emp_ident, d_str):
-                    logs_map[key] = "WEEK OFF"
+            emp_name_lower = (emp.get("name") or "").split(" (")[0].strip().lower()
+            emp_email_lower = (emp.get("email") or "").strip().lower()
+            key_name = (d_str, emp_name_lower)
+            key_email = (d_str, emp_email_lower)
+
+            existing_val = raw_logs_map.get(key_name) or raw_logs_map.get(key_email)
+            if existing_val and str(existing_val).strip():
+                logs_map[key_name] = existing_val
+            else:
+                # Fast in-memory week off check without opening DB connections inside loops
+                w_days = emp.get("workingDays") or emp.get("working_days") or ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+                if isinstance(w_days, str):
+                    w_days = [w.strip() for w in w_days.replace("[", "").replace("]", "").replace('"', "").replace("'", "").split(",") if w.strip()]
+                if database.is_date_week_off(d_str, w_days):
+                    logs_map[key_name] = "🏖️ Week Off"
+                else:
+                    logs_map[key_name] = "Data Not Available"
 
     # Extract logged-in user full name
     user = session.get("user") or {}

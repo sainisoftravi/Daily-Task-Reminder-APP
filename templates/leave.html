@@ -147,8 +147,8 @@
 <script>
     let employeesData = [];
     let taskLogsData = [];
-    let loggedInUser = null;
-    let activeEmpName = '';
+    let loggedInUser = window.SESSION_USER || null;
+    let activeEmpName = (loggedInUser && loggedInUser.name) ? loggedInUser.name.split(' (')[0].trim() : '';
 
     function formatDateLocal(d) {
         if (!d) return '';
@@ -158,54 +158,76 @@
         return `${yyyy}-${mm}-${dd}`;
     }
 
-    async function loadData() {
-        try {
-            const userRes = await fetch('/api/me');
-            const userData = await userRes.json();
-            loggedInUser = (userData.success && userData.user) ? userData.user : window.SESSION_USER;
-        } catch (e) {
-            loggedInUser = window.SESSION_USER || null;
-        }
+    function getLeaveApiUrl() {
+        const u = loggedInUser || window.SESSION_USER || {};
+        const userEmail = u.email || '';
+        const userName = u.name || activeEmpName || '';
+        const userRole = u.role || 'employee';
+        return `/api/leave-logs?user_email=${encodeURIComponent(userEmail)}&user_name=${encodeURIComponent(userName)}&role=${encodeURIComponent(userRole)}`;
+    }
 
-        if (loggedInUser && loggedInUser.name) {
-            activeEmpName = loggedInUser.name.split(' (')[0].trim();
+    async function fetchLeaveLogsData() {
+        try {
+            const logsRes = await fetch(getLeaveApiUrl());
+            const logsData = await logsRes.json();
+            if (logsData.success) {
+                taskLogsData = logsData.logs || [];
+            }
+        } catch (e) {
+            console.error('Error fetching leave logs:', e);
+        }
+    }
+
+    async function loadData() {
+        if (!loggedInUser) {
+            try {
+                const userRes = await fetch('/api/me');
+                const userData = await userRes.json();
+                if (userData.success && userData.user) {
+                    loggedInUser = userData.user;
+                    activeEmpName = loggedInUser.name.split(' (')[0].trim();
+                }
+            } catch (e) {
+                loggedInUser = window.SESSION_USER || null;
+            }
         }
 
         const [empRes, logsRes] = await Promise.all([
             fetch('/api/employees'),
-            fetch('/api/task-logs')
+            fetch(getLeaveApiUrl())
         ]);
 
-        const empData = await empRes.json();
-        if (empData.success) employeesData = empData.employees;
+        try {
+            const empData = await empRes.json();
+            if (empData.success) employeesData = empData.employees;
+        } catch(e) {}
 
-        const logsData = await logsRes.json();
-        if (logsData.success) taskLogsData = logsData.logs;
+        try {
+            const logsData = await logsRes.json();
+            if (logsData.success) taskLogsData = logsData.logs || [];
+        } catch(e) {}
 
         renderLeaveLogs();
     }
 
     function renderLeaveLogs() {
         const tbody = document.getElementById('leave-logs-tbody');
-        const currentUser = loggedInUser || window.SESSION_USER;
-        const activeNameLower = (activeEmpName || (currentUser ? currentUser.name : '') || '').split(' (')[0].toLowerCase().trim();
-        const userEmailLower = ((currentUser && currentUser.email) ? currentUser.email : '').toLowerCase().trim();
+        const currentUser = loggedInUser || window.SESSION_USER || {};
+        const userRole = currentUser.role || 'employee';
+        const activeNameLower = (activeEmpName || currentUser.name || '').split(' (')[0].toLowerCase().trim();
+        const userEmailLower = (currentUser.email || '').toLowerCase().trim();
 
-        const leaveLogs = taskLogsData.filter(log => {
-            const isWeekOff = log.work_status === 'Week Off' || (log.task_details && (log.task_details.toLowerCase().includes('week off') || log.task_details.toLowerCase().includes('weekoff')));
-            const isLeave = log.is_leave == 1 || log.work_status === 'Leave' || (log.task_details && log.task_details.toLowerCase().includes('on leave'));
-            if (!isLeave && !isWeekOff) return false;
-
-            if (currentUser && currentUser.role === 'employee') {
+        // Database already performs SQL-level leave filtering. Ensure fail-safe employee fallback scoping:
+        const leaveLogs = (taskLogsData || []).filter(log => {
+            if (userRole === 'employee') {
                 const logNameLower = (log.employee_name || '').split(' (')[0].toLowerCase().trim();
                 const logEmailLower = (log.email || '').toLowerCase().trim();
-                const nameMatches = activeNameLower && logNameLower && (logNameLower === activeNameLower || logNameLower.includes(activeNameLower) || activeNameLower.includes(logNameLower));
-                const emailMatches = userEmailLower && logEmailLower === userEmailLower;
-                return nameMatches || emailMatches;
+                if (userEmailLower && logEmailLower && logEmailLower === userEmailLower) return true;
+                if (activeNameLower && logNameLower && (logNameLower === activeNameLower || logNameLower.includes(activeNameLower) || activeNameLower.includes(logNameLower))) return true;
+                return !activeNameLower && !userEmailLower;
             }
-
             return true;
-        }).sort((a, b) => (b.date_str || b.dateStr).localeCompare(a.date_str || a.dateStr));
+        }).sort((a, b) => (b.date_str || b.dateStr || '').localeCompare(a.date_str || a.dateStr || ''));
 
         document.getElementById('stat-leave-count').innerText = leaveLogs.length;
         document.getElementById('stat-suppressed-count').innerText = `${leaveLogs.length} Days`;
@@ -226,7 +248,6 @@
             const formattedDate = dtObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
 
             const isWeekOff = log.work_status === 'Week Off' || (log.task_details && (log.task_details.toLowerCase().includes('week off') || log.task_details.toLowerCase().includes('weekoff')));
-            const isLeave = log.is_leave == 1 || log.work_status === 'Leave' || (log.task_details && log.task_details.toLowerCase().includes('on leave'));
 
             let badgeHtml = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);"><i class="fa-solid fa-bell-slash"></i> Auto-Suppressed (On Leave)</span>`;
             let textColor = '#fbbf24';
@@ -247,12 +268,12 @@
                     <td><strong>${formattedDate}</strong></td>
                     <td>
                         <strong style="color: var(--text-main);">${escapeHtml(cleanEmpName)}</strong>
-                        <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(log.email)}</div>
+                        <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(log.email || '')}</div>
                     </td>
                     <td><span class="badge badge-team">${escapeHtml(log.team_name || log.teamName || 'Infra Team')}</span></td>
                     <td>
                         <div style="font-size: 13px; color: ${textColor}; font-weight: 600;">
-                            ${iconPrefix}${escapeHtml(log.task_details)}
+                            ${iconPrefix}${escapeHtml(log.task_details || 'ON LEAVE')}
                         </div>
                     </td>
                     <td>
@@ -327,9 +348,7 @@
         const data = await res.json();
         if (data.success) {
             showToast(data.message || `Successfully deleted ${data.deleted_count} leave record(s).`);
-            const logsRes = await fetch('/api/task-logs');
-            const logsData = await logsRes.json();
-            if (logsData.success) taskLogsData = logsData.logs;
+            await fetchLeaveLogsData();
             renderLeaveLogs();
         } else {
             showToast(data.error || 'Failed to delete selected leave records.', 'error');
@@ -344,9 +363,7 @@
 
         if (data.success) {
             showToast('Leave record deleted successfully.');
-            const logsRes = await fetch('/api/task-logs');
-            const logsData = await logsRes.json();
-            if (logsData.success) taskLogsData = logsData.logs;
+            await fetchLeaveLogsData();
             renderLeaveLogs();
         } else {
             showToast(data.error || 'Failed to delete leave record', 'error');

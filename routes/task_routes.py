@@ -291,6 +291,31 @@ def manage_task_logs():
         return jsonify({"success": True, "message": f"Task log submitted for {emp_name}"})
 
 
+@task_bp.route("/api/leave-logs", methods=["GET"])
+def api_get_leave_logs():
+    """Dedicated fast endpoint for leave & week-off logs with zero-latency SQL filtering."""
+    current_user = session.get("user") or {}
+    user_role = current_user.get("role") or request.args.get("role") or "employee"
+    user_name = current_user.get("name") or request.args.get("user_name") or ""
+    user_email = current_user.get("email") or request.args.get("user_email") or ""
+
+    clean_email = user_email.strip().lower() if user_email else None
+    clean_name = user_name.split(" (")[0].strip() if user_name else None
+
+    # Security scoping: Employee sees their own leave logs, Manager sees team leave logs, Admin sees all
+    if user_role == "employee":
+        if clean_email or clean_name:
+            logs = database.get_leave_logs(email=clean_email, employee_name=clean_name)
+        else:
+            logs = []
+    elif user_role == "manager":
+        mgr_team = current_user.get("teamName") or current_user.get("team_name")
+        logs = database.get_leave_logs(team_name=mgr_team)
+    else:
+        logs = database.get_leave_logs()
+
+    return jsonify({"success": True, "logs": logs, "count": len(logs)})
+
 
 @task_bp.route("/api/task-logs/bulk-leave", methods=["POST"])
 def api_bulk_leave():

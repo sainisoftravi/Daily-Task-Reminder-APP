@@ -12,8 +12,10 @@ import os
 import json
 import sqlite3
 import datetime
+import time
 import secrets
 import string
+import threading
 from typing import List, Dict, Any, Optional
 from cryptography.fernet import Fernet
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -358,6 +360,24 @@ def init_db():
     ]:
         try:
             cursor.execute(alter_cmd)
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
+    # Create indexes for users, employees, and task_logs for ultra-fast query responses
+    for idx_cmd in [
+        "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
+        "CREATE INDEX IF NOT EXISTS idx_employees_email ON employees(email)",
+        "CREATE INDEX IF NOT EXISTS idx_task_logs_leave ON task_logs(is_leave, work_status)",
+        "CREATE INDEX IF NOT EXISTS idx_task_logs_email ON task_logs(email)",
+        "CREATE INDEX IF NOT EXISTS idx_task_logs_date ON task_logs(date_str)",
+        "CREATE INDEX IF NOT EXISTS idx_task_logs_emp ON task_logs(employee_name)"
+    ]:
+        try:
+            cursor.execute(idx_cmd)
             conn.commit()
         except Exception:
             try:
@@ -733,8 +753,21 @@ def delete_quote_record(quote_id: str) -> bool:
     conn.close()
     return True
 
-# Employees
-def get_all_employees() -> List[Dict[str, Any]]:
+# Employees Cache
+_EMPLOYEES_CACHE = None
+_EMPLOYEES_CACHE_TIME = 0.0
+
+def invalidate_employees_cache():
+    global _EMPLOYEES_CACHE, _EMPLOYEES_CACHE_TIME
+    _EMPLOYEES_CACHE = None
+    _EMPLOYEES_CACHE_TIME = 0.0
+
+def get_all_employees(force_refresh: bool = False) -> List[Dict[str, Any]]:
+    global _EMPLOYEES_CACHE, _EMPLOYEES_CACHE_TIME
+    now = time.time()
+    if not force_refresh and _EMPLOYEES_CACHE is not None and (now - _EMPLOYEES_CACHE_TIME) < 15.0:
+        return _EMPLOYEES_CACHE
+
     conn = get_db_connection()
     rows = conn.execute("SELECT * FROM employees ORDER BY name ASC").fetchall()
     conn.close()
@@ -756,6 +789,9 @@ def get_all_employees() -> List[Dict[str, Any]]:
         d["managerCc"] = d.get("manager_cc")
         d["role"] = d.get("role") or "employee"
         result.append(d)
+
+    _EMPLOYEES_CACHE = result
+    _EMPLOYEES_CACHE_TIME = now
     return result
 
 def save_employee_record(emp_data: Dict[str, Any]) -> bool:
@@ -840,6 +876,7 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
 
     conn.commit()
     conn.close()
+    invalidate_employees_cache()
     return True
 
 def update_user_password(email: str, old_password: str, new_password: str, is_forced: bool = False) -> Dict[str, Any]:
@@ -882,6 +919,7 @@ def delete_employee_record(emp_id: str) -> bool:
     conn.execute("DELETE FROM employees WHERE id = ?", (emp_id,))
     conn.commit()
     conn.close()
+    invalidate_employees_cache()
     return True
 
 # Shifts
@@ -1221,13 +1259,15 @@ def log_to_db(msg: str, level: str = "INFO"):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     entry = f"[{timestamp}] {msg}"
     print(entry)
-    try:
-        conn = get_db_connection()
-        conn.execute("INSERT INTO logs (timestamp, level, message) VALUES (?, ?, ?)", (timestamp, level, msg))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"[LOG DB ERROR] {e}")
+    def _write_async():
+        try:
+            conn = get_db_connection()
+            conn.execute("INSERT INTO logs (timestamp, level, message) VALUES (?, ?, ?)", (timestamp, level, msg))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[LOG DB ERROR] {e}")
+    threading.Thread(target=_write_async, daemon=True).start()
 
 def get_db_logs(limit: int = 200, start_date: str = None, end_date: str = None, query: str = None) -> List[str]:
     conn = get_db_connection()
@@ -1599,6 +1639,40 @@ def get_task_logs(team_id: Optional[str] = None, team_name: Optional[str] = None
     conn.close()
     return [dict(r) for r in rows]
 
+def get_leave_logs(email: Optional[str] = None, employee_name: Optional[str] = None, team_name: Optional[str] = None, limit: int = 500) -> List[Dict[str, Any]]:
+    """Ultra-fast indexed database lookup for Leave & Week Off records."""
+    conn = get_db_connection()
+    query = """
+        SELECT * FROM task_logs 
+        WHERE (is_leave = 1 OR LOWER(work_status) IN ('leave', 'week off', 'on leave') OR LOWER(task_details) LIKE '%on leave%' OR LOWER(task_details) LIKE '%week off%' OR LOWER(task_details) LIKE '%weekoff%')
+    """
+    params = []
+    
+    if email or employee_name:
+        conds = []
+        if email:
+            clean_email = email.strip().lower()
+            conds.append("LOWER(email) = ?")
+            params.append(clean_email)
+        if employee_name:
+            clean_name = employee_name.split(" (")[0].strip().lower()
+            conds.append("LOWER(employee_name) LIKE ?")
+            params.append(f"%{clean_name}%")
+        if conds:
+            query += " AND (" + " OR ".join(conds) + ")"
+
+    if team_name and team_name != "ALL":
+        query += " AND (LOWER(team_name) LIKE ? OR LOWER(team_id) LIKE ?)"
+        params.append(f"%{team_name.lower()}%")
+        params.append(f"%{team_name.lower()}%")
+
+    query += " ORDER BY date_str DESC LIMIT ?"
+    params.append(limit)
+
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 def is_employee_week_off(employee_name_or_email: str, date_input: Any) -> bool:
     """
     Checks if a given date is a Week Off for an employee based on their configured working_days.
@@ -1734,6 +1808,27 @@ def get_employee_manager_cc(identifier: str) -> str:
         return row["manager_cc"]
     return "Ravi@d2backoffice.onmicrosoft.com"
 
-# Initialize database schema immediately on import
-init_db()
+_DB_INITIALIZED = False
+
+def ensure_db_initialized():
+    global _DB_INITIALIZED
+    if _DB_INITIALIZED:
+        return
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM users LIMIT 1")
+        conn.close()
+        _DB_INITIALIZED = True
+        return
+    except Exception:
+        pass
+
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[DB INIT WARN] {e}")
+    _DB_INITIALIZED = True
+
+ensure_db_initialized()
 

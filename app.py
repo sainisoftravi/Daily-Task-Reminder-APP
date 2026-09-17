@@ -55,21 +55,22 @@ def inject_user_context():
     user = session.get("user") or {}
     enriched_user = dict(user)
     if user and (user.get("email") or user.get("name")):
-        employees = database.get_all_employees()
-        email_clean = (user.get("email") or "").strip().lower()
-        name_clean = (user.get("name") or "").strip().lower()
-        emp_match = next((e for e in employees if (e.get("email") or "").strip().lower() == email_clean or (e.get("name") or "").strip().lower() == name_clean), None)
-        if emp_match:
-            enriched_user["teamName"] = emp_match.get("teamName") or "Infra Team"
-            enriched_user["location"] = emp_match.get("location") or "India"
-            enriched_user["timezone"] = emp_match.get("timezone") or "Asia/Kolkata"
-            enriched_user["shiftName"] = emp_match.get("shiftName") or "Standard Day Shift"
-            enriched_user["managerCc"] = emp_match.get("managerCc") or ""
-        else:
-            enriched_user.setdefault("teamName", "Infra Team")
-            enriched_user.setdefault("location", "India")
-            enriched_user.setdefault("timezone", "Asia/Kolkata")
-            enriched_user.setdefault("shiftName", "Standard Day Shift")
+        if not enriched_user.get("teamName") or not enriched_user.get("location"):
+            employees = database.get_all_employees()
+            email_clean = (user.get("email") or "").strip().lower()
+            name_clean = (user.get("name") or "").strip().lower()
+            emp_match = next((e for e in employees if (e.get("email") or "").strip().lower() == email_clean or (e.get("name") or "").strip().lower() == name_clean), None)
+            if emp_match:
+                enriched_user["teamName"] = emp_match.get("teamName") or "Infra Team"
+                enriched_user["location"] = emp_match.get("location") or "India"
+                enriched_user["timezone"] = emp_match.get("timezone") or "Asia/Kolkata"
+                enriched_user["shiftName"] = emp_match.get("shiftName") or "Standard Day Shift"
+                enriched_user["managerCc"] = emp_match.get("managerCc") or ""
+            else:
+                enriched_user.setdefault("teamName", "Infra Team")
+                enriched_user.setdefault("location", "India")
+                enriched_user.setdefault("timezone", "Asia/Kolkata")
+                enriched_user.setdefault("shiftName", "Standard Day Shift")
     return dict(current_user=enriched_user, current_role=user.get("role", "employee"))
 
 
