@@ -253,20 +253,29 @@ def manage_task_logs():
                 if e_match:
                     mgr_team = e_match.get("teamName")
             if mgr_team:
-                mgr_team_clean = mgr_team.strip().lower()
+                mgr_teams = [t.strip().lower() for t in mgr_team.split(",") if t.strip()]
                 all_emps = database.get_all_employees()
-                team_emp_names = set((e.get("name") or "").strip().lower() for e in all_emps if (e.get("teamName") or "").strip().lower() == mgr_team_clean)
-                team_emp_emails = set((e.get("email") or "").strip().lower() for e in all_emps if (e.get("teamName") or "").strip().lower() == mgr_team_clean)
+                
+                def emp_matches_mgr_teams(e):
+                    e_teams = [t.strip().lower() for t in (e.get("teamName") or "").split(",") if t.strip()]
+                    return any(mt in e_teams for mt in mgr_teams)
+
+                team_emp_names = set((e.get("name") or "").strip().lower() for e in all_emps if emp_matches_mgr_teams(e))
+                team_emp_emails = set((e.get("email") or "").strip().lower() for e in all_emps if emp_matches_mgr_teams(e))
                 team_emp_names.add(user_name.strip().lower())
                 team_emp_emails.add(user_email.strip().lower())
 
-                logs = [
-                    l for l in logs
-                    if (l.get("team_name") or "").strip().lower() == mgr_team_clean or
-                       (l.get("teamId") or "").strip().lower() == mgr_team_clean or
-                       (l.get("employee_name") or "").strip().lower() in team_emp_names or
-                       (l.get("email") or "").strip().lower() in team_emp_emails
-                ]
+                def log_matches_mgr_teams(l):
+                    l_teams = [t.strip().lower() for t in (l.get("team_name") or l.get("teamId") or "").split(",") if t.strip()]
+                    if any(mt in l_teams for mt in mgr_teams):
+                        return True
+                    if (l.get("employee_name") or "").strip().lower() in team_emp_names:
+                        return True
+                    if (l.get("email") or "").strip().lower() in team_emp_emails:
+                        return True
+                    return False
+
+                logs = [l for l in logs if log_matches_mgr_teams(l)]
 
         return jsonify({"success": True, "logs": logs})
 
@@ -423,22 +432,37 @@ def export_task_report():
             if e_match:
                 mgr_team = e_match.get("teamName")
         if mgr_team:
-            req_team_name = mgr_team
+            mgr_teams = [t.strip().lower() for t in mgr_team.split(",") if t.strip()]
+            if not req_team_name or req_team_name == "ALL" or req_team_name == "ALL_MGR" or req_team_name.strip().lower() == mgr_team.strip().lower():
+                team_name = "All My Teams" if len(mgr_teams) > 1 else (mgr_team or "All Teams")
+                filtered_employees = [
+                    e for e in all_employees
+                    if any(mt in [t.strip().lower() for t in (e.get("teamName") or "").split(",") if t.strip()] for mt in mgr_teams)
+                ]
+            else:
+                req_clean = req_team_name.strip().lower()
+                team_name = req_team_name
+                filtered_employees = [
+                    e for e in all_employees
+                    if any(t.strip().lower() == req_clean for t in (e.get("teamName") or "").split(",")) or
+                       (e.get("teamId") or "").strip().lower() == req_clean
+                ]
 
-    # Determine team name and filtered employees
-    team_name = "All Teams"
-    filtered_employees = all_employees
+    # Determine team name and filtered employees for Admin or non-manager override
+    if user_role != "manager":
+        team_name = "All Teams"
+        filtered_employees = all_employees
 
-    if req_team_name and req_team_name != "ALL":
-        team_name = req_team_name
-        req_clean = req_team_name.strip().lower()
-        filtered_employees = [
-            e for e in all_employees
-            if (e.get("teamName") or "").strip().lower() == req_clean or
-               (e.get("teamId") or "").strip().lower() == req_clean or
-               req_clean in (e.get("teamName") or "").strip().lower() or
-               (e.get("teamName") or "").strip().lower() in req_clean
-        ]
+        if req_team_name and req_team_name != "ALL":
+            team_name = req_team_name
+            req_clean = req_team_name.strip().lower()
+            filtered_employees = [
+                e for e in all_employees
+                if (e.get("teamName") or "").strip().lower() == req_clean or
+                   (e.get("teamId") or "").strip().lower() == req_clean or
+                   req_clean in (e.get("teamName") or "").strip().lower() or
+                   (e.get("teamName") or "").strip().lower() in req_clean
+            ]
     elif team_id and team_id != "ALL":
         target_team = next((t for t in all_teams if t.get("id") == team_id or t.get("name").lower() == team_id.lower()), None)
         if target_team:
@@ -614,13 +638,13 @@ def manage_employees():
                 if e_match:
                     mgr_team = e_match.get("teamName")
             if mgr_team:
-                mgr_team_clean = mgr_team.strip().lower()
-                employees = [
-                    e for e in employees
-                    if (e.get("teamName") or "").strip().lower() == mgr_team_clean or
-                       (e.get("teamId") or "").strip().lower() == mgr_team_clean or
-                       (e.get("email") or "").strip().lower() == user_email
-                ]
+                mgr_teams = [t.strip().lower() for t in mgr_team.split(",") if t.strip()]
+                def emp_belongs_to_mgr(e):
+                    if (e.get("email") or "").strip().lower() == user_email:
+                        return True
+                    e_teams = [t.strip().lower() for t in (e.get("teamName") or "").split(",") if t.strip()]
+                    return any(mt in e_teams for mt in mgr_teams)
+                employees = [e for e in employees if emp_belongs_to_mgr(e)]
         return jsonify({"success": True, "employees": employees})
     
     elif request.method == "POST":

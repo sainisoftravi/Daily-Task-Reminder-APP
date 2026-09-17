@@ -137,8 +137,13 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">Assigned Team Workspace</label>
-                <select id="emp-team-select" class="form-control" onchange="updateTeamSheetName()"></select>
+                <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Assigned Team Workspace(s)</span>
+                    <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">(Select one or multiple teams)</span>
+                </label>
+                <div id="emp-teams-checkbox-grid" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); border-radius: 8px; max-height: 160px; overflow-y: auto;">
+                    <!-- JS Populated Checkboxes -->
+                </div>
             </div>
 
             <!-- Employee-Specific Permission & Shift Categories (Hidden for Manager & Admin) -->
@@ -328,8 +333,15 @@
     }
 
     function populateTeamDropdowns() {
-        const sel = document.getElementById('emp-team-select');
-        if (sel) sel.innerHTML = teamsData.map(t => `<option value="${t.id}">${t.name} (${t.sheetName})</option>`).join('');
+        const grid = document.getElementById('emp-teams-checkbox-grid');
+        if (grid) {
+            grid.innerHTML = teamsData.map(t => `
+                <label class="checkbox-label" style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; cursor: pointer; padding: 6px 12px; background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px solid var(--card-border);">
+                    <input type="checkbox" class="emp-team-chk" value="${t.id}" data-name="${t.name}" data-sheet="${t.sheetName}" style="accent-color: var(--accent-purple);" onchange="updateTeamSheetName()">
+                    🏢 ${t.name}
+                </label>
+            `).join('');
+        }
     }
 
     function populateManagerDropdowns() {
@@ -338,9 +350,11 @@
     }
 
     function updateTeamSheetName() {
-        const teamId = document.getElementById('emp-team-select').value;
-        const team = teamsData.find(t => t.id === teamId);
-        if (team) document.getElementById('emp-sheetname').value = team.sheetName;
+        const checked = Array.from(document.querySelectorAll('.emp-team-chk:checked'));
+        if (checked.length > 0) {
+            const sheets = checked.map(c => c.getAttribute('data-sheet')).filter(Boolean);
+            document.getElementById('emp-sheetname').value = sheets.join(', ');
+        }
     }
 
     function handleSearchInput() {
@@ -382,7 +396,10 @@
         if (!bar) return;
         let html = `<button class="btn ${currentTeamFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}" style="padding:4px 12px; font-size:12px;" onclick="selectTeamFilter('ALL')">All Teams (${employeesData.length})</button>`;
         teamsData.forEach(t => {
-            const count = employeesData.filter(e => (e.teamName || 'Infra Team').toLowerCase() === t.name.toLowerCase()).length;
+            const count = employeesData.filter(e => {
+                const tList = (e.teamName || 'Infra Team').toLowerCase().split(',').map(s => s.trim());
+                return tList.includes(t.name.toLowerCase());
+            }).length;
             const isActive = currentTeamFilter.toLowerCase() === t.name.toLowerCase();
             html += `<button class="btn ${isActive ? 'btn-primary' : 'btn-secondary'}" style="padding:4px 12px; font-size:12px;" onclick="selectTeamFilter('${t.name}')">🏢 ${t.name} (${count})</button>`;
         });
@@ -393,7 +410,10 @@
         return employeesData.filter(emp => {
             const roleStr = (emp.role || 'employee').toLowerCase();
             if (currentRoleFilter !== 'ALL' && roleStr !== currentRoleFilter.toLowerCase()) return false;
-            if (currentTeamFilter !== 'ALL' && (emp.teamName || 'Infra Team').toLowerCase() !== currentTeamFilter.toLowerCase()) return false;
+            if (currentTeamFilter !== 'ALL') {
+                const tList = (emp.teamName || 'Infra Team').toLowerCase().split(',').map(s => s.trim());
+                if (!tList.includes(currentTeamFilter.toLowerCase())) return false;
+            }
             if (currentLocationFilter !== 'ALL' && !emp.location.toLowerCase().includes(currentLocationFilter.toLowerCase())) return false;
             if (searchQuery) {
                 const haystack = `${emp.name} ${emp.email} ${emp.role} ${emp.location} ${emp.timezone} ${emp.teamName} ${emp.sheetName} ${emp.managerCc}`.toLowerCase();
@@ -490,7 +510,7 @@
                         <td><strong>${emp.name}</strong></td>
                         <td><a href="mailto:${emp.email}" style="color: var(--link-color);">${emp.email}</a></td>
                         <td>${roleBadge}</td>
-                        <td><span class="badge badge-team">${emp.teamName || 'Infra Team'}</span></td>
+                        <td>${(emp.teamName || 'Infra Team').split(',').map(t => `<span class="badge badge-team" style="margin:2px;">${t.trim()}</span>`).join('')}</td>
                         <td><span class="badge ${badgeClass}" style="display:inline-flex; align-items:center; gap:4px;">${getCountryFlagHTML(emp.location)} ${emp.location}</span> (${emp.timezone})</td>
                         <td>${workingDaysCell}</td>
                         <td>${shiftCell}</td>
@@ -633,6 +653,10 @@
             onLocationSelectChange();
         }
         document.querySelectorAll('input[name="chk-day"]').forEach(chk => { chk.checked = chk.value !== 'Sun'; });
+        document.querySelectorAll('.emp-team-chk').forEach(chk => {
+            chk.checked = (chk.value === 'infra_team' || chk.getAttribute('data-name') === 'Infra Team');
+        });
+        updateTeamSheetName();
         document.getElementById('employee-modal').classList.add('active');
     }
 
@@ -664,9 +688,14 @@
             document.getElementById('emp-shift-select').value = emp.shiftId;
         }
 
-        if (emp.teamId && document.getElementById('emp-team-select')) {
-            document.getElementById('emp-team-select').value = emp.teamId;
-        }
+        const empTeams = (emp.teamName || 'Infra Team').split(',').map(t => t.trim().toLowerCase());
+        const empTeamIds = (emp.teamId || 'infra_team').split(',').map(t => t.trim().toLowerCase());
+        document.querySelectorAll('.emp-team-chk').forEach(chk => {
+            const val = chk.value.toLowerCase();
+            const dName = chk.getAttribute('data-name').toLowerCase();
+            chk.checked = empTeamIds.includes(val) || empTeams.includes(dName);
+        });
+        updateTeamSheetName();
 
         if (emp.managerCc && document.getElementById('emp-manager-select')) {
             document.getElementById('emp-manager-select').value = emp.managerCc;
@@ -684,9 +713,19 @@
         e.preventDefault();
         const role = document.getElementById('emp-role-select').value;
         const selectedDays = Array.from(document.querySelectorAll('input[name="chk-day"]:checked')).map(c => c.value);
-        const teamId = document.getElementById('emp-team-select').value;
-        const team = teamsData.find(t => t.id === teamId);
-        const shiftId = document.getElementById('emp-shift-select').value;
+        
+        const checkedTeams = Array.from(document.querySelectorAll('.emp-team-chk:checked'));
+        let selectedTeamIds = checkedTeams.map(c => c.value).join(', ');
+        let selectedTeamNames = checkedTeams.map(c => c.getAttribute('data-name')).join(', ');
+        let selectedSheetNames = checkedTeams.map(c => c.getAttribute('data-sheet')).filter(Boolean).join(', ');
+
+        if (!selectedTeamIds) {
+            selectedTeamIds = 'infra_team';
+            selectedTeamNames = 'Infra Team';
+            selectedSheetNames = 'Technical Infra Team OominiEYE';
+        }
+
+        const shiftId = document.getElementById('emp-shift-select') ? document.getElementById('emp-shift-select').value : '';
         const shift = shiftsData.find(s => s.id === shiftId);
         const locId = document.getElementById('emp-location-select').value;
         const loc = locationsData.find(l => l.id === locId);
@@ -704,9 +743,9 @@
             shiftId: (role === 'manager' || role === 'admin') ? '' : shiftId,
             shiftName: (role === 'manager' || role === 'admin') ? 'N/A (No Reminders)' : (shift ? shift.name : 'Standard Day Shift'),
             reminders: (role === 'manager' || role === 'admin') ? [] : (shift ? [shift.reminder1, shift.reminder2, shift.finalCall] : ["18:30", "18:45", "19:00"]),
-            teamId: teamId,
-            teamName: team ? team.name : 'Infra Team',
-            sheetName: document.getElementById('emp-sheetname').value,
+            teamId: selectedTeamIds,
+            teamName: selectedTeamNames,
+            sheetName: selectedSheetNames || document.getElementById('emp-sheetname').value,
             managerCc: (role === 'manager' || role === 'admin') ? '' : document.getElementById('emp-manager-select').value
         };
 

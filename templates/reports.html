@@ -599,8 +599,19 @@
         const mgrTeamName = loggedInUser ? (loggedInUser.teamName || 'Infra Team') : 'Infra Team';
 
         if (isManager) {
-            adminActiveTeamId = mgrTeamName;
-            pillsContainer.innerHTML = `<button class="btn btn-primary" style="padding: 4px 14px; font-size: 12px; font-weight:600;"><i class="fa-solid fa-people-group"></i> ${mgrTeamName}</button>`;
+            const mgrTeams = mgrTeamName.split(',').map(t => t.trim()).filter(Boolean);
+            if (mgrTeams.length > 1) {
+                if (!adminActiveTeamId || adminActiveTeamId === 'ALL') adminActiveTeamId = 'ALL_MGR';
+                let pillsHtml = `<button class="btn ${adminActiveTeamId === 'ALL_MGR' ? 'btn-primary' : 'btn-secondary'}" style="padding: 4px 12px; font-size: 12px;" onclick="setAdminTeamFilter('ALL_MGR')"><i class="fa-solid fa-people-group"></i> All My Teams (${mgrTeams.length})</button>`;
+                mgrTeams.forEach(tName => {
+                    const isSel = adminActiveTeamId.toLowerCase() === tName.toLowerCase();
+                    pillsHtml += `<button class="btn ${isSel ? 'btn-primary' : 'btn-secondary'}" style="padding: 4px 12px; font-size: 12px;" onclick="setAdminTeamFilter('${tName}')">🏢 ${tName}</button>`;
+                });
+                pillsContainer.innerHTML = pillsHtml;
+            } else {
+                adminActiveTeamId = mgrTeamName;
+                pillsContainer.innerHTML = `<button class="btn btn-primary" style="padding: 4px 14px; font-size: 12px; font-weight:600;"><i class="fa-solid fa-people-group"></i> ${mgrTeamName}</button>`;
+            }
             return;
         }
 
@@ -625,14 +636,24 @@
         
         return employeesData.filter(emp => {
             if (loggedInUser && loggedInUser.role === 'manager' && loggedInUser.teamName) {
-                const mgrTeamLower = loggedInUser.teamName.toLowerCase().trim();
-                const empTeamLower = (emp.teamName || 'infra team').toLowerCase().trim();
-                const empTeamIdLower = (emp.teamId || '').toLowerCase().trim();
-                if (empTeamLower !== mgrTeamLower && empTeamIdLower !== mgrTeamLower) return false;
+                const mgrTeams = loggedInUser.teamName.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+                const empTeams = (emp.teamName || 'infra team').split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+                const empTeamIds = (emp.teamId || '').split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+
+                if (adminActiveTeamId && adminActiveTeamId !== 'ALL_MGR' && adminActiveTeamId !== 'ALL') {
+                    const target = adminActiveTeamId.toLowerCase().trim();
+                    const matchesTarget = empTeams.includes(target) || empTeamIds.includes(target);
+                    if (!matchesTarget) return false;
+                } else {
+                    const matchesAny = empTeams.some(et => mgrTeams.includes(et)) || empTeamIds.some(et => mgrTeams.includes(et));
+                    if (!matchesAny) return false;
+                }
             } else if (adminActiveTeamId !== 'ALL') {
                 const targetTeam = teamsData.find(t => t.id === adminActiveTeamId || t.name === adminActiveTeamId);
                 const targetName = targetTeam ? targetTeam.name.toLowerCase() : adminActiveTeamId.toLowerCase();
-                if ((emp.teamId || '').toLowerCase() !== adminActiveTeamId.toLowerCase() && (emp.teamName || 'infra team').toLowerCase() !== targetName) {
+                const empTeams = (emp.teamName || 'infra team').split(',').map(t => t.trim().toLowerCase());
+                const empTeamIds = (emp.teamId || '').split(',').map(t => t.trim().toLowerCase());
+                if (!empTeamIds.includes(adminActiveTeamId.toLowerCase()) && !empTeams.includes(targetName)) {
                     return false;
                 }
             }
@@ -871,7 +892,7 @@
                         <strong style="color: var(--text-main); font-size: 14px;">${escapeHtml(emp.name)}</strong>
                         <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(emp.email)}</div>
                     </td>
-                    <td><span class="badge badge-team">${escapeHtml(emp.teamName || 'Infra Team')}</span></td>
+                    <td>${(emp.teamName || 'Infra Team').split(',').map(t => `<span class="badge badge-team" style="margin:2px;">${escapeHtml(t.trim())}</span>`).join('')}</td>
                     <td><span class="badge ${locClass}">${escapeHtml(emp.location)}</span></td>
                     <td>${statusCell}</td>
                     <td>${detailsSnippet}</td>
