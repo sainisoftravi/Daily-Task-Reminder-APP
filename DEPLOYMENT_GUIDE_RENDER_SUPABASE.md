@@ -160,9 +160,18 @@ Once deployed on Render, log in to your application using the pre-seeded admin a
 
 ## ❓ Part 6: Troubleshooting & Frequently Asked Questions (FAQ)
 
-### Q1: Render log shows `psycopg2.OperationalError: could not connect to server`
-- **Cause**: Incorrect database password or special characters not URL-encoded.
-- **Solution**: Check your Supabase database password. Ensure non-alphanumeric characters (like `@` or `#`) are URL-encoded (`@` $\rightarrow$ `%40`).
+### Q1: Render log shows `psycopg2.OperationalError: connection to server at "db.xxx.supabase.co" ... port 5432 failed: Network is unreachable`
+- **Root Cause**: You are using Supabase's **Direct Connection string** (`db.[REF].supabase.co:5432`). Supabase direct connections rely strictly on **IPv6**, whereas Render free instances do not support IPv6 outbound networking.
+- **Solution**: Switch your `DATABASE_URL` in Render Environment Variables to your Supabase **Pooler Connection string** (which uses IPv4 over port 6543):
+  1. In Supabase Dashboard, go to **Project Settings** $\rightarrow$ **Database**.
+  2. Under **Connection String**, select **Pooler** (or Pooler URI).
+  3. Copy the Pooler connection string (starts with `aws-0-[REGION].pooler.supabase.com:6543`).
+  4. Paste this string into `DATABASE_URL` on Render and click Save.
+
+### Q2: Render log shows `psycopg2.OperationalError: password authentication failed`
+- **Cause**: Incorrect database password or special characters not URL-encoded in the connection URI.
+- **Solution**: Check your Supabase database password. Ensure non-alphanumeric characters (like `@`, `#`, `:`, `/`) are URL-encoded (`@` $\rightarrow$ `%40`, `#` $\rightarrow$ `%23`).
+
 
 ### Q2: Will my local database be affected when I test locally?
 - **No**. When running on your local machine or local Docker container without setting `DATABASE_URL`, the application automatically uses local SQLite (`data/app_database.db`). Local testing remains 100% isolated.

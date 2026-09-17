@@ -132,12 +132,23 @@ class PgConnectionWrapper:
 
 def get_db_connection():
     if USE_POSTGRES:
-        pg_conn = psycopg2.connect(DB_URL)
-        return PgConnectionWrapper(pg_conn)
+        try:
+            pg_conn = psycopg2.connect(DB_URL, connect_timeout=15)
+            return PgConnectionWrapper(pg_conn)
+        except Exception as e:
+            if "supabase.co" in DB_URL or "5432" in DB_URL:
+                print("\n" + "="*80)
+                print("[DATABASE CONNECTION ERROR] Unable to connect to PostgreSQL host.")
+                print("If you are using Supabase on Render, direct host 'db.xxx.supabase.co:5432' relies on IPv6 (Network Unreachable on Render).")
+                print("Please switch DATABASE_URL on Render to your Supabase POOLER connection string (port 6543 or 5432):")
+                print("Example: postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres")
+                print("="*80 + "\n")
+            raise e
     else:
         conn = sqlite3.connect(DB_FILE, timeout=30.0)
         conn.row_factory = sqlite3.Row
         return conn
+
 
 def init_db():
     """Initializes Database schema (SQLite or PostgreSQL) and seeds initial data if empty."""
