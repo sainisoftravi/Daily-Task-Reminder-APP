@@ -70,7 +70,7 @@ def send_leave_acknowledgement(
     def _send():
         with app.test_request_context():
             try:
-                from daily_reminder import send_email
+                from daily_reminder import send_email, get_logo_b64
 
                 clean_name = emp_name.split(" (")[0].strip()
                 to_addr = (emp_email or "").strip()
@@ -85,6 +85,7 @@ def send_leave_acknowledgement(
                 end_date_formatted = format_date_with_day(end_date or dates_summary)
 
                 dates_text = single_date_formatted if leave_type == 'single' else f"{start_date_formatted} to {end_date_formatted}"
+                logo_b64 = get_logo_b64()
 
                 template_vars = {
                     "emp_name": clean_name,
@@ -98,7 +99,8 @@ def send_leave_acknowledgement(
                     "count_leave": count_leave,
                     "count_weekoff": count_weekoff,
                     "leave_note": leave_note or "ON LEAVE",
-                    "detailed_dates": detailed_dates or []
+                    "detailed_dates": detailed_dates or [],
+                    "logo_b64": logo_b64
                 }
 
                 # Load custom templates configured via Web UI (/templates)
@@ -296,18 +298,15 @@ def api_get_leave_logs():
     """Dedicated fast endpoint for leave & week-off logs with zero-latency SQL filtering."""
     current_user = session.get("user") or {}
     user_role = current_user.get("role") or request.args.get("role") or "employee"
-    user_name = current_user.get("name") or request.args.get("user_name") or ""
-    user_email = current_user.get("email") or request.args.get("user_email") or ""
+    user_name = request.args.get("user_name") or current_user.get("name") or ""
+    user_email = request.args.get("user_email") or current_user.get("email") or ""
 
     clean_email = user_email.strip().lower() if user_email else None
     clean_name = user_name.split(" (")[0].strip() if user_name else None
 
     # Security scoping: Employee sees their own leave logs, Manager sees team leave logs, Admin sees all
     if user_role == "employee":
-        if clean_email or clean_name:
-            logs = database.get_leave_logs(email=clean_email, employee_name=clean_name)
-        else:
-            logs = []
+        logs = database.get_leave_logs(email=clean_email, employee_name=clean_name)
     elif user_role == "manager":
         mgr_team = current_user.get("teamName") or current_user.get("team_name")
         logs = database.get_leave_logs(team_name=mgr_team)

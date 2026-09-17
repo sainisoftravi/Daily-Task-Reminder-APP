@@ -212,22 +212,10 @@
 
     function renderLeaveLogs() {
         const tbody = document.getElementById('leave-logs-tbody');
-        const currentUser = loggedInUser || window.SESSION_USER || {};
-        const userRole = currentUser.role || 'employee';
-        const activeNameLower = (activeEmpName || currentUser.name || '').split(' (')[0].toLowerCase().trim();
-        const userEmailLower = (currentUser.email || '').toLowerCase().trim();
 
-        // Database already performs SQL-level leave filtering. Ensure fail-safe employee fallback scoping:
-        const leaveLogs = (taskLogsData || []).filter(log => {
-            if (userRole === 'employee') {
-                const logNameLower = (log.employee_name || '').split(' (')[0].toLowerCase().trim();
-                const logEmailLower = (log.email || '').toLowerCase().trim();
-                if (userEmailLower && logEmailLower && logEmailLower === userEmailLower) return true;
-                if (activeNameLower && logNameLower && (logNameLower === activeNameLower || logNameLower.includes(activeNameLower) || activeNameLower.includes(logNameLower))) return true;
-                return !activeNameLower && !userEmailLower;
-            }
-            return true;
-        }).sort((a, b) => (b.date_str || b.dateStr || '').localeCompare(a.date_str || a.dateStr || ''));
+        // Database API /api/leave-logs already performs full SQL-level security & role scoping.
+        // Render all leave records returned by backend:
+        const leaveLogs = (taskLogsData || []).sort((a, b) => (b.date_str || b.dateStr || '').localeCompare(a.date_str || a.dateStr || ''));
 
         document.getElementById('stat-leave-count').innerText = leaveLogs.length;
         document.getElementById('stat-suppressed-count').innerText = `${leaveLogs.length} Days`;
@@ -516,10 +504,7 @@
         closeModal('bulk-leave-modal');
         showToast(resData.message || `Leave Applied successfully for ${empName}!`);
         
-        const logsRes = await fetch('/api/task-logs');
-        const logsData = await logsRes.json();
-        if (logsData.success) taskLogsData = logsData.logs;
-
+        await fetchLeaveLogsData();
         renderLeaveLogs();
     }
 

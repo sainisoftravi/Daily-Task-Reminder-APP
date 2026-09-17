@@ -1464,7 +1464,13 @@ def save_task_log(data: Dict[str, Any]) -> bool:
     cursor = conn.cursor()
     raw_name = data.get("employeeName") or data.get("employee_name", "Unknown")
     emp_name = raw_name.split(" (")[0].strip() if raw_name else "Unknown"
-    email = data.get("email", "")
+    email = data.get("email", "").strip()
+    if not email and emp_name and emp_name != "Unknown":
+        emps = get_all_employees()
+        e_match = next((e for e in emps if (e.get("name") or "").split(" (")[0].strip().lower() == emp_name.lower()), None)
+        if e_match:
+            email = (e_match.get("email") or "").strip()
+
     team_name = data.get("teamName") or data.get("team_name", "Infra Team")
     team_id = data.get("teamId") or data.get("team_id", "")
     date_str = data.get("dateStr") or data.get("date_str") or datetime.datetime.now().strftime("%Y-%m-%d")
@@ -1518,11 +1524,17 @@ def save_task_logs_batch(payload_list: List[Dict[str, Any]]) -> bool:
     cursor = conn.cursor()
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    emps = get_all_employees()
     rows_to_insert = []
     for data in payload_list:
         raw_name = data.get("employeeName") or data.get("employee_name", "Unknown")
         emp_name = raw_name.split(" (")[0].strip() if raw_name else "Unknown"
-        email = data.get("email", "")
+        email = data.get("email", "").strip()
+        if not email and emp_name and emp_name != "Unknown":
+            e_match = next((e for e in emps if (e.get("name") or "").split(" (")[0].strip().lower() == emp_name.lower()), None)
+            if e_match:
+                email = (e_match.get("email") or "").strip()
+
         team_name = data.get("teamName") or data.get("team_name", "Infra Team")
         team_id = data.get("teamId") or data.get("team_id", "")
         date_str = data.get("dateStr") or data.get("date_str") or datetime.datetime.now().strftime("%Y-%m-%d")
