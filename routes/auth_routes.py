@@ -34,6 +34,17 @@ def api_login():
         return jsonify({"success": False, "error": res.get("error", "Invalid email or password.")}), 401
 
     user = res.get("user")
+    if user:
+        if user.get("name"):
+            user["name"] = user["name"].split(" (")[0].strip()
+        employees = database.get_all_employees()
+        email_clean = (user.get("email") or "").strip().lower()
+        name_clean = user.get("name", "").lower()
+        emp_match = next((e for e in employees if (e.get("email") or "").strip().lower() == email_clean or (e.get("name") or "").split(" (")[0].strip().lower() == name_clean), None)
+        if emp_match:
+            user["teamName"] = emp_match.get("teamName") or "Infra Team"
+        else:
+            user.setdefault("teamName", "Infra Team")
     session["user"] = user
     log_event(f"User '{user.get('name')}' ({user.get('email')}) logged in successfully as role '{user.get('role')}'.")
     return jsonify({
@@ -57,10 +68,12 @@ def api_me():
     user = session.get("user")
     if user:
         enriched_user = dict(user)
+        if enriched_user.get("name"):
+            enriched_user["name"] = enriched_user["name"].split(" (")[0].strip()
         employees = database.get_all_employees()
         email_clean = (user.get("email") or "").strip().lower()
-        name_clean = (user.get("name") or "").strip().lower()
-        emp_match = next((e for e in employees if (e.get("email") or "").strip().lower() == email_clean or (e.get("name") or "").strip().lower() == name_clean), None)
+        name_clean = (enriched_user.get("name") or "").strip().lower()
+        emp_match = next((e for e in employees if (e.get("email") or "").strip().lower() == email_clean or (e.get("name") or "").split(" (")[0].strip().lower() == name_clean), None)
         if emp_match:
             enriched_user["teamName"] = emp_match.get("teamName") or "Infra Team"
             enriched_user["location"] = emp_match.get("location") or "India"
@@ -72,6 +85,7 @@ def api_me():
             enriched_user.setdefault("location", "India")
             enriched_user.setdefault("timezone", "Asia/Kolkata")
             enriched_user.setdefault("shiftName", "Standard Day Shift")
+        session["user"] = enriched_user
         return jsonify({"success": True, "user": enriched_user})
     return jsonify({"success": False, "user": None})
 

@@ -62,10 +62,11 @@ def manage_task_logs():
 
         # Security enforcement for Employee & Manager roles:
         if user_role == "employee" and user_name:
+            clean_user_name = user_name.split(" (")[0].strip().lower()
             logs = [
                 l for l in logs 
-                if (l.get("employee_name", "").strip().lower() == user_name.strip().lower() or 
-                    l.get("email", "").strip().lower() == user_email.strip().lower())
+                if (l.get("employee_name", "").split(" (")[0].strip().lower() == clean_user_name or 
+                    (l.get("email") and l.get("email", "").strip().lower() == user_email.strip().lower()))
             ]
         elif user_role == "manager":
             mgr_team = current_user.get("teamName") or current_user.get("team_name")
@@ -82,16 +83,16 @@ def manage_task_logs():
                     e_teams = [t.strip().lower() for t in (e.get("teamName") or "").split(",") if t.strip()]
                     return any(mt in e_teams for mt in mgr_teams)
 
-                team_emp_names = set((e.get("name") or "").strip().lower() for e in all_emps if emp_matches_mgr_teams(e))
+                team_emp_names = set((e.get("name") or "").split(" (")[0].strip().lower() for e in all_emps if emp_matches_mgr_teams(e))
                 team_emp_emails = set((e.get("email") or "").strip().lower() for e in all_emps if emp_matches_mgr_teams(e))
-                team_emp_names.add(user_name.strip().lower())
+                team_emp_names.add(user_name.split(" (")[0].strip().lower())
                 team_emp_emails.add(user_email.strip().lower())
 
                 def log_matches_mgr_teams(l):
                     l_teams = [t.strip().lower() for t in (l.get("team_name") or l.get("teamId") or "").split(",") if t.strip()]
                     if any(mt in l_teams for mt in mgr_teams):
                         return True
-                    if (l.get("employee_name") or "").strip().lower() in team_emp_names:
+                    if (l.get("employee_name") or "").split(" (")[0].strip().lower() in team_emp_names:
                         return True
                     if (l.get("email") or "").strip().lower() in team_emp_emails:
                         return True
@@ -106,10 +107,11 @@ def manage_task_logs():
 
         # Security enforcement for Employee role: Employees can only fill/update their own task logs
         if user_role == "employee":
-            req_emp_name = (data.get("employeeName") or data.get("employee_name") or "").strip().lower()
+            req_emp_name = (data.get("employeeName") or data.get("employee_name") or "").split(" (")[0].strip().lower()
             req_email = (data.get("email") or "").strip().lower()
+            clean_user_name = user_name.split(" (")[0].strip().lower()
 
-            if req_emp_name and req_emp_name != user_name.strip().lower() and req_email and req_email != user_email.strip().lower():
+            if req_emp_name and req_emp_name != clean_user_name and req_email and req_email != user_email.strip().lower():
                 return jsonify({"success": False, "error": "Forbidden: Employees are only permitted to submit or edit their own daily task logs."}), 403
 
             # Enforce back-date logging window restriction policy
@@ -122,11 +124,11 @@ def manage_task_logs():
                 return jsonify({"success": False, "error": f"Forbidden: Submitting or editing task logs older than {max_backdate} days ({cutoff_date_str}) is restricted by administrator policy."}), 403
 
             # Override/lock employee details to logged-in user
-            data["employeeName"] = user_name
+            data["employeeName"] = user_name.split(" (")[0].strip()
             data["email"] = user_email
 
         database.save_task_log(data)
-        emp_name = data.get("employeeName") or data.get("employee_name", "Employee")
+        emp_name = (data.get("employeeName") or data.get("employee_name") or "Employee").split(" (")[0].strip()
         date_str = data.get("dateStr") or data.get("date_str") or datetime.datetime.now().strftime("%Y-%m-%d")
         log_event(f"Submitted Daily Task Log for '{emp_name}' on date '{date_str}'.")
         return jsonify({"success": True, "message": f"Task log submitted for {emp_name}"})
@@ -140,7 +142,8 @@ def api_bulk_leave():
     user_email = current_user.get("email", "")
 
     data = request.json or {}
-    emp_name = (data.get("employeeName") or data.get("employee_name") or user_name).strip()
+    raw_emp_name = (data.get("employeeName") or data.get("employee_name") or user_name).strip()
+    emp_name = raw_emp_name.split(" (")[0].strip()
     email = (data.get("email") or user_email).strip()
     team_name = data.get("teamName") or data.get("team_name", "Infra Team")
     team_id = data.get("teamId") or data.get("team_id", "")
@@ -150,9 +153,10 @@ def api_bulk_leave():
     skip_weekends = bool(data.get("skipWeekends", True))
 
     if user_role == "employee":
-        if emp_name.lower() != user_name.lower() and email.lower() != user_email.lower():
+        clean_user_name = user_name.split(" (")[0].strip()
+        if emp_name.lower() != clean_user_name.lower() and email.lower() != user_email.lower():
             return jsonify({"success": False, "error": "Forbidden: Employees are only permitted to submit leave for themselves."}), 403
-        emp_name = user_name
+        emp_name = clean_user_name
         email = user_email
 
     if not start_date_str or not end_date_str:
@@ -167,13 +171,20 @@ def api_bulk_leave():
     if start_dt > end_dt:
         return jsonify({"success": False, "error": "Start Date cannot be after End Date."}), 400
 
+    # Fetch employee working days ONCE before loop for high performance
+    working_days = database.get_employee_working_days(email or emp_name)
+
+    payloads = []
     count_leave = 0
     count_weekoff = 0
     curr_dt = start_dt
+
     while curr_dt <= end_dt:
         dt_str = curr_dt.strftime("%Y-%m-%d")
-        if database.is_employee_week_off(email or emp_name, curr_dt):
-            log_payload = {
+        is_wo = database.is_date_week_off(curr_dt, working_days) if skip_weekends else False
+
+        if is_wo:
+            payloads.append({
                 "employeeName": emp_name,
                 "email": email,
                 "teamName": team_name,
@@ -182,11 +193,10 @@ def api_bulk_leave():
                 "taskDetails": "WEEK OFF",
                 "isLeave": False,
                 "workStatus": "Week Off"
-            }
-            database.save_task_log(log_payload)
+            })
             count_weekoff += 1
         else:
-            log_payload = {
+            payloads.append({
                 "employeeName": emp_name,
                 "email": email,
                 "teamName": team_name,
@@ -195,10 +205,12 @@ def api_bulk_leave():
                 "taskDetails": leave_note if leave_note else "ON LEAVE",
                 "isLeave": True,
                 "workStatus": "Leave"
-            }
-            database.save_task_log(log_payload)
+            })
             count_leave += 1
         curr_dt += datetime.timedelta(days=1)
+
+    # Perform single batch DB insert/update
+    database.save_task_logs_batch(payloads)
 
     total_processed = count_leave + count_weekoff
     log_event(f"Bulk Leave applied for '{emp_name}' across {total_processed} days ({count_leave} Leave, {count_weekoff} Week Off) from {start_date_str} to {end_date_str}.")

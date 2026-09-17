@@ -120,6 +120,18 @@ class PgCursorWrapper:
             raise e
         return self
 
+    def executemany(self, sql: str, seq_of_parameters=()):
+        sql_pg = _adapt_sql_for_pg(sql)
+        try:
+            self._cursor.executemany(sql_pg, seq_of_parameters)
+        except Exception as e:
+            try:
+                self._conn.rollback()
+            except Exception:
+                pass
+            raise e
+        return self
+
     def fetchone(self):
         row = self._cursor.fetchone()
         if row is None:
@@ -535,7 +547,25 @@ def _seed_from_json(conn: sqlite3.Connection):
     # Seed Default User Accounts (Admin, Manager, Employees)
     _seed_users(conn)
     _migrate_plaintext_passwords(conn)
+    _clean_legacy_task_logs(conn)
     conn.commit()
+
+def _clean_legacy_task_logs(conn):
+    """Automatically cleans employee_name in task_logs that may contain trailing team names in parentheses."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, employee_name FROM task_logs WHERE employee_name LIKE '% (%'")
+        rows = cursor.fetchall()
+        for r in rows:
+            u_dict = dict(r)
+            l_id = u_dict.get("id")
+            raw_n = u_dict.get("employee_name") or ""
+            if "(" in raw_n:
+                clean_n = raw_n.split(" (")[0].strip()
+                cursor.execute("UPDATE task_logs SET employee_name = ? WHERE id = ?", (clean_n, l_id))
+        conn.commit()
+    except Exception as e:
+        print(f"[DB CLEANUP WARNING] Failed cleaning legacy task logs: {e}")
 
 def _migrate_plaintext_passwords(conn):
     """Automatically upgrades any plain text passwords in the users table to salted Werkzeug password hashes."""
@@ -1404,7 +1434,8 @@ def delete_location_record(loc_id: str) -> bool:
 def save_task_log(data: Dict[str, Any]) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
-    emp_name = data.get("employeeName") or data.get("employee_name", "Unknown")
+    raw_name = data.get("employeeName") or data.get("employee_name", "Unknown")
+    emp_name = raw_name.split(" (")[0].strip() if raw_name else "Unknown"
     email = data.get("email", "")
     team_name = data.get("teamName") or data.get("team_name", "Infra Team")
     team_id = data.get("teamId") or data.get("team_id", "")
@@ -1448,6 +1479,108 @@ def save_task_log(data: Dict[str, Any]) -> bool:
     """, (log_id, emp_id, emp_name, email, team_id, team_name, date_str, task_details, now_str, is_leave, work_status))
     conn.commit()
     conn.close()
+    return True
+
+
+def save_task_logs_batch(payload_list: List[Dict[str, Any]]) -> bool:
+    """Inserts or updates multiple task logs in a single batch database transaction."""
+    if not payload_list:
+        return True
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    rows_to_insert = []
+    for data in payload_list:
+        raw_name = data.get("employeeName") or data.get("employee_name", "Unknown")
+        emp_name = raw_name.split(" (")[0].strip() if raw_name else "Unknown"
+        email = data.get("email", "")
+        team_name = data.get("teamName") or data.get("team_name", "Infra Team")
+        team_id = data.get("teamId") or data.get("team_id", "")
+        date_str = data.get("dateStr") or data.get("date_str") or datetime.datetime.now().strftime("%Y-%m-%d")
+        task_details = (data.get("taskDetails") or data.get("task_details") or "").strip()
+        
+        is_leave_val = data.get("isLeave") or data.get("is_leave")
+        work_status_val = str(data.get("workStatus") or data.get("work_status") or "").strip()
+        
+        if work_status_val.lower() in ("week off", "weekoff") or "week off" in task_details.lower() or "weekoff" in task_details.lower():
+            is_leave = 0
+            work_status = "Week Off"
+            if not task_details:
+                task_details = "WEEK OFF"
+        elif is_leave_val or work_status_val.lower() in ("leave", "on leave") or "on leave" in task_details.lower():
+            is_leave = 1
+            work_status = "Leave"
+            if not task_details:
+                task_details = "ON LEAVE"
+        else:
+            is_leave = 0
+            work_status = "Present"
+
+        emp_id = data.get("employeeId") or data.get("employee_id", "")
+        log_id = data.get("id") or f"log_{emp_name.lower().replace(' ', '_')}_{date_str}"
+
+        rows_to_insert.append((log_id, emp_id, emp_name, email, team_id, team_name, date_str, task_details, now_str, is_leave, work_status))
+
+    cursor.executemany("""
+        INSERT INTO task_logs (id, employee_id, employee_name, email, team_id, team_name, date_str, task_details, updated_at, is_leave, work_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            employee_name=excluded.employee_name,
+            email=excluded.email,
+            team_id=excluded.team_id,
+            team_name=excluded.team_name,
+            date_str=excluded.date_str,
+            task_details=excluded.task_details,
+            updated_at=excluded.updated_at,
+            is_leave=excluded.is_leave,
+            work_status=excluded.work_status
+    """, rows_to_insert)
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_employee_working_days(employee_name_or_email: str) -> List[str]:
+    """Returns working days list for employee (e.g. ['Mon', 'Tue', ...]). Defaults to Mon-Sat."""
+    if not employee_name_or_email:
+        return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    clean_val = employee_name_or_email.split(" (")[0].strip().lower()
+    conn = get_db_connection()
+    val_like = f"%{clean_val}%"
+    row = conn.execute(
+        "SELECT working_days FROM employees WHERE LOWER(email) = ? OR LOWER(name) = ? OR LOWER(name) LIKE ? OR id = ? LIMIT 1",
+        (clean_val, clean_val, val_like, employee_name_or_email)
+    ).fetchone()
+    conn.close()
+    if row and row["working_days"]:
+        raw_str = str(row["working_days"]).replace("[", "").replace("]", "").replace('"', "").replace("'", "")
+        days = [w.strip() for w in raw_str.split(",") if w.strip()]
+        if days:
+            return days
+    return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+
+def is_date_week_off(dt_input: Any, working_days: List[str]) -> bool:
+    """Checks if a datetime date object or ISO string is a week off based on working_days list."""
+    if not dt_input:
+        return False
+    if isinstance(dt_input, str):
+        try:
+            dt = datetime.datetime.strptime(dt_input[:10], "%Y-%m-%d")
+        except ValueError:
+            return False
+    elif isinstance(dt_input, (datetime.date, datetime.datetime)):
+        dt = dt_input
+    else:
+        return False
+
+    day_short = dt.strftime("%a")
+    day_full = dt.strftime("%A")
+    wd_lower = [w.lower() for w in working_days]
+    for wd in wd_lower:
+        if wd == day_short.lower() or wd == day_full.lower() or wd[:3] == day_short.lower():
+            return False
     return True
 
 def get_task_logs(team_id: Optional[str] = None, team_name: Optional[str] = None, date_str: Optional[str] = None, start_date: Optional[str] = None, end_date: Optional[str] = None) -> List[Dict[str, Any]]:

@@ -613,11 +613,11 @@
         const queryEl = document.getElementById('emp-search-input');
         const query = (queryEl ? queryEl.value : '').toLowerCase().trim();
 
-        const activeNameLower = (activeEmpName || '').toLowerCase().trim();
+        const activeNameLower = (activeEmpName || '').split(' (')[0].toLowerCase().trim();
         const userEmailLower = (loggedInUser && loggedInUser.email ? loggedInUser.email : (emp ? emp.email : '')).toLowerCase().trim();
 
         return taskLogsData.filter(log => {
-            const logNameLower = (log.employee_name || '').toLowerCase().trim();
+            const logNameLower = (log.employee_name || '').split(' (')[0].toLowerCase().trim();
             const logEmailLower = (log.email || '').toLowerCase().trim();
 
             let matchesEmp = false;
@@ -635,7 +635,7 @@
             }
 
             if (!matchesEmp && emp && emp.name) {
-                const empNameLower = emp.name.toLowerCase().trim();
+                const empNameLower = emp.name.split(' (')[0].toLowerCase().trim();
                 if (logNameLower === empNameLower || logNameLower.includes(empNameLower) || empNameLower.includes(logNameLower)) {
                     matchesEmp = true;
                 }
@@ -1277,10 +1277,21 @@
     function populateBulkEmpModalDropdown() {
         const sel = document.getElementById('bulk-emp-select');
         if (!sel) return;
-        sel.innerHTML = employeesData.map(e => `<option value="${e.name}">${e.name} (${e.teamName || 'Infra Team'})</option>`).join('');
-        if (activeEmpName) sel.value = activeEmpName;
-        if (loggedInUser && loggedInUser.role === 'employee') {
-            sel.value = loggedInUser.name;
+        const currentUser = loggedInUser || window.SESSION_USER;
+
+        if (employeesData && employeesData.length > 0) {
+            sel.innerHTML = employeesData.map(e => {
+                const cleanName = (e.name || '').split(' (')[0].trim();
+                return `<option value="${cleanName}">${cleanName} (${e.teamName || 'Infra Team'})</option>`;
+            }).join('');
+        } else if (currentUser && currentUser.name) {
+            const cleanName = currentUser.name.split(' (')[0].trim();
+            sel.innerHTML = `<option value="${cleanName}">${cleanName} (${currentUser.teamName || 'Infra Team'})</option>`;
+        }
+
+        if (activeEmpName) sel.value = activeEmpName.split(' (')[0].trim();
+        if (currentUser && currentUser.role === 'employee') {
+            sel.value = (currentUser.name || '').split(' (')[0].trim();
             sel.disabled = true;
         } else {
             sel.disabled = false;
@@ -1289,15 +1300,22 @@
 
     function onBulkEmpChange() {
         const sel = document.getElementById('bulk-emp-select');
+        const currentUser = loggedInUser || window.SESSION_USER;
         let empName = sel ? sel.value : activeEmpName;
-        if (loggedInUser && loggedInUser.role === 'employee') {
-            empName = loggedInUser.name;
+        if (currentUser && currentUser.role === 'employee') {
+            empName = currentUser.name;
         }
-        const emp = employeesData.find(e => e.name.toLowerCase() === empName.toLowerCase());
+        empName = (empName || '').split(' (')[0].trim();
+
+        const emp = employeesData.find(e => e.name && e.name.split(' (')[0].trim().toLowerCase() === empName.toLowerCase());
         if (emp) {
             document.getElementById('bulk-team-name').value = emp.teamName || 'Infra Team';
             document.getElementById('bulk-team-id').value = emp.teamId || '';
             document.getElementById('bulk-emp-email').value = emp.email || '';
+        } else if (currentUser) {
+            document.getElementById('bulk-team-name').value = currentUser.teamName || 'Infra Team';
+            document.getElementById('bulk-team-id').value = currentUser.team_id || '';
+            document.getElementById('bulk-emp-email').value = currentUser.email || '';
         }
     }
 

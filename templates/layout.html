@@ -15,6 +15,7 @@
             const savedTheme = localStorage.getItem('ticktask_theme') || 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
         })();
+        window.SESSION_USER = {{ session.get('user', {}) | tojson | safe }};
     </script>
     
     <style>
