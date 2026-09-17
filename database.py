@@ -38,16 +38,112 @@ DB_FILE = os.path.join(DATA_DIR, "app_database.db")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
-def get_db_connection() -> sqlite3.Connection:
+# --- Dual Database Support (SQLite Local Default + Supabase PostgreSQL Cloud) ---
+try:
+    import psycopg2
+    import psycopg2.extras
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    PSYCOPG2_AVAILABLE = False
 
-    conn = sqlite3.connect(DB_FILE, timeout=30.0)
-    conn.row_factory = sqlite3.Row
-    return conn
+DB_URL = os.environ.get("DATABASE_URL") or os.environ.get("SUPABASE_DB_URL")
+if DB_URL and DB_URL.startswith("postgres://"):
+    DB_URL = DB_URL.replace("postgres://", "postgresql://", 1)
+
+USE_POSTGRES = bool(DB_URL and PSYCOPG2_AVAILABLE)
+
+class DictRow(dict):
+    """Dictionary wrapper for DB rows supporting integer indexing, key lookup, and dict casting."""
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return list(self.values())[key]
+        return super().__getitem__(key)
+
+def _adapt_sql_for_pg(sql: str) -> str:
+    """Adapts SQLite SQL dialect to PostgreSQL / Supabase dialect on the fly."""
+    # Convert INTEGER PRIMARY KEY AUTOINCREMENT -> SERIAL PRIMARY KEY
+    sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+    
+    # Convert INSERT OR IGNORE INTO -> INSERT INTO ... ON CONFLICT DO NOTHING
+    if "INSERT OR IGNORE INTO" in sql:
+        sql = sql.replace("INSERT OR IGNORE INTO", "INSERT INTO")
+        if "ON CONFLICT" not in sql.upper():
+            sql = sql + " ON CONFLICT DO NOTHING"
+            
+    # Convert positional parameter ? to %s
+    sql = sql.replace("?", "%s")
+    
+    # Convert case-sensitive LIKE to case-insensitive ILIKE for PostgreSQL
+    sql = sql.replace(" LIKE ", " ILIKE ")
+    
+    return sql
+
+class PgCursorWrapper:
+    def __init__(self, pg_cursor, pg_conn):
+        self._cursor = pg_cursor
+        self._conn = pg_conn
+        
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
+
+    def execute(self, sql: str, params=()):
+        sql_pg = _adapt_sql_for_pg(sql)
+        try:
+            self._cursor.execute(sql_pg, params)
+        except Exception as e:
+            try:
+                self._conn.rollback()
+            except Exception:
+                pass
+            raise e
+        return self
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        return DictRow(row)
+
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        return [DictRow(r) for r in rows]
+
+class PgConnectionWrapper:
+    def __init__(self, pg_conn):
+        self._conn = pg_conn
+
+    def cursor(self):
+        cursor = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        return PgCursorWrapper(cursor, self._conn)
+
+    def execute(self, sql: str, params=()):
+        cur = self.cursor()
+        return cur.execute(sql, params)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
+
+def get_db_connection():
+    if USE_POSTGRES:
+        pg_conn = psycopg2.connect(DB_URL)
+        return PgConnectionWrapper(pg_conn)
+    else:
+        conn = sqlite3.connect(DB_FILE, timeout=30.0)
+        conn.row_factory = sqlite3.Row
+        return conn
 
 def init_db():
-    """Initializes SQLite schema and seeds initial data from JSON files if tables are empty."""
+    """Initializes Database schema (SQLite or PostgreSQL) and seeds initial data if empty."""
     conn = get_db_connection()
     cursor = conn.cursor()
+
 
     # 1. Shifts Table
     cursor.execute("""

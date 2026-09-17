@@ -194,7 +194,66 @@ Emails are rendered in rich HTML (`MIMEMultipart("alternative")`):
 
 ---
 
-## 6. Docker & External Host Port Deployment Guide
+## 6. Cloud Deployment Guide: Render (UI) + Supabase (PostgreSQL)
+
+### ☁️ Architecture Overview
+The application features an automatic **Dual Database Engine**:
+1. **Local Mode (Default)**: Uses local SQLite (`data/app_database.db`). No environment variable required.
+2. **Cloud Mode (Render + Supabase)**: When `DATABASE_URL` or `SUPABASE_DB_URL` environment variable is defined, the app automatically switches to **Supabase PostgreSQL**, creating tables and seeding initial data automatically upon first launch.
+
+```
+       ┌───────────────────────────────────────────────────────────┐
+       │                   Web Browser / Users                     │
+       └─────────────────────────────┬─────────────────────────────┘
+                                     │
+                 ┌───────────────────┴───────────────────┐
+                 │                                       │
+                 ▼                                       ▼
+    ┌─────────────────────────┐             ┌─────────────────────────┐
+    │     LOCAL TESTING       │             │    RENDER CLOUD WEB     │
+    │  (Docker / Flask Dev)   │             │   (Gunicorn Service)    │
+    └────────────┬────────────┘             └────────────┬────────────┘
+                 │                                       │
+                 ▼                                       ▼
+    ┌─────────────────────────┐             ┌─────────────────────────┐
+    │  SQLite Database File   │             │  Supabase PostgreSQL DB │
+    │  (data/app_database.db) │             │ (Cloud PostgreSQL Pool) │
+    └─────────────────────────┘             └─────────────────────────┘
+```
+
+---
+
+### 📋 Step-by-Step Deployment Guideline
+
+#### Step 1: Provision Supabase PostgreSQL Database
+1. Sign up / log in to [Supabase](https://supabase.com).
+2. Create a new project (e.g., `daily-task-reminder`).
+3. Set your database password and choose your preferred region.
+4. Go to **Project Settings** -> **Database** -> **Connection String**.
+5. Copy the **URI** connection string:
+   `postgresql://postgres.[PROJECT_REF]:[YOUR_PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres`
+
+#### Step 2: Deploy UI Web Service on Render
+1. Push your latest code changes to your GitHub repository (`main` branch).
+2. Log in to [Render](https://render.com) and click **New +** -> **Web Service** (or use **Blueprint** with `render.yaml`).
+3. Select your GitHub repository.
+4. Configure service parameters:
+   - **Name**: `daily-task-reminder-app`
+   - **Runtime**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120`
+5. In the **Environment Variables** section, add:
+   - `DATABASE_URL`: `[Your Supabase URI connection string]`
+   - `SECRET_KEY`: `[Any random string]`
+6. Click **Deploy Web Service**. Render will build and deploy your application.
+
+#### Step 3: Verification & Automatic Seeding
+- On initial launch, `database.py` will execute `init_db()`, detect PostgreSQL, automatically provision all 12 database tables, and seed initial rosters, shifts, teams, locations, templates, and quotes.
+- Access your live web application at `https://daily-task-reminder-app.onrender.com`.
+
+---
+
+## 7. Docker & External Host Port Deployment Guide
 
 ### External Host Port Mapping (e.g., 5050:5000)
 By default, the application container listens internally on port **5000**. If port 5000 is occupied on your host server by another application, you can map any external host port (e.g., `5050:5000`, `8080:5000`, `3000:5000`) using any of the following methods:
@@ -270,8 +329,6 @@ Below is the complete prompt-by-prompt history of user requests, technical imple
 | **26** | *"in this we have a option of set email template of reminder of slots i want a option in that i can set or change teh welcome email settings template"* | **Requirement**: Add configurable Welcome Email Onboarding Template (`welcome_email`) option to the Email Templates management panel (`/templates`).<br>**Implementation**: 1. Added `welcome_email` template definition to [`data/templates.json`](file:///e:/Daily-Update-Email/data/templates.json) and seed logic in [`database.py`](file:///e:/Daily-Update-Email/database.py).<br>2. Added **"Welcome Email - New User Account Onboarding Template"** option to `#template-select` dropdown and live HTML preview in [`templates/templates.html`](file:///e:/Daily-Update-Email/templates/templates.html).<br>3. Updated [`app.py`](file:///e:/Daily-Update-Email/app.py) user creation handler to dynamically fetch the custom `welcome_email` template from database and perform variable substitution (`{name}`, `{email}`, `{role}`, `{password}`, `{portal_url}`, `{mgr_email}`, `{date}`). | [`app.py`](file:///e:/Daily-Update-Email/app.py), [`database.py`](file:///e:/Daily-Update-Email/database.py), [`data/templates.json`](file:///e:/Daily-Update-Email/data/templates.json), [`templates/templates.html`](file:///e:/Daily-Update-Email/templates/templates.html), [`README.md`](file:///e:/Daily-Update-Email/README.md) | Administrators can view, edit, preview, and save custom Welcome Email onboarding templates with real-time live preview on `/templates`. Newly created accounts automatically receive personalized welcome emails matching the configured template. |
 | **27** | *"in welcome mail i got this email ,earlier i was sending the Credentilas of the account also"* | **Requirement**: Restore full account login credentials breakdown (`Portal Login URL`, `Assigned Role`, `Username (Email)`, `Password`, `Manager CC`) in the Welcome Email template.<br>**Implementation**: 1. Updated `welcome_email` in [`data/templates.json`](file:///e:/Daily-Update-Email/data/templates.json), [`database.py`](file:///e:/Daily-Update-Email/database.py), and [`app.py`](file:///e:/Daily-Update-Email/app.py) default fallback.<br>2. Updated live HTML preview in [`templates/templates.html`](file:///e:/Daily-Update-Email/templates/templates.html) to substitute `{name}`, `{email}`, `{password}`, `{portal_url}`, `{role}`, and `{mgr_email}`. | [`app.py`](file:///e:/Daily-Update-Email/app.py), [`database.py`](file:///e:/Daily-Update-Email/database.py), [`data/templates.json`](file:///e:/Daily-Update-Email/data/templates.json), [`templates/templates.html`](file:///e:/Daily-Update-Email/templates/templates.html), [`README.md`](file:///e:/Daily-Update-Email/README.md) | Welcome emails include full login credentials (URL, Role, Username, Password) formatted cleanly for newly created users. |
 | **28** | *"in this make a function when a admin or manager create a new Emplyee ... 12 length password with upper,lower,number case ... valide for 4 hours ... password show hide eye toggle ... request for resend password"* | **Requirement**: 1. Implement automatic **12-character random password generator** (Uppercase, Lowercase, Digits) for user creation and password reset requests.<br>2. Enforce **4-hour initial password expiration** (`pwd_expires_at`) with clear email security warnings.<br>3. Enforce **mandatory first-time password setup** (`must_change_password`) upon logging in with a temporary password.<br>4. Add **show/hide password eye toggle icon** (`<i class="fa-solid fa-eye"></i>`) to login fields.<br>5. Add **"Forgot or Expired Password? Request New Password"** modal on `/login` to trigger `/api/request-password-reset`.<br>**Implementation**: 1. Created `generate_random_password(12)` and schema columns (`must_change_password`, `pwd_expires_at`) in [`database.py`](file:///e:/Daily-Update-Email/database.py).<br>2. Built `/api/request-password-reset` and `/api/force-change-password` routes in [`app.py`](file:///e:/Daily-Update-Email/app.py).<br>3. Updated [`templates/login.html`](file:///e:/Daily-Update-Email/templates/login.html) with password eye toggles, password reset request modal, and mandatory first-time password setup modal. | [`app.py`](file:///e:/Daily-Update-Email/app.py), [`database.py`](file:///e:/Daily-Update-Email/database.py), [`templates/login.html`](file:///e:/Daily-Update-Email/templates/login.html), [`templates/employees.html`](file:///e:/Daily-Update-Email/templates/employees.html), [`README.md`](file:///e:/Daily-Update-Email/README.md) | Newly created accounts receive a 12-char random password valid for 4 hours. Users can toggle password visibility on login, request password reset emails if expired, and must set a new permanent password on first login. |
-
-
-
-
+| **29** | *"its working fine now i want a option in this as of now i m testing in local and remote server i want to test it on render for ui and for data base i want to use on superbase so in this make a feature ifi wnat on local it will works liek same which i m currently using and if i want o dplye on render with super base how many thing required give the guidline and for the testing do that things"* | **Requirement**: Dual database engine & cloud deployment configuration: Local SQLite default mode + Render UI Web Service & Supabase PostgreSQL DB auto-detect cloud mode.<br>**Implementation**: 1. Created dual DB engine abstraction in [`database.py`](file:///e:/Daily-Update-Email/database.py) with dynamic SQL dialect translation (`?` -> `%s`, `AUTOINCREMENT` -> `SERIAL`, `INSERT OR IGNORE` -> `ON CONFLICT DO NOTHING`).<br>2. Created [`Procfile`](file:///e:/Daily-Update-Email/Procfile) and [`render.yaml`](file:///e:/Daily-Update-Email/render.yaml) for 1-click deployment on Render with Gunicorn.<br>3. Added `psycopg2-binary` and `gunicorn` to [`requirements.txt`](file:///e:/Daily-Update-Email/requirements.txt).<br>4. Added step-by-step setup guidelines in [`README.md`](file:///e:/Daily-Update-Email/README.md). | [`database.py`](file:///e:/Daily-Update-Email/database.py), [`requirements.txt`](file:///e:/Daily-Update-Email/requirements.txt), [`Procfile`](file:///e:/Daily-Update-Email/Procfile), [`render.yaml`](file:///e:/Daily-Update-Email/render.yaml), [`README.md`](file:///e:/Daily-Update-Email/README.md) | Local testing continues cleanly using SQLite without any changes or configuration. Setting `DATABASE_URL` connects the app automatically to Supabase PostgreSQL for Render cloud deployments. |
+| **30** | *"Make a one Guidline File for the Render and Super Base"* | **Requirement**: Create a dedicated standalone deployment guide document for deploying the web application UI on Render and PostgreSQL database on Supabase.<br>**Implementation**: Created [`DEPLOYMENT_GUIDE_RENDER_SUPABASE.md`](file:///e:/Daily-Update-Email/DEPLOYMENT_GUIDE_RENDER_SUPABASE.md) containing full architecture overview diagrams, prerequisites, step-by-step Supabase database setup, step-by-step Render Web Service configuration, environment variables reference table, default credentials matrix, and troubleshooting FAQ. | [`DEPLOYMENT_GUIDE_RENDER_SUPABASE.md`](file:///e:/Daily-Update-Email/DEPLOYMENT_GUIDE_RENDER_SUPABASE.md), [`README.md`](file:///e:/Daily-Update-Email/README.md) | Dedicated, comprehensive deployment manual ([`DEPLOYMENT_GUIDE_RENDER_SUPABASE.md`](file:///e:/Daily-Update-Email/DEPLOYMENT_GUIDE_RENDER_SUPABASE.md)) available in repository root for administrators and deployment engineers. |
 
