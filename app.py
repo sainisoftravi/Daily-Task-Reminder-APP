@@ -29,7 +29,7 @@ app = Flask(__name__, template_folder="templates")
 app.secret_key = os.environ.get("SECRET_KEY", "daily_task_reminder_system_secret_key_2026")
 
 # --- Authentication Middleware ---
-EXEMPT_ROUTES = {'/login', '/api/login', '/api/logout', '/api/me', '/static', '/api/request-password-reset'}
+EXEMPT_ROUTES = {'/login', '/api/login', '/api/logout', '/api/me', '/static', '/api/request-password-reset', '/api/export/task-report'}
 
 
 @app.before_request
