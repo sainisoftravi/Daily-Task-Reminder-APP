@@ -1405,7 +1405,12 @@ def save_task_log(data: Dict[str, Any]) -> bool:
     is_leave_val = data.get("isLeave") or data.get("is_leave")
     work_status_val = str(data.get("workStatus") or data.get("work_status") or "").strip()
     
-    if is_leave_val or work_status_val.lower() == "leave" or "on leave" in task_details.lower():
+    if work_status_val.lower() in ("week off", "weekoff") or "week off" in task_details.lower() or "weekoff" in task_details.lower():
+        is_leave = 0
+        work_status = "Week Off"
+        if not task_details:
+            task_details = "WEEK OFF"
+    elif is_leave_val or work_status_val.lower() in ("leave", "on leave") or "on leave" in task_details.lower():
         is_leave = 1
         work_status = "Leave"
         if not task_details:
@@ -1464,6 +1469,54 @@ def get_task_logs(team_id: Optional[str] = None, team_name: Optional[str] = None
     conn.close()
     return [dict(r) for r in rows]
 
+def is_employee_week_off(employee_name_or_email: str, date_input: Any) -> bool:
+    """
+    Checks if a given date is a Week Off for an employee based on their configured working_days.
+    emp_identifier can be employee's email, name, or employee ID.
+    date_input can be a string 'YYYY-MM-DD', datetime.date, or datetime.datetime object.
+    Returns True if the date is a Week Off (non-working day), False if it is a working day.
+    """
+    if not date_input:
+        return False
+    if isinstance(date_input, str):
+        try:
+            dt = datetime.datetime.strptime(date_input[:10], "%Y-%m-%d")
+        except ValueError:
+            return False
+    elif isinstance(date_input, (datetime.date, datetime.datetime)):
+        dt = date_input
+    else:
+        return False
+
+    day_short = dt.strftime("%a") # e.g. 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'
+    day_full = dt.strftime("%A")  # e.g. 'Monday', 'Tuesday'
+
+    raw_days = None
+    if employee_name_or_email:
+        conn = get_db_connection()
+        val = employee_name_or_email.strip().lower()
+        val_like = f"%{val}%"
+        row = conn.execute(
+            "SELECT working_days FROM employees WHERE LOWER(email) = ? OR LOWER(name) = ? OR LOWER(name) LIKE ? OR id = ? LIMIT 1",
+            (val, val, val_like, employee_name_or_email)
+        ).fetchone()
+        conn.close()
+        if row and row["working_days"]:
+            raw_days = [w.strip() for w in row["working_days"].split(",") if w.strip()]
+
+    if not raw_days:
+        # Default standard working days: Mon, Tue, Wed, Thu, Fri (Sat & Sun are week off)
+        raw_days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+
+    working_days_lower = [w.lower() for w in raw_days]
+    is_working = False
+    for wd in working_days_lower:
+        if wd == day_short.lower() or wd == day_full.lower() or wd[:3] == day_short.lower():
+            is_working = True
+            break
+
+    return not is_working
+
 def is_employee_on_leave(employee_name_or_email: str, date_str: str) -> bool:
     """Checks if an employee is marked as On Leave for the specified date."""
     conn = get_db_connection()
@@ -1478,7 +1531,7 @@ def is_employee_on_leave(employee_name_or_email: str, date_str: str) -> bool:
     conn.close()
     if row:
         d_row = dict(row)
-        if d_row.get("is_leave") == 1 or str(d_row.get("work_status")).lower() == "leave":
+        if d_row.get("is_leave") == 1 or str(d_row.get("work_status")).lower() in ("leave", "on leave"):
             return True
         details = str(d_row.get("task_details") or "").lower().strip()
         if "on leave" in details or details == "leave":
@@ -1486,7 +1539,10 @@ def is_employee_on_leave(employee_name_or_email: str, date_str: str) -> bool:
     return False
 
 def is_employee_task_filled(employee_name_or_email: str, date_str: str) -> bool:
-    """Checks if an employee has submitted a task log or marked On Leave for the specified date."""
+    """Checks if an employee has submitted a task log, marked On Leave, or is on Week Off for the specified date."""
+    if is_employee_week_off(employee_name_or_email, date_str):
+        return True
+
     conn = get_db_connection()
     val = employee_name_or_email.strip().lower()
     
@@ -1499,10 +1555,11 @@ def is_employee_task_filled(employee_name_or_email: str, date_str: str) -> bool:
     conn.close()
     if row:
         d_row = dict(row)
-        if d_row.get("is_leave") == 1 or str(d_row.get("work_status")).lower() == "leave":
+        w_status = str(d_row.get("work_status")).lower()
+        if d_row.get("is_leave") == 1 or w_status in ("leave", "on leave", "week off", "weekoff"):
             return True
         details = str(d_row.get("task_details") or "").strip()
-        if details and (len(details) > 3 or "on leave" in details.lower()):
+        if details and (len(details) > 3 or "on leave" in details.lower() or "week off" in details.lower()):
             return True
     return False
 

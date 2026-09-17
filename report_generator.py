@@ -126,8 +126,12 @@ def generate_xlsx_report(
             cell = ws.cell(row=row_num, column=col_num)
             if details and details.strip():
                 det_strip = details.strip()
+                det_lower = det_strip.lower()
                 cell.value = det_strip
-                if "on leave" in det_strip.lower() or det_strip.startswith("🌴"):
+                if "week off" in det_lower or "weekoff" in det_lower or det_strip.startswith("🏖️"):
+                    cell.font = Font(name="Calibri", size=9.5, bold=True, color="0369A1")
+                    cell.fill = PatternFill(start_color="E0F2FE", end_color="E0F2FE", fill_type="solid")
+                elif "on leave" in det_lower or det_strip.startswith("🌴") or "leave" in det_lower:
                     cell.font = Font(name="Calibri", size=9.5, bold=True, color="B45309")
                     cell.fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
                 else:
@@ -220,6 +224,14 @@ def generate_pdf_report(
         leading=10,
         textColor=colors.HexColor("#0F172A")
     )
+    weekoff_text_style = ParagraphStyle(
+        'WeekOffTextStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#0369A1")
+    )
     leave_text_style = ParagraphStyle(
         'LeaveTextStyle',
         parent=styles['Normal'],
@@ -250,25 +262,50 @@ def generate_pdf_report(
 
     elements.append(Spacer(1, 8))
 
-    # 2. Build Table Data Matrix
+    # 2. Build Table Data Matrix & Custom Cell Backgrounds
     header_row = [Paragraph("<b>Date</b>", header_cell_style)]
     for emp in employees_list:
         header_row.append(Paragraph(f"<b>{emp.get('name', 'Employee')}</b>", header_cell_style))
 
     table_data = [header_row]
 
-    for date_str in dates_list:
+    # Base table styling
+    t_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1E293B")),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+    ]
+
+    for r_idx, date_str in enumerate(dates_list):
+        row_num = r_idx + 1 # Table row index (1-based after header)
         row = [Paragraph(date_str, date_cell_style)]
-        for emp in employees_list:
+        
+        # Default alternating row background for row
+        base_bg = colors.HexColor("#F8FAFC") if r_idx % 2 == 1 else colors.white
+        t_style.append(('BACKGROUND', (0, row_num), (-1, row_num), base_bg))
+
+        for c_idx, emp in enumerate(employees_list):
+            col_num = c_idx + 1 # Table column index (1-based after date)
             emp_name = emp.get("name", "")
             key = (date_str, emp_name.lower())
             details = logs_map.get(key, "")
 
             if details and details.strip():
                 det_strip = details.strip()
+                det_lower = det_strip.lower()
                 safe_details = det_strip.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
-                if "on leave" in det_strip.lower() or det_strip.startswith("🌴"):
+                
+                if "week off" in det_lower or "weekoff" in det_lower or det_strip.startswith("🏖️"):
+                    row.append(Paragraph(f"<b>🏖️ {safe_details}</b>", weekoff_text_style))
+                    t_style.append(('BACKGROUND', (col_num, row_num), (col_num, row_num), colors.HexColor("#E0F2FE")))
+                elif "on leave" in det_lower or det_strip.startswith("🌴") or "leave" in det_lower:
                     row.append(Paragraph(f"<b>🌴 {safe_details}</b>", leave_text_style))
+                    t_style.append(('BACKGROUND', (col_num, row_num), (col_num, row_num), colors.HexColor("#FEF3C7")))
                 else:
                     row.append(Paragraph(safe_details, log_text_style))
             else:

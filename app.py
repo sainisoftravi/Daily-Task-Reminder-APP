@@ -211,6 +211,15 @@ def logs_page():
 def task_entry_page():
     return render_template("task_entry.html", active_page="task_entry")
 
+@app.route("/reports")
+def reports_page():
+    return render_template("reports.html", active_page="reports")
+
+@app.route("/leave")
+def leave_page():
+    return render_template("leave.html", active_page="leave")
+
+
 # --- REST API ENDPOINTS (SQLITE BACKED) ---
 
 @app.route("/api/task-logs", methods=["GET", "POST"])
@@ -229,13 +238,35 @@ def manage_task_logs():
 
         logs = database.get_task_logs(team_id=team_id, team_name=team_name, date_str=date_str, start_date=start_date, end_date=end_date)
 
-        # Security enforcement for Employee role: Employees can only view their own task logs
+        # Security enforcement for Employee & Manager roles:
         if user_role == "employee" and user_name:
             logs = [
                 l for l in logs 
                 if (l.get("employee_name", "").strip().lower() == user_name.strip().lower() or 
                     l.get("email", "").strip().lower() == user_email.strip().lower())
             ]
+        elif user_role == "manager":
+            mgr_team = current_user.get("teamName") or current_user.get("team_name")
+            if not mgr_team:
+                all_emps = database.get_all_employees()
+                e_match = next((e for e in all_emps if (e.get("email") or "").strip().lower() == user_email.strip().lower() or (e.get("name") or "").strip().lower() == user_name.strip().lower()), None)
+                if e_match:
+                    mgr_team = e_match.get("teamName")
+            if mgr_team:
+                mgr_team_clean = mgr_team.strip().lower()
+                all_emps = database.get_all_employees()
+                team_emp_names = set((e.get("name") or "").strip().lower() for e in all_emps if (e.get("teamName") or "").strip().lower() == mgr_team_clean)
+                team_emp_emails = set((e.get("email") or "").strip().lower() for e in all_emps if (e.get("teamName") or "").strip().lower() == mgr_team_clean)
+                team_emp_names.add(user_name.strip().lower())
+                team_emp_emails.add(user_email.strip().lower())
+
+                logs = [
+                    l for l in logs
+                    if (l.get("team_name") or "").strip().lower() == mgr_team_clean or
+                       (l.get("teamId") or "").strip().lower() == mgr_team_clean or
+                       (l.get("employee_name") or "").strip().lower() in team_emp_names or
+                       (l.get("email") or "").strip().lower() in team_emp_emails
+                ]
 
         return jsonify({"success": True, "logs": logs})
 
@@ -304,12 +335,25 @@ def api_bulk_leave():
     if start_dt > end_dt:
         return jsonify({"success": False, "error": "Start Date cannot be after End Date."}), 400
 
-    count = 0
+    count_leave = 0
+    count_weekoff = 0
     curr_dt = start_dt
     while curr_dt <= end_dt:
-        # Check if weekend skipping requested (Saturday=5, Sunday=6)
-        if not (skip_weekends and curr_dt.weekday() in (5, 6)):
-            dt_str = curr_dt.strftime("%Y-%m-%d")
+        dt_str = curr_dt.strftime("%Y-%m-%d")
+        if database.is_employee_week_off(email or emp_name, curr_dt):
+            log_payload = {
+                "employeeName": emp_name,
+                "email": email,
+                "teamName": team_name,
+                "teamId": team_id,
+                "dateStr": dt_str,
+                "taskDetails": "WEEK OFF",
+                "isLeave": False,
+                "workStatus": "Week Off"
+            }
+            database.save_task_log(log_payload)
+            count_weekoff += 1
+        else:
             log_payload = {
                 "employeeName": emp_name,
                 "email": email,
@@ -321,14 +365,16 @@ def api_bulk_leave():
                 "workStatus": "Leave"
             }
             database.save_task_log(log_payload)
-            count += 1
+            count_leave += 1
         curr_dt += datetime.timedelta(days=1)
 
-    log_event(f"Bulk Leave applied for '{emp_name}' across {count} days ({start_date_str} to {end_date_str}).")
+    total_processed = count_leave + count_weekoff
+    log_event(f"Bulk Leave applied for '{emp_name}' across {total_processed} days ({count_leave} Leave, {count_weekoff} Week Off) from {start_date_str} to {end_date_str}.")
     return jsonify({
         "success": True,
-        "count": count,
-        "message": f"Successfully applied On Leave for {count} days for {emp_name} ({start_date_str} to {end_date_str}). Reminders auto-suppressed."
+        "count": count_leave,
+        "count_weekoff": count_weekoff,
+        "message": f"Successfully processed {count_leave} Leave day(s) and {count_weekoff} Week Off day(s) for {emp_name} ({start_date_str} to {end_date_str})."
     })
 
 @app.route("/api/task-logs/<log_id>", methods=["DELETE"])
@@ -361,11 +407,23 @@ def export_task_report():
     emp_name_filter = request.args.get("employee_name")
 
     current_user = session.get("user") or {}
-    if current_user.get("role") == "employee" and current_user.get("name"):
-        emp_name_filter = current_user.get("name")
+    user_role = current_user.get("role", "employee")
+    user_email = (current_user.get("email") or "").strip().lower()
+    user_name = (current_user.get("name") or "").strip().lower()
 
     all_teams = database.get_all_teams()
     all_employees = database.get_all_employees()
+
+    if user_role == "employee" and user_name:
+        emp_name_filter = user_name
+    elif user_role == "manager":
+        mgr_team = current_user.get("teamName") or current_user.get("team_name")
+        if not mgr_team:
+            e_match = next((e for e in all_employees if (e.get("email") or "").strip().lower() == user_email or (e.get("name") or "").strip().lower() == user_name), None)
+            if e_match:
+                mgr_team = e_match.get("teamName")
+        if mgr_team:
+            req_team_name = mgr_team
 
     # Determine team name and filtered employees
     team_name = "All Teams"
@@ -373,15 +431,34 @@ def export_task_report():
 
     if req_team_name and req_team_name != "ALL":
         team_name = req_team_name
-        filtered_employees = [e for e in all_employees if (e.get("teamName") or "").lower() == req_team_name.lower() or (e.get("teamId") or "").lower() == req_team_name.lower()]
+        req_clean = req_team_name.strip().lower()
+        filtered_employees = [
+            e for e in all_employees
+            if (e.get("teamName") or "").strip().lower() == req_clean or
+               (e.get("teamId") or "").strip().lower() == req_clean or
+               req_clean in (e.get("teamName") or "").strip().lower() or
+               (e.get("teamName") or "").strip().lower() in req_clean
+        ]
     elif team_id and team_id != "ALL":
         target_team = next((t for t in all_teams if t.get("id") == team_id or t.get("name").lower() == team_id.lower()), None)
         if target_team:
             team_name = target_team.get("name")
-            filtered_employees = [e for e in all_employees if (e.get("teamId") == team_id or (e.get("teamName") or "").lower() == target_team.get("name").lower())]
+            target_clean = target_team.get("name").strip().lower()
+            filtered_employees = [
+                e for e in all_employees
+                if (e.get("teamId") == team_id or
+                    (e.get("teamName") or "").strip().lower() == target_clean or
+                    target_clean in (e.get("teamName") or "").strip().lower())
+            ]
         else:
             team_name = team_id
-            filtered_employees = [e for e in all_employees if (e.get("teamId") == team_id or (e.get("teamName") or "").lower() == team_id.lower())]
+            team_clean = team_id.strip().lower()
+            filtered_employees = [
+                e for e in all_employees
+                if (e.get("teamId") == team_id or
+                    (e.get("teamName") or "").strip().lower() == team_clean or
+                    team_clean in (e.get("teamName") or "").strip().lower())
+            ]
 
     if emp_name_filter:
         emp_match = next((e for e in all_employees if e.get("name", "").lower() == emp_name_filter.lower()), None)
@@ -409,10 +486,16 @@ def export_task_report():
     dates_list = []
     period_label = ""
 
-    if custom_start and custom_end:
+    if custom_start or custom_end:
         try:
+            if not custom_start:
+                custom_start = custom_end
+            if not custom_end:
+                custom_end = custom_start
             d_start = datetime.datetime.strptime(custom_start, "%Y-%m-%d")
             d_end = datetime.datetime.strptime(custom_end, "%Y-%m-%d")
+            if d_start > d_end:
+                d_start, d_end = d_end, d_start
             curr = d_start
             while curr <= d_end:
                 dates_list.append(curr.strftime("%Y-%m-%d"))
@@ -420,27 +503,31 @@ def export_task_report():
             period_label = f"{custom_start} to {custom_end}"
         except Exception:
             dates_list = [now.strftime("%Y-%m-%d")]
-            period_label = custom_start
-    elif period == "day":
+            period_label = custom_start or now.strftime("%Y-%m-%d")
+    elif period in ("day", "today"):
         today_str = now.strftime("%Y-%m-%d")
         dates_list = [today_str]
         period_label = now.strftime("%d %b %Y")
-    elif period == "week":
-        for i in range(6, -1, -1):
-            d = now - datetime.timedelta(days=i)
+    elif period in ("week", "this_week", "this week"):
+        start_week = now - datetime.timedelta(days=now.weekday()) # Monday of current week
+        for i in range(7):
+            d = start_week + datetime.timedelta(days=i)
             dates_list.append(d.strftime("%Y-%m-%d"))
-        period_label = f"Week of {dates_list[0]} - {dates_list[-1]}"
+        period_label = f"Week of {dates_list[0]} to {dates_list[-1]}"
     elif period == "year":
         start_year = datetime.datetime(now.year, 1, 1)
         curr = start_year
-        while curr <= now:
+        while curr.year == now.year:
             dates_list.append(curr.strftime("%Y-%m-%d"))
             curr += datetime.timedelta(days=1)
         period_label = now.strftime("Year %Y")
-    else: # month (default)
+    else: # month / this_month / default
+        import calendar
+        _, last_day = calendar.monthrange(now.year, now.month)
         start_month = datetime.datetime(now.year, now.month, 1)
+        end_month = datetime.datetime(now.year, now.month, last_day)
         curr = start_month
-        while curr.month == now.month and curr <= now:
+        while curr <= end_month:
             dates_list.append(curr.strftime("%Y-%m-%d"))
             curr += datetime.timedelta(days=1)
         period_label = now.strftime("%b %Y")
@@ -456,6 +543,16 @@ def export_task_report():
         e_name = (l.get("employee_name") or l.get("employeeName") or "").strip().lower()
         if d_str and e_name:
             logs_map[(d_str, e_name)] = l.get("task_details", "")
+
+    # Auto-detect Week Off days for each employee if no log was explicitly submitted
+    for d_str in dates_list:
+        for emp in filtered_employees:
+            emp_name_lower = (emp.get("name") or "").strip().lower()
+            emp_ident = emp.get("email") or emp.get("name") or ""
+            key = (d_str, emp_name_lower)
+            if key not in logs_map or not logs_map[key].strip():
+                if database.is_employee_week_off(emp_ident, d_str):
+                    logs_map[key] = "WEEK OFF"
 
     # Extract logged-in user full name
     user = session.get("user") or {}
@@ -505,6 +602,25 @@ def delete_quote(quote_id):
 def manage_employees():
     if request.method == "GET":
         employees = database.get_all_employees()
+        current_user = session.get("user") or {}
+        user_role = current_user.get("role", "employee")
+        user_email = (current_user.get("email") or "").strip().lower()
+        user_name = (current_user.get("name") or "").strip().lower()
+
+        if user_role == "manager":
+            mgr_team = current_user.get("teamName") or current_user.get("team_name")
+            if not mgr_team:
+                e_match = next((e for e in employees if (e.get("email") or "").strip().lower() == user_email or (e.get("name") or "").strip().lower() == user_name), None)
+                if e_match:
+                    mgr_team = e_match.get("teamName")
+            if mgr_team:
+                mgr_team_clean = mgr_team.strip().lower()
+                employees = [
+                    e for e in employees
+                    if (e.get("teamName") or "").strip().lower() == mgr_team_clean or
+                       (e.get("teamId") or "").strip().lower() == mgr_team_clean or
+                       (e.get("email") or "").strip().lower() == user_email
+                ]
         return jsonify({"success": True, "employees": employees})
     
     elif request.method == "POST":

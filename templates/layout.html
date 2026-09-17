@@ -781,6 +781,13 @@
             <li class="nav-item nav-admin nav-manager nav-employee {% if active_page == 'task_entry' %}active{% endif %}">
                 <a href="/task-entry"><i class="fa-solid fa-list-check"></i> Daily Task Submission</a>
             </li>
+            <li class="nav-item nav-admin nav-manager nav-employee {% if active_page == 'reports' %}active{% endif %}">
+                <a href="/reports"><i class="fa-solid fa-file-invoice"></i> Report</a>
+            </li>
+            <li class="nav-item nav-admin nav-manager nav-employee {% if active_page == 'leave' %}active{% endif %}">
+                <a href="/leave"><i class="fa-solid fa-plane-departure"></i> Leave</a>
+            </li>
+
 
             {% if current_role in ['admin', 'manager'] %}
             <li class="nav-item nav-admin nav-manager {% if active_page in ['users', 'employees', 'managers'] %}active{% endif %}">

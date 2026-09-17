@@ -16,81 +16,56 @@
             </div>
         </div>
 
-        {% if current_role in ['admin', 'manager'] %}
-        <!-- Mode Switcher Tabs (For Admin & Manager Roles) -->
-        <div style="display: flex; background: var(--btn-sec-bg); padding: 4px; border-radius: var(--radius-md); border: 1px solid var(--card-border);" id="mode-switcher-container">
-            <button class="btn" id="mode-emp-btn" style="padding: 8px 18px; font-size: 13px; border-radius: 8px; font-weight: 600;" onclick="switchMode('employee')">
-                <i class="fa-solid fa-user-check"></i> Employee Portal
-            </button>
-            <button class="btn" id="mode-admin-btn" style="padding: 8px 18px; font-size: 13px; border-radius: 8px; font-weight: 600;" onclick="switchMode('admin')">
-                <i class="fa-solid fa-shield-halved"></i> Admin Master View
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            {% if current_role in ['admin', 'manager'] %}
+            <!-- Mode Switcher Tabs (For Admin & Manager Roles) -->
+            <div style="display: flex; background: var(--btn-sec-bg); padding: 4px; border-radius: var(--radius-md); border: 1px solid var(--card-border);" id="mode-switcher-container">
+                <button class="btn" id="mode-emp-btn" style="padding: 8px 18px; font-size: 13px; border-radius: 8px; font-weight: 600;" onclick="switchMode('employee')">
+                    <i class="fa-solid fa-user-check"></i> Employee Portal
+                </button>
+                <button class="btn" id="mode-admin-btn" style="padding: 8px 18px; font-size: 13px; border-radius: 8px; font-weight: 600;" onclick="switchMode('admin')">
+                    <i class="fa-solid fa-shield-halved"></i> Admin Master View
+                </button>
+            </div>
+            {% endif %}
+
+            <button class="btn btn-primary" onclick="openSubmitModalForActiveEmp()" style="padding: 10px 20px; font-size: 14px; font-weight: 600; border-radius: 10px; background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); border: none; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);">
+                <i class="fa-solid fa-pen-to-square"></i> Submit Today's Task Log
             </button>
         </div>
-        {% endif %}
     </div>
 
     <!-- ========================================== -->
     <!-- SECTION 1: EMPLOYEE PERSONAL PORTAL VIEW   -->
     <!-- ========================================== -->
     <div id="employee-view-section">
-        <!-- Controls & Actions Toolbar Card -->
-        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); padding: 20px; border-radius: var(--radius-md); margin-bottom: 24px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-                <!-- Workspace Context Label -->
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 16px;">
-                        <i class="fa-solid fa-list-check"></i>
-                    </div>
-                    <div>
-                        <div style="font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-main);">My Task Submissions Workspace</div>
-                        <div style="font-size: 12px; color: var(--text-muted);">Manage daily logs, auto-suppress reminders & export reports.</div>
-                    </div>
-                </div>
-
-                <!-- Primary Submit & Export Actions -->
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-                    <button class="btn btn-secondary" onclick="downloadReport('xlsx')" style="padding: 9px 14px; font-size: 13px; color: #10b981; border-color: rgba(16, 185, 129, 0.3);" title="Download Excel (.xlsx) Task Report">
-                        <i class="fa-solid fa-file-excel"></i> Export XLSX
-                    </button>
-                    <button class="btn btn-secondary" onclick="downloadReport('pdf')" style="padding: 9px 14px; font-size: 13px; color: #f43f5e; border-color: rgba(244, 63, 94, 0.3);" title="Download PDF Task Report">
-                        <i class="fa-solid fa-file-pdf"></i> Export PDF
-                    </button>
-                    <button class="btn btn-secondary" onclick="openBulkLeaveModal()" style="padding: 9px 14px; font-size: 13px; color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);" title="Apply Leave for Multiple Dates / Range (3 Days, 1 Week, etc.)">
-                        <i class="fa-solid fa-plane-departure"></i> Apply Bulk Leave
-                    </button>
-                    <button class="btn btn-primary" onclick="openSubmitModalForActiveEmp()" style="padding: 9px 18px; font-size: 13px;">
-                        <i class="fa-solid fa-pen-to-square"></i> Submit Today's Task Log
-                    </button>
-                </div>
+        <!-- Time Filter Bar: Day, Week, Month, Year, Custom Calendar -->
+        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <!-- Time Period Buttons -->
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-right: 6px;">Period Filter:</span>
+                <button class="btn btn-secondary" id="period-day-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('day')">Today</button>
+                <button class="btn btn-secondary" id="period-week-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('week')">This Week</button>
+                <button class="btn btn-primary" id="period-month-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('month')">This Month</button>
+                <button class="btn btn-secondary" id="period-year-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('year')">Year</button>
+                <button class="btn btn-secondary" id="period-custom-btn" style="padding: 6px 14px; font-size: 12px;" onclick="toggleCustomCalendar()">📅 Calendar Range</button>
             </div>
 
-            <!-- Time Filter Bar: Day, Week, Month, Year, Custom Calendar -->
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 16px;">
-                <!-- Time Period Buttons -->
-                <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
-                    <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-right: 6px;">Period Filter:</span>
-                    <button class="btn btn-secondary" id="period-day-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('day')">Day</button>
-                    <button class="btn btn-secondary" id="period-week-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('week')">Week</button>
-                    <button class="btn btn-primary" id="period-month-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('month')">Month</button>
-                    <button class="btn btn-secondary" id="period-year-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('year')">Year</button>
-                    <button class="btn btn-secondary" id="period-custom-btn" style="padding: 6px 14px; font-size: 12px;" onclick="toggleCustomCalendar()">📅 Calendar Range</button>
-                </div>
+            <!-- Custom Calendar Inputs (Hidden by default) -->
+            <div id="custom-calendar-box" style="display: none; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span style="font-size: 12px; color: var(--text-muted);">From:</span>
+                <input type="date" id="cal-start-date" class="form-control" style="width: 140px; padding: 4px 10px; font-size: 12px;" onchange="applyCustomCalendar()">
+                <span style="font-size: 12px; color: var(--text-muted);">To:</span>
+                <input type="date" id="cal-end-date" class="form-control" style="width: 140px; padding: 4px 10px; font-size: 12px;" onchange="applyCustomCalendar()">
+            </div>
 
-                <!-- Custom Calendar Inputs (Hidden by default) -->
-                <div id="custom-calendar-box" style="display: none; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <span style="font-size: 12px; color: var(--text-muted);">From:</span>
-                    <input type="date" id="cal-start-date" class="form-control" style="width: 140px; padding: 4px 10px; font-size: 12px;" onchange="applyCustomCalendar()">
-                    <span style="font-size: 12px; color: var(--text-muted);">To:</span>
-                    <input type="date" id="cal-end-date" class="form-control" style="width: 140px; padding: 4px 10px; font-size: 12px;" onchange="applyCustomCalendar()">
-                </div>
-
-                <!-- Search Input for Personal Logs -->
-                <div style="min-width: 180px; flex: 1; max-width: 280px; position: relative;">
-                    <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 12px;"></i>
-                    <input type="text" id="emp-search-input" class="form-control" style="padding-left: 36px; padding-top: 6px; padding-bottom: 6px; font-size: 12px;" placeholder="Search my tasks..." oninput="renderEmployeeLogsTable()">
-                </div>
+            <!-- Search Input for Personal Logs -->
+            <div style="min-width: 180px; flex: 1; max-width: 280px; position: relative;">
+                <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 12px;"></i>
+                <input type="text" id="emp-search-input" class="form-control" style="padding-left: 36px; padding-top: 6px; padding-bottom: 6px; font-size: 12px;" placeholder="Search my tasks..." oninput="renderEmployeeLogsTable()">
             </div>
         </div>
+
 
         <!-- Summary Metrics Row -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
@@ -695,8 +670,11 @@
 
         const todayBadge = document.getElementById('stat-today-badge');
         if (todayLog) {
+            const isWeekOff = todayLog.work_status === 'Week Off' || (todayLog.task_details && (todayLog.task_details.toLowerCase().includes('week off') || todayLog.task_details.toLowerCase().includes('weekoff')));
             const isLeave = todayLog.is_leave == 1 || todayLog.work_status === 'Leave' || (todayLog.task_details && todayLog.task_details.toLowerCase().includes('on leave'));
-            if (isLeave) {
+            if (isWeekOff) {
+                todayBadge.innerHTML = `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.4);">🏖️ Week Off</span>`;
+            } else if (isLeave) {
                 todayBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave (No Reminder)</span>`;
             } else if (todayLog.task_details && todayLog.task_details.trim()) {
                 todayBadge.innerHTML = `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">✅ Submitted (No Reminder)</span>`;
@@ -718,17 +696,28 @@
             const dtObj = new Date(dtStr);
             const formattedDate = dtObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
 
+            const isWeekOff = log.work_status === 'Week Off' || (log.task_details && (log.task_details.toLowerCase().includes('week off') || log.task_details.toLowerCase().includes('weekoff')));
             const isLeave = log.is_leave == 1 || log.work_status === 'Leave' || (log.task_details && log.task_details.toLowerCase().includes('on leave'));
-            const statusBadge = isLeave ? 
-                `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave (Suppressed)</span>` : 
-                `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">✅ Suppressed (Filled)</span>`;
+            
+            let statusBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">✅ Suppressed (Filled)</span>`;
+            let textColor = 'var(--text-main)';
+            let iconPrefix = '';
+            if (isWeekOff) {
+                statusBadge = `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.4);">🏖️ Week Off</span>`;
+                textColor = '#06b6d4';
+                iconPrefix = '🏖️ ';
+            } else if (isLeave) {
+                statusBadge = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave (Suppressed)</span>`;
+                textColor = '#fbbf24';
+                iconPrefix = '🌴 ';
+            }
 
             rowsHtml += `
                 <tr>
                     <td><strong>${formattedDate}</strong></td>
                     <td>
-                        <div style="font-size: 13px; color: ${isLeave ? '#fbbf24' : 'var(--text-main)'}; white-space: pre-line; line-height: 1.5; max-height: 120px; overflow-y: auto;">
-                            ${isLeave ? '🌴 ' : ''}${escapeHtml(log.task_details)}
+                        <div style="font-size: 13px; color: ${textColor}; white-space: pre-line; line-height: 1.5; max-height: 120px; overflow-y: auto;">
+                            ${iconPrefix}${escapeHtml(log.task_details)}
                         </div>
                     </td>
                     <td>${statusBadge}</td>
@@ -876,8 +865,11 @@
                 filteredEmps.forEach(emp => {
                     const foundLog = taskLogsData.find(l => (l.date_str === dtStr || l.dateStr === dtStr) && (l.employee_name.toLowerCase() === emp.name.toLowerCase()));
                     if (foundLog) {
+                        const isWeekOff = foundLog.work_status === 'Week Off' || (foundLog.task_details && (foundLog.task_details.toLowerCase().includes('week off') || foundLog.task_details.toLowerCase().includes('weekoff')));
                         const isLeave = foundLog.is_leave == 1 || foundLog.work_status === 'Leave' || (foundLog.task_details && foundLog.task_details.toLowerCase().includes('on leave'));
-                        if (isLeave) {
+                        if (isWeekOff) {
+                            cells += `<td style="background: rgba(6, 182, 212, 0.1); font-size:12px;"><span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.4);">🏖️ Week Off</span><br><span style="color:#06b6d4; font-weight:600;">${escapeHtml(foundLog.task_details)}</span></td>`;
+                        } else if (isLeave) {
                             cells += `<td style="background: rgba(245, 158, 11, 0.1); font-size:12px;"><span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave</span><br><span style="color:#fbbf24;">${escapeHtml(foundLog.task_details)}</span></td>`;
                         } else {
                             cells += `<td style="background: rgba(16,185,129,0.08); font-size:12px;"><span class="badge badge-uae">✅ Submitted</span><br>${escapeHtml(foundLog.task_details.slice(0, 70))}...</td>`;
@@ -910,8 +902,12 @@
             let actionBtn = '';
 
             if (foundLog) {
+                const isWeekOff = foundLog.work_status === 'Week Off' || (foundLog.task_details && (foundLog.task_details.toLowerCase().includes('week off') || foundLog.task_details.toLowerCase().includes('weekoff')));
                 const isLeave = foundLog.is_leave == 1 || foundLog.work_status === 'Leave' || (foundLog.task_details && foundLog.task_details.toLowerCase().includes('on leave'));
-                if (isLeave) {
+                if (isWeekOff) {
+                    statusCell = `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.4);">🏖️ Week Off</span>`;
+                    detailsSnippet = `<div style="font-size: 12px; color: #06b6d4; font-weight: 600;">🏖️ ${escapeHtml(foundLog.task_details)}</div>`;
+                } else if (isLeave) {
                     statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave (No Reminder)</span>`;
                     detailsSnippet = `<div style="font-size: 12px; color: #fbbf24; font-weight: 600;">🌴 ${escapeHtml(foundLog.task_details)}</div>`;
                 } else if (foundLog.task_details && foundLog.task_details.trim()) {

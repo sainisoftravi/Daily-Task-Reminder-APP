@@ -1,0 +1,876 @@
+{% extends "layout.html" %}
+
+{% block title %}Task Reports | Daily Task Reminder{% endblock %}
+{% block page_title %}Task Reports & Matrix Downloads{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px;">
+    <!-- Header Bar & Mode Switcher -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; border-bottom: 1px solid var(--card-border); padding-bottom: 20px;">
+        <div>
+            <div style="font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: var(--text-main);">
+                Task Reports & Performance Matrix
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
+                Filter task history, search logs, and export formatted reports in Excel (.xlsx) and PDF formats.
+            </div>
+        </div>
+
+        {% if current_role in ['admin', 'manager'] %}
+        <div style="display: flex; background: var(--btn-sec-bg); padding: 4px; border-radius: var(--radius-md); border: 1px solid var(--card-border);" id="mode-switcher-container">
+            <button class="btn btn-primary" id="mode-emp-btn" style="padding: 8px 18px; font-size: 13px; border-radius: 8px; font-weight: 600;" onclick="switchMode('employee')">
+                <i class="fa-solid fa-user"></i> My Reports
+            </button>
+            <button class="btn btn-secondary" id="mode-admin-btn" style="padding: 8px 18px; font-size: 13px; border-radius: 8px; font-weight: 600;" onclick="switchMode('admin')">
+                <i class="fa-solid fa-shield-halved"></i> Master Team Reports
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 👤 SECTION 1: MY REPORTS (PERSONAL VIEW) -->
+    <!-- ========================================== -->
+    <div id="employee-view-section">
+        <!-- Controls & Export Actions Toolbar Card -->
+        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); padding: 20px; border-radius: var(--radius-md); margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 16px;">
+                        <i class="fa-solid fa-file-invoice"></i>
+                    </div>
+                    <div>
+                        <div style="font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-main);">My Task Submissions Workspace</div>
+                        <div style="font-size: 12px; color: var(--text-muted);">Manage daily logs, auto-suppress reminders & export personal reports.</div>
+                    </div>
+                </div>
+
+                <!-- Export Buttons -->
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <button class="btn btn-secondary" onclick="downloadReport('xlsx')" style="padding: 9px 16px; font-size: 13px; color: #10b981; border-color: rgba(16, 185, 129, 0.3); font-weight: 600;" title="Download Excel (.xlsx) Task Report">
+                        <i class="fa-solid fa-file-excel"></i> Export XLSX
+                    </button>
+                    <button class="btn btn-secondary" onclick="downloadReport('pdf')" style="padding: 9px 16px; font-size: 13px; color: #f43f5e; border-color: rgba(244, 63, 94, 0.3); font-weight: 600;" title="Download PDF Task Report">
+                        <i class="fa-solid fa-file-pdf"></i> Export PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Time Filter Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 16px;">
+                <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                    <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-right: 6px;">Period Filter:</span>
+                    <button class="btn btn-secondary" id="period-day-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('day')">Today</button>
+                    <button class="btn btn-secondary" id="period-week-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('week')">This Week</button>
+                    <button class="btn btn-primary" id="period-month-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('month')">This Month</button>
+                    <button class="btn btn-secondary" id="period-year-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('year')">Year</button>
+                    <button class="btn btn-secondary" id="period-custom-btn" style="padding: 6px 14px; font-size: 12px;" onclick="toggleCustomCalendar()">📅 Calendar Range</button>
+                    
+                    <div id="custom-calendar-box" style="display: none; align-items: center; gap: 8px; margin-left: 6px; flex-wrap: wrap;">
+                        <span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">From:</span>
+                        <input type="date" id="cal-start-date" class="form-control" style="width: 145px; padding: 4px 10px; font-size: 12px; border-radius: 20px;" onchange="applyCustomCalendar()">
+                        <span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">To:</span>
+                        <input type="date" id="cal-end-date" class="form-control" style="width: 145px; padding: 4px 10px; font-size: 12px; border-radius: 20px;" onchange="applyCustomCalendar()">
+                    </div>
+                </div>
+
+                <div style="min-width: 200px; flex: 1; max-width: 320px; position: relative;">
+                    <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 12px;"></i>
+                    <input type="text" id="emp-search-input" class="form-control" style="padding-left: 36px; padding-top: 6px; padding-bottom: 6px; font-size: 12px;" placeholder="Search my tasks..." oninput="renderEmployeePortal()">
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Metrics Row -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
+            <div class="glass-panel" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #34d399;">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Period Submissions</div>
+                    <div style="font-size: 22px; font-weight: 700; color: #34d399;" id="stat-submitted-count">0</div>
+                </div>
+            </div>
+
+            <div class="glass-panel" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #22d3ee;">
+                    <i class="fa-solid fa-bell-slash"></i>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Reminders Suppressed</div>
+                    <div style="font-size: 22px; font-weight: 700; color: #22d3ee;" id="stat-suppressed-count">0 Days</div>
+                </div>
+            </div>
+
+            <div class="glass-panel" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #818cf8;">
+                    <i class="fa-solid fa-calendar-day"></i>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Today's Status</div>
+                    <div style="font-size: 14px; font-weight: 700;" id="stat-today-badge">--</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task History Table -->
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 130px;">DATE</th>
+                        <th>TASK DETAILS & WORK LOG SUMMARY</th>
+                        <th style="width: 180px;">REMINDER STATUS</th>
+                        <th style="width: 160px;">LAST UPDATED</th>
+                        <th style="width: 100px; text-align: right;">ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody id="emp-logs-tbody">
+                    <!-- JS Populated -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- =================================================== -->
+    <!-- 🛡️ SECTION 2: MASTER TEAM REPORTS (ADMIN/MANAGER VIEW) -->
+    <!-- =================================================== -->
+    {% if current_role in ['admin', 'manager'] %}
+    <div id="admin-view-section" style="display: none;">
+        <!-- Controls & Export Actions Toolbar Card -->
+        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); padding: 20px; border-radius: var(--radius-md); margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); display: flex; align-items: center; justify-content: center; color: #10b981; font-size: 16px;">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div>
+                        <div style="font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 700; color: var(--text-main);" id="admin-workspace-title">Master Team Submissions & Performance Matrix</div>
+                        <div style="font-size: 12px; color: var(--text-muted);" id="admin-workspace-subtitle">Filter team task history, review staff roster fill status, and export team matrix reports.</div>
+                    </div>
+                </div>
+
+                <!-- Export Buttons for Master Team Report -->
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <button class="btn btn-secondary" onclick="downloadReport('xlsx')" style="padding: 9px 16px; font-size: 13px; color: #10b981; border-color: rgba(16, 185, 129, 0.3); font-weight: 600;" title="Download Team Excel (.xlsx) Task Report">
+                        <i class="fa-solid fa-file-excel"></i> Export Team XLSX
+                    </button>
+                    <button class="btn btn-secondary" onclick="downloadReport('pdf')" style="padding: 9px 16px; font-size: 13px; color: #f43f5e; border-color: rgba(244, 63, 94, 0.3); font-weight: 600;" title="Download Team PDF Task Report">
+                        <i class="fa-solid fa-file-pdf"></i> Export Team PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Team Filter Pills Bar -->
+            <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-right: 4px;">Teams:</span>
+                <div id="admin-team-pills" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                    <!-- JS Populated Pills -->
+                </div>
+            </div>
+
+            <!-- Time Filter Bar & Search -->
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 14px;">
+                <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                    <span style="font-size: 12px; color: var(--text-muted); font-weight: 600; margin-right: 6px;">Period Filter:</span>
+                    <button class="btn btn-secondary" id="admin-period-day-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('day')">Today</button>
+                    <button class="btn btn-secondary" id="admin-period-week-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('week')">This Week</button>
+                    <button class="btn btn-primary" id="admin-period-month-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('month')">This Month</button>
+                    <button class="btn btn-secondary" id="admin-period-year-btn" style="padding: 6px 14px; font-size: 12px;" onclick="setPeriodFilter('year')">Year</button>
+                    <button class="btn btn-secondary" id="admin-period-custom-btn" style="padding: 6px 14px; font-size: 12px;" onclick="toggleCustomCalendar()">📅 Calendar Range</button>
+                    
+                    <div id="admin-custom-calendar-box" style="display: none; align-items: center; gap: 8px; margin-left: 6px; flex-wrap: wrap;">
+                        <span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">From:</span>
+                        <input type="date" id="admin-cal-start-date" class="form-control" style="width: 145px; padding: 4px 10px; font-size: 12px; border-radius: 20px;" onchange="applyCustomCalendar()">
+                        <span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">To:</span>
+                        <input type="date" id="admin-cal-end-date" class="form-control" style="width: 145px; padding: 4px 10px; font-size: 12px; border-radius: 20px;" onchange="applyCustomCalendar()">
+                    </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 10px; flex: 1; max-width: 360px;">
+                    <div style="min-width: 200px; flex: 1; position: relative;">
+                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 12px;"></i>
+                        <input type="text" id="admin-search-input" class="form-control" style="padding-left: 36px; padding-top: 6px; padding-bottom: 6px; font-size: 12px;" placeholder="Search team members..." oninput="renderAdminRosterTable()">
+                    </div>
+                    <button class="btn btn-primary" id="matrix-toggle-btn" style="padding: 6px 12px; font-size: 12px; white-space: nowrap;" onclick="toggleExcelMatrixView()" title="Toggle Matrix Grid View">
+                        <i class="fa-solid fa-table-cells"></i> Matrix View
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Master Team Summary Metrics Row -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+            <div class="glass-panel" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #818cf8;">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Team Members</div>
+                    <div style="font-size: 22px; font-weight: 700; color: #818cf8;" id="admin-stat-total-emps">0</div>
+                </div>
+            </div>
+
+            <div class="glass-panel" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #34d399;">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Submitted Logs</div>
+                    <div style="font-size: 22px; font-weight: 700; color: #34d399;" id="admin-stat-submitted">0</div>
+                </div>
+            </div>
+
+            <div class="glass-panel" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fbbf24;">
+                    <i class="fa-solid fa-umbrella-beach"></i>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">On Leave / Week Off</div>
+                    <div style="font-size: 22px; font-weight: 700; color: #fbbf24;" id="admin-stat-leave">0</div>
+                </div>
+            </div>
+
+            <div class="glass-panel" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #f87171;">
+                    <i class="fa-solid fa-clock"></i>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Pending Logs</div>
+                    <div style="font-size: 22px; font-weight: 700; color: #f87171;" id="admin-stat-pending">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Roster / Matrix Container -->
+        <div id="admin-main-content">
+            <!-- JS Populated Matrix or Roster Table -->
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal: View Full Task Log Detail Drawer -->
+<div class="modal-overlay" id="task-view-modal">
+    <div class="glass-panel modal-box" style="max-width: 600px;">
+        <div class="modal-header">
+            <div>
+                <div style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700;" id="view-modal-title">Task Log Details</div>
+                <div style="font-size: 12px; color: var(--text-muted);" id="view-modal-subtitle"></div>
+            </div>
+            <button class="close-btn" onclick="closeModal('task-view-modal')">&times;</button>
+        </div>
+        <div id="view-modal-body" style="font-size: 14px; color: var(--text-main); white-space: pre-line; line-height: 1.6; background: var(--th-bg); padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--card-border); max-height: 400px; overflow-y: auto;">
+        </div>
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+            <button class="btn btn-secondary" onclick="closeModal('task-view-modal')">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let employeesData = [];
+    let taskLogsData = [];
+    let teamsData = [];
+    let loggedInUser = null;
+    let activeEmpName = '';
+    let currentMode = 'employee';
+    let currentPeriod = 'month';
+    let customStartDate = '';
+    let customEndDate = '';
+    let adminActiveTeamId = 'ALL';
+    let showExcelMatrix = true;
+
+    function formatDateLocal(d) {
+        if (!d) return '';
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
+    async function loadData() {
+        const userRes = await fetch('/api/me');
+        const userData = await userRes.json();
+        loggedInUser = userData.success ? userData.user : null;
+
+        if (loggedInUser) {
+            activeEmpName = loggedInUser.name;
+        }
+
+        const [empRes, logsRes, teamsRes] = await Promise.all([
+            fetch('/api/employees'),
+            fetch('/api/task-logs'),
+            fetch('/api/teams')
+        ]);
+
+        const empData = await empRes.json();
+        if (empData.success) employeesData = empData.employees;
+
+        const logsData = await logsRes.json();
+        if (logsData.success) taskLogsData = logsData.logs;
+
+        const teamsDataRes = await teamsRes.json();
+        if (teamsDataRes.success) teamsData = teamsDataRes.teams;
+
+        // If Manager, lock adminActiveTeamId to manager's assigned team
+        if (loggedInUser && loggedInUser.role === 'manager' && loggedInUser.teamName) {
+            adminActiveTeamId = loggedInUser.teamName;
+        }
+
+        switchMode(currentMode);
+    }
+
+    function switchMode(mode) {
+        currentMode = mode;
+        const empSec = document.getElementById('employee-view-section');
+        const adminSec = document.getElementById('admin-view-section');
+        const empBtn = document.getElementById('mode-emp-btn');
+        const adminBtn = document.getElementById('mode-admin-btn');
+        const empCalBox = document.getElementById('custom-calendar-box');
+        const adminCalBox = document.getElementById('admin-custom-calendar-box');
+
+        if (mode === 'employee') {
+            if (empSec) empSec.style.display = 'block';
+            if (adminSec) adminSec.style.display = 'none';
+
+            if (empBtn) empBtn.className = 'btn btn-primary';
+            if (adminBtn) adminBtn.className = 'btn btn-secondary';
+
+            if (empCalBox) empCalBox.style.display = currentPeriod === 'custom' ? 'inline-flex' : 'none';
+            if (adminCalBox) adminCalBox.style.display = 'none';
+
+            renderEmployeePortal();
+        } else {
+            if (empSec) empSec.style.display = 'none';
+            if (adminSec) adminSec.style.display = 'block';
+
+            if (empBtn) empBtn.className = 'btn btn-secondary';
+            if (adminBtn) adminBtn.className = 'btn btn-primary';
+
+            if (empCalBox) empCalBox.style.display = 'none';
+            if (adminCalBox) adminCalBox.style.display = currentPeriod === 'custom' ? 'inline-flex' : 'none';
+
+            renderAdminTeamPills();
+            renderAdminRosterTable();
+        }
+    }
+
+    function setPeriodFilter(period) {
+        currentPeriod = period;
+        const empSec = document.getElementById('employee-view-section');
+        const adminSec = document.getElementById('admin-view-section');
+        const empCalBox = document.getElementById('custom-calendar-box');
+        const adminCalBox = document.getElementById('admin-custom-calendar-box');
+
+        const isAdminVisible = adminSec && adminSec.style.display !== 'none';
+        const isEmpVisible = empSec && empSec.style.display !== 'none';
+
+        if (empCalBox) empCalBox.style.display = (period === 'custom' && isEmpVisible) ? 'inline-flex' : 'none';
+        if (adminCalBox) adminCalBox.style.display = (period === 'custom' && isAdminVisible) ? 'inline-flex' : 'none';
+
+        ['day', 'week', 'month', 'year', 'custom'].forEach(p => {
+            const btn1 = document.getElementById(`period-${p}-btn`);
+            const btn2 = document.getElementById(`admin-period-${p}-btn`);
+            if (btn1) btn1.className = p === period ? 'btn btn-primary' : 'btn btn-secondary';
+            if (btn2) btn2.className = p === period ? 'btn btn-primary' : 'btn btn-secondary';
+        });
+
+        if (isAdminVisible) {
+            renderAdminRosterTable();
+        } else {
+            renderEmployeePortal();
+        }
+    }
+
+    function toggleCustomCalendar() {
+        const empCalBox = document.getElementById('custom-calendar-box');
+        const adminCalBox = document.getElementById('admin-custom-calendar-box');
+        const adminSec = document.getElementById('admin-view-section');
+        const isAdminVisible = adminSec && adminSec.style.display !== 'none';
+        const targetBox = isAdminVisible ? adminCalBox : empCalBox;
+
+        if (currentPeriod === 'custom' && targetBox && targetBox.style.display !== 'none') {
+            setPeriodFilter('month');
+        } else {
+            setPeriodFilter('custom');
+        }
+    }
+
+    function applyCustomCalendar() {
+        if (currentMode === 'employee') {
+            customStartDate = document.getElementById('cal-start-date')?.value || '';
+            customEndDate = document.getElementById('cal-end-date')?.value || '';
+            renderEmployeePortal();
+        } else {
+            customStartDate = document.getElementById('admin-cal-start-date')?.value || '';
+            customEndDate = document.getElementById('admin-cal-end-date')?.value || '';
+            renderAdminRosterTable();
+        }
+    }
+
+    function toggleExcelMatrixView() {
+        showExcelMatrix = !showExcelMatrix;
+        const btn = document.getElementById('matrix-toggle-btn');
+        if (btn) btn.className = showExcelMatrix ? 'btn btn-primary' : 'btn btn-secondary';
+        renderAdminRosterTable();
+    }
+
+    function getFilteredEmpLogs() {
+        const emp = employeesData.find(e => e.name && activeEmpName && e.name.toLowerCase() === activeEmpName.toLowerCase());
+
+        const now = new Date();
+        let startDate = new Date();
+        let endDate = new Date();
+
+        if (currentPeriod === 'day') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        } else if (currentPeriod === 'week') {
+            const dayOfWeek = now.getDay();
+            const distToMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distToMon);
+            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (6 - distToMon));
+        } else if (currentPeriod === 'month') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        } else if (currentPeriod === 'year') {
+            startDate = new Date(now.getFullYear(), 0, 1);
+            endDate = new Date(now.getFullYear(), 11, 31);
+        }
+
+        const startIso = currentPeriod === 'custom' && customStartDate ? customStartDate : formatDateLocal(startDate);
+        const endIso = currentPeriod === 'custom' && customEndDate ? customEndDate : formatDateLocal(endDate);
+        const queryEl = document.getElementById('emp-search-input');
+        const query = (queryEl ? queryEl.value : '').toLowerCase().trim();
+
+        const activeNameLower = (activeEmpName || '').toLowerCase().trim();
+        const userEmailLower = (loggedInUser && loggedInUser.email ? loggedInUser.email : (emp ? emp.email : '')).toLowerCase().trim();
+
+        return taskLogsData.filter(log => {
+            const logNameLower = (log.employee_name || '').toLowerCase().trim();
+            const logEmailLower = (log.email || '').toLowerCase().trim();
+
+            let matchesEmp = false;
+            if (activeNameLower && logNameLower) {
+                if (logNameLower === activeNameLower || logNameLower.includes(activeNameLower) || activeNameLower.includes(logNameLower)) {
+                    matchesEmp = true;
+                }
+            }
+
+            if (!matchesEmp && userEmailLower && logEmailLower) {
+                if (logEmailLower === userEmailLower) {
+                    matchesEmp = true;
+                }
+            }
+
+            if (!matchesEmp && emp && emp.name) {
+                const empNameLower = emp.name.toLowerCase().trim();
+                if (logNameLower === empNameLower || logNameLower.includes(empNameLower) || empNameLower.includes(logNameLower)) {
+                    matchesEmp = true;
+                }
+            }
+
+            if (!matchesEmp) return false;
+
+            const logDate = log.date_str || log.dateStr;
+            if (startIso && logDate < startIso) return false;
+            if (endIso && logDate > endIso) return false;
+
+            if (query && log.task_details && !log.task_details.toLowerCase().includes(query)) return false;
+
+            return true;
+        }).sort((a, b) => (b.date_str || b.dateStr).localeCompare(a.date_str || a.dateStr));
+    }
+
+    function renderEmployeePortal() {
+        const logs = getFilteredEmpLogs();
+        const tbody = document.getElementById('emp-logs-tbody');
+
+        document.getElementById('stat-submitted-count').innerText = logs.length;
+        document.getElementById('stat-suppressed-count').innerText = `${logs.length} Days`;
+
+        const todayStr = formatDateLocal(new Date());
+        const todayLog = taskLogsData.find(l => {
+            const lDate = l.date_str || l.dateStr;
+            if (lDate !== todayStr) return false;
+            const lName = (l.employee_name || l.employeeName || '').toLowerCase().trim();
+            const actName = (activeEmpName || '').toLowerCase().trim();
+            return lName && actName && lName === actName;
+        });
+
+        const todayBadge = document.getElementById('stat-today-badge');
+        if (todayBadge) {
+            if (todayLog) {
+                const isWeekOff = todayLog.work_status === 'Week Off' || (todayLog.task_details && (todayLog.task_details.toLowerCase().includes('week off') || todayLog.task_details.toLowerCase().includes('weekoff')));
+                const isLeave = todayLog.is_leave == 1 || todayLog.work_status === 'Leave' || (todayLog.task_details && todayLog.task_details.toLowerCase().includes('on leave'));
+                if (isWeekOff) {
+                    todayBadge.innerHTML = `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.4);">🏖️ Week Off</span>`;
+                } else if (isLeave) {
+                    todayBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave (No Reminder)</span>`;
+                } else if (todayLog.task_details && todayLog.task_details.trim()) {
+                    todayBadge.innerHTML = `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">✅ Submitted (No Reminder)</span>`;
+                } else {
+                    todayBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Submission</span>`;
+                }
+            } else {
+                todayBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Submission</span>`;
+            }
+        }
+
+        if (logs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 40px; color: var(--text-muted);">No task logs found for this selected time period.</td></tr>`;
+            return;
+        }
+
+        let rowsHtml = '';
+        logs.forEach(log => {
+            const dtStr = log.date_str || log.dateStr;
+            const dtObj = new Date(dtStr);
+            const formattedDate = dtObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+
+            const isWeekOff = log.work_status === 'Week Off' || (log.task_details && (log.task_details.toLowerCase().includes('week off') || log.task_details.toLowerCase().includes('weekoff')));
+            const isLeave = log.is_leave == 1 || log.work_status === 'Leave' || (log.task_details && log.task_details.toLowerCase().includes('on leave'));
+            
+            let statusBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">✅ Suppressed (Filled)</span>`;
+            let textColor = 'var(--text-main)';
+            let iconPrefix = '';
+            if (isWeekOff) {
+                statusBadge = `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.4);">🏖️ Week Off</span>`;
+                textColor = '#06b6d4';
+                iconPrefix = '🏖️ ';
+            } else if (isLeave) {
+                statusBadge = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave (Suppressed)</span>`;
+                textColor = '#fbbf24';
+                iconPrefix = '🌴 ';
+            }
+
+            rowsHtml += `
+                <tr>
+                    <td><strong>${formattedDate}</strong></td>
+                    <td>
+                        <div style="font-size: 13px; color: ${textColor}; white-space: pre-line; line-height: 1.5; max-height: 120px; overflow-y: auto;">
+                            ${iconPrefix}${escapeHtml(log.task_details)}
+                        </div>
+                    </td>
+                    <td>${statusBadge}</td>
+                    <td><small style="color: var(--text-muted);">${log.updated_at || 'Just Now'}</small></td>
+                    <td style="text-align: right;">
+                        <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="viewTaskDetailDrawer('${log.id}')"><i class="fa-solid fa-eye"></i> View</button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = rowsHtml;
+    }
+
+    // --- MASTER TEAM REPORTS LOGIC ---
+    function renderAdminTeamPills() {
+        const pillsContainer = document.getElementById('admin-team-pills');
+        if (!pillsContainer) return;
+
+        const isManager = loggedInUser && loggedInUser.role === 'manager';
+        const mgrTeamName = loggedInUser ? (loggedInUser.teamName || 'Infra Team') : 'Infra Team';
+
+        if (isManager) {
+            adminActiveTeamId = mgrTeamName;
+            pillsContainer.innerHTML = `<button class="btn btn-primary" style="padding: 4px 14px; font-size: 12px; font-weight:600;"><i class="fa-solid fa-people-group"></i> ${mgrTeamName}</button>`;
+            return;
+        }
+
+        let pillsHtml = `<button class="btn ${adminActiveTeamId === 'ALL' ? 'btn-primary' : 'btn-secondary'}" style="padding: 4px 12px; font-size: 12px;" onclick="setAdminTeamFilter('ALL')">All Teams</button>`;
+        
+        teamsData.forEach(t => {
+            const isSel = adminActiveTeamId === t.id || adminActiveTeamId === t.name;
+            pillsHtml += `<button class="btn ${isSel ? 'btn-primary' : 'btn-secondary'}" style="padding: 4px 12px; font-size: 12px;" onclick="setAdminTeamFilter('${t.id}')">${t.name}</button>`;
+        });
+
+        pillsContainer.innerHTML = pillsHtml;
+    }
+
+    function setAdminTeamFilter(teamId) {
+        adminActiveTeamId = teamId;
+        renderAdminTeamPills();
+        renderAdminRosterTable();
+    }
+
+    function getAdminFilteredEmployees() {
+        const query = (document.getElementById('admin-search-input') ? document.getElementById('admin-search-input').value : '').toLowerCase().trim();
+        
+        return employeesData.filter(emp => {
+            if (loggedInUser && loggedInUser.role === 'manager' && loggedInUser.teamName) {
+                const mgrTeamLower = loggedInUser.teamName.toLowerCase().trim();
+                const empTeamLower = (emp.teamName || 'infra team').toLowerCase().trim();
+                const empTeamIdLower = (emp.teamId || '').toLowerCase().trim();
+                if (empTeamLower !== mgrTeamLower && empTeamIdLower !== mgrTeamLower) return false;
+            } else if (adminActiveTeamId !== 'ALL') {
+                const targetTeam = teamsData.find(t => t.id === adminActiveTeamId || t.name === adminActiveTeamId);
+                const targetName = targetTeam ? targetTeam.name.toLowerCase() : adminActiveTeamId.toLowerCase();
+                if ((emp.teamId || '').toLowerCase() !== adminActiveTeamId.toLowerCase() && (emp.teamName || 'infra team').toLowerCase() !== targetName) {
+                    return false;
+                }
+            }
+
+            if (query) {
+                const haystack = `${emp.name} ${emp.email} ${emp.teamName} ${emp.location}`.toLowerCase();
+                if (!haystack.includes(query)) return false;
+            }
+
+            return true;
+        });
+    }
+
+    function renderAdminRosterTable() {
+        const mainContainer = document.getElementById('admin-main-content');
+        if (!mainContainer) return;
+
+        const filteredEmps = getAdminFilteredEmployees();
+
+        // Calculate period start and end dates
+        const now = new Date();
+        let startDate = new Date();
+        let endDate = new Date();
+
+        if (currentPeriod === 'day') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        } else if (currentPeriod === 'week') {
+            const dayOfWeek = now.getDay();
+            const distToMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distToMon);
+            endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (6 - distToMon));
+        } else if (currentPeriod === 'month') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        } else if (currentPeriod === 'year') {
+            startDate = new Date(now.getFullYear(), 0, 1);
+            endDate = new Date(now.getFullYear(), 11, 31);
+        }
+
+        const startIso = currentPeriod === 'custom' && customStartDate ? customStartDate : formatDateLocal(startDate);
+        const endIso = currentPeriod === 'custom' && customEndDate ? customEndDate : formatDateLocal(endDate);
+
+        // Update stats
+        document.getElementById('admin-stat-total-emps').innerText = filteredEmps.length;
+        
+        // Filter task logs for period and filtered employees
+        const empNames = filteredEmps.map(e => (e.name || '').toLowerCase());
+        const empEmails = filteredEmps.map(e => (e.email || '').toLowerCase());
+        
+        const periodLogs = taskLogsData.filter(l => {
+            const lDate = l.date_str || l.dateStr;
+            if (startIso && lDate < startIso) return false;
+            if (endIso && lDate > endIso) return false;
+            const nameLower = (l.employee_name || '').toLowerCase();
+            const emailLower = (l.email || '').toLowerCase();
+            return empNames.includes(nameLower) || empEmails.includes(emailLower);
+        });
+
+        const submittedCount = periodLogs.filter(l => !(l.is_leave == 1 || (l.work_status || '').toLowerCase() === 'leave' || (l.work_status || '').toLowerCase() === 'week off')).length;
+        const leaveCount = periodLogs.filter(l => l.is_leave == 1 || (l.work_status || '').toLowerCase() === 'leave' || (l.work_status || '').toLowerCase() === 'week off').length;
+        const pendingCount = Math.max(0, (filteredEmps.length * (currentPeriod === 'day' ? 1 : 5)) - periodLogs.length);
+
+        document.getElementById('admin-stat-submitted').innerText = submittedCount;
+        document.getElementById('admin-stat-leave').innerText = leaveCount;
+        document.getElementById('admin-stat-pending').innerText = pendingCount;
+
+        if (filteredEmps.length === 0) {
+            mainContainer.innerHTML = `<div style="text-align:center; padding: 50px; color: var(--text-muted);">No staff members found matching filter criteria.</div>`;
+            return;
+        }
+
+        if (showExcelMatrix) {
+            // Render spreadsheet matrix side-by-side view
+            let ths = `<th style="width: 140px; text-align: center; background: rgba(15, 23, 42, 0.95);">📅 Date</th>`;
+            filteredEmps.forEach(emp => {
+                ths += `<th style="min-width: 200px; background: rgba(15, 23, 42, 0.95);"><div style="color: #38bdf8; font-weight:700;">${emp.name}</div><div style="font-size:11px; color:var(--text-muted);">${emp.location} (${emp.teamName || 'Infra Team'})</div></th>`;
+            });
+
+            // Generate date rows for the selected period (up to 31 days)
+            const dateRows = [];
+            let currDt = new Date(startDate);
+            const endDtObj = new Date(endDate);
+            while (currDt <= endDtObj) {
+                dateRows.push(formatDateLocal(currDt));
+                currDt.setDate(currDt.getDate() + 1);
+            }
+
+            let trs = '';
+            dateRows.forEach(dtStr => {
+                let cells = `<td style="text-align:center; font-weight:700;">${dtStr}</td>`;
+                filteredEmps.forEach(emp => {
+                    const foundLog = taskLogsData.find(l => {
+                        const lDate = l.date_str || l.dateStr;
+                        if (lDate !== dtStr) return false;
+                        const lName = (l.employee_name || l.employeeName || '').toLowerCase().trim();
+                        const eName = (emp.name || '').toLowerCase().trim();
+                        const lEmail = (l.email || '').toLowerCase().trim();
+                        const eEmail = (emp.email || '').toLowerCase().trim();
+                        return (lName && eName && lName === eName) || (lEmail && eEmail && lEmail === eEmail);
+                    });
+
+                    if (foundLog) {
+                        const isWeekOff = foundLog.work_status === 'Week Off' || (foundLog.task_details && (foundLog.task_details.toLowerCase().includes('week off') || foundLog.task_details.toLowerCase().includes('weekoff')));
+                        const isLeave = foundLog.is_leave == 1 || foundLog.work_status === 'Leave' || (foundLog.task_details && foundLog.task_details.toLowerCase().includes('on leave'));
+                        if (isWeekOff) {
+                            cells += `<td style="background: rgba(6, 182, 212, 0.1); font-size:12px;"><span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.4);">🏖️ Week Off</span><br><span style="color:#06b6d4; font-weight:600;">${escapeHtml(foundLog.task_details)}</span></td>`;
+                        } else if (isLeave) {
+                            cells += `<td style="background: rgba(245, 158, 11, 0.1); font-size:12px;"><span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave</span><br><span style="color:#fbbf24;">${escapeHtml(foundLog.task_details)}</span></td>`;
+                        } else {
+                            cells += `<td style="background: rgba(16,185,129,0.08); font-size:12px;"><span class="badge badge-uae">✅ Submitted</span><br>${escapeHtml((foundLog.task_details || '').slice(0, 70))}...</td>`;
+                        }
+                    } else {
+                        // Check if day of week is weekend/weekoff for employee
+                        const dtObj = new Date(dtStr);
+                        const isWeekend = dtObj.getDay() === 0 || dtObj.getDay() === 6; // Sun=0, Sat=6
+                        if (isWeekend) {
+                            cells += `<td style="background: rgba(6, 182, 212, 0.08); font-size:12px;"><span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.4);">🏖️ Week Off</span></td>`;
+                        } else {
+                            cells += `<td style="background: rgba(255,255,255,0.01); font-size:12px;"><span class="badge badge-india">⚠️ Pending</span></td>`;
+                        }
+                    }
+                });
+                trs += `<tr>${cells}</tr>`;
+            });
+
+            mainContainer.innerHTML = `<div class="table-responsive"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+            return;
+        }
+
+        // High-Density Master Team Roster Summary View
+        let rowsHtml = '';
+        filteredEmps.forEach(emp => {
+            let locClass = 'badge-india';
+            const locLower = (emp.location || '').toLowerCase();
+            if (locLower.includes('uae')) locClass = 'badge-uae';
+            if (locLower.includes('saudi')) locClass = 'badge-saudi';
+
+            const todayStr = formatDateLocal(new Date());
+            const foundLog = taskLogsData.find(l => {
+                const lDate = l.date_str || l.dateStr;
+                if (lDate !== todayStr) return false;
+                const lName = (l.employee_name || l.employeeName || '').toLowerCase().trim();
+                const eName = (emp.name || '').toLowerCase().trim();
+                const lEmail = (l.email || '').toLowerCase().trim();
+                const eEmail = (emp.email || '').toLowerCase().trim();
+                return (lName && eName && lName === eName) || (lEmail && eEmail && lEmail === eEmail);
+            });
+
+            let statusCell = '';
+            let detailsSnippet = '';
+            let actionBtn = '';
+
+            if (foundLog) {
+                const isWeekOff = foundLog.work_status === 'Week Off' || (foundLog.task_details && (foundLog.task_details.toLowerCase().includes('week off') || foundLog.task_details.toLowerCase().includes('weekoff')));
+                const isLeave = foundLog.is_leave == 1 || foundLog.work_status === 'Leave' || (foundLog.task_details && foundLog.task_details.toLowerCase().includes('on leave'));
+                if (isWeekOff) {
+                    statusCell = `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.4);">🏖️ Week Off</span>`;
+                    detailsSnippet = `<div style="font-size: 12px; color: #06b6d4; font-weight: 600;">🏖️ ${escapeHtml(foundLog.task_details)}</div>`;
+                } else if (isLeave) {
+                    statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">🌴 On Leave (No Reminder)</span>`;
+                    detailsSnippet = `<div style="font-size: 12px; color: #fbbf24; font-weight: 600;">🌴 ${escapeHtml(foundLog.task_details)}</div>`;
+                } else if (foundLog.task_details && foundLog.task_details.trim()) {
+                    statusCell = `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">✅ Submitted (No Reminder)</span>`;
+                    detailsSnippet = `<div style="font-size: 12px; color: var(--text-main); white-space: pre-line; line-height: 1.4; max-height: 60px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(foundLog.task_details)}</div>`;
+                } else {
+                    statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Log</span>`;
+                    detailsSnippet = `<span style="font-size: 12px; color: var(--text-muted); italic;">No daily task log submitted for today.</span>`;
+                }
+                actionBtn = `<button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="viewTaskDetailDrawer('${foundLog.id}')"><i class="fa-solid fa-eye"></i> View Log</button>`;
+            } else {
+                statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Log</span>`;
+                detailsSnippet = `<span style="font-size: 12px; color: var(--text-muted); italic;">No daily task log submitted for today.</span>`;
+                actionBtn = `<span style="font-size: 12px; color: var(--text-muted);">N/A</span>`;
+            }
+
+            rowsHtml += `
+                <tr>
+                    <td style="padding: 12px 16px;">
+                        <strong style="color: var(--text-main); font-size: 14px;">${escapeHtml(emp.name)}</strong>
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${escapeHtml(emp.email)}</div>
+                    </td>
+                    <td><span class="badge badge-team">${escapeHtml(emp.teamName || 'Infra Team')}</span></td>
+                    <td><span class="badge ${locClass}">${escapeHtml(emp.location)}</span></td>
+                    <td>${statusCell}</td>
+                    <td>${detailsSnippet}</td>
+                    <td style="text-align: right;">${actionBtn}</td>
+                </tr>
+            `;
+        });
+
+        mainContainer.innerHTML = `
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>EMPLOYEE MEMBER</th>
+                            <th style="width: 130px;">TEAM</th>
+                            <th style="width: 110px;">LOCATION</th>
+                            <th style="width: 170px;">STATUS</th>
+                            <th>TODAY'S WORK LOG / STATUS</th>
+                            <th style="width: 100px; text-align: right;">ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    function viewTaskDetailDrawer(logId) {
+        const log = taskLogsData.find(l => l.id === logId);
+        if (!log) return;
+
+        document.getElementById('view-modal-title').innerText = `Task Log Details - ${log.employee_name}`;
+        document.getElementById('view-modal-subtitle').innerText = `Date: ${log.date_str || log.dateStr} • Team: ${log.team_name || log.teamName || 'Infra Team'}`;
+        document.getElementById('view-modal-body').innerText = log.task_details;
+        document.getElementById('task-view-modal').classList.add('active');
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function downloadReport(format) {
+        let url = `/api/export/task-report?format=${format}`;
+        if (currentMode === 'employee') {
+            if (activeEmpName) {
+                url += `&employee_name=${encodeURIComponent(activeEmpName)}`;
+            }
+        } else {
+            if (adminActiveTeamId && adminActiveTeamId !== 'ALL') {
+                url += `&team_name=${encodeURIComponent(adminActiveTeamId)}`;
+            } else if (loggedInUser && loggedInUser.role === 'manager' && loggedInUser.teamName) {
+                url += `&team_name=${encodeURIComponent(loggedInUser.teamName)}`;
+            }
+        }
+        url += `&period=${currentPeriod}`;
+        if (currentPeriod === 'custom') {
+            let startVal = customStartDate;
+            let endVal = customEndDate;
+            if (currentMode === 'employee') {
+                startVal = document.getElementById('cal-start-date')?.value || customStartDate;
+                endVal = document.getElementById('cal-end-date')?.value || customEndDate;
+            } else {
+                startVal = document.getElementById('admin-cal-start-date')?.value || customStartDate;
+                endVal = document.getElementById('admin-cal-end-date')?.value || customEndDate;
+            }
+            if (startVal) url += `&start_date=${startVal}`;
+            if (endVal) url += `&end_date=${endVal}`;
+        }
+        window.open(url, '_blank');
+    }
+
+    loadData();
+</script>
+{% endblock %}
