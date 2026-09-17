@@ -756,18 +756,29 @@ def test_smtp_account_route():
     if not server_host or not email_addr or not password:
         return jsonify({"success": False, "error": "Server, Sender Email, and Password are required."})
 
-    try:
-        if port == 465:
-            with smtplib.SMTP_SSL(server_host, port, timeout=15) as server:
-                server.login(email_addr, password)
-        else:
-            with smtplib.SMTP(server_host, port, timeout=15) as server:
-                server.starttls()
-                server.login(email_addr, password)
+    ports_to_try = [port]
+    if port == 465 and 587 not in ports_to_try:
+        ports_to_try.append(587)
+    elif port == 587 and 465 not in ports_to_try:
+        ports_to_try.append(465)
 
-        return jsonify({"success": True, "message": f"Successfully authenticated SMTP account {email_addr} on {server_host}:{port}!"})
-    except Exception as err:
-        return jsonify({"success": False, "error": f"SMTP Connection Failed: {str(err)}"})
+    last_err = None
+    for attempt_port in ports_to_try:
+        try:
+            if attempt_port == 465:
+                with smtplib.SMTP_SSL(server_host, attempt_port, timeout=15) as server:
+                    server.login(email_addr, password)
+            else:
+                with smtplib.SMTP(server_host, attempt_port, timeout=15) as server:
+                    server.starttls()
+                    server.login(email_addr, password)
+
+            return jsonify({"success": True, "message": f"Successfully authenticated SMTP account {email_addr} on {server_host}:{attempt_port}!"})
+        except Exception as err:
+            last_err = err
+
+    return jsonify({"success": False, "error": f"SMTP Connection Failed on {server_host}: {str(last_err)}"})
+
 
 @app.route("/api/trigger-test", methods=["POST"])
 def trigger_test():

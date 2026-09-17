@@ -591,17 +591,42 @@ def send_email(to_email: str, cc_email: str, subject: str, body: str, dry_run: b
             recipients.append(cc_email)
 
         print(f"[SMTP] Connecting to {smtp_server}:{smtp_port}...")
-        if smtp_port == 465:
-            with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30) as server:
-                server.login(sender_email, sender_password)
-                server.sendmail(sender_email, recipients, msg.as_string())
-        else:
-            with smtplib.SMTP(smtp_server, smtp_port, timeout=30) as server:
-                server.starttls()
-                server.login(sender_email, sender_password)
-                server.sendmail(sender_email, recipients, msg.as_string())
+        sent = False
+        last_err = None
 
-        print(f"[SUCCESS] Real email dispatched successfully via SMTP ({smtp_server}) to {to_email}!")
+        ports_to_try = [smtp_port]
+        if smtp_port == 465 and 587 not in ports_to_try:
+            ports_to_try.append(587)
+        elif smtp_port == 587 and 465 not in ports_to_try:
+            ports_to_try.append(465)
+
+        for attempt_port in ports_to_try:
+            try:
+                print(f"[SMTP] Attempting connection to {smtp_server}:{attempt_port}...")
+                if attempt_port == 465:
+                    with smtplib.SMTP_SSL(smtp_server, attempt_port, timeout=15) as server:
+                        server.login(sender_email, sender_password)
+                        server.sendmail(sender_email, recipients, msg.as_string())
+                        sent = True
+                        smtp_port = attempt_port
+                        break
+                else:
+                    with smtplib.SMTP(smtp_server, attempt_port, timeout=15) as server:
+                        server.starttls()
+                        server.login(sender_email, sender_password)
+                        server.sendmail(sender_email, recipients, msg.as_string())
+                        sent = True
+                        smtp_port = attempt_port
+                        break
+            except Exception as err:
+                last_err = err
+                print(f"[SMTP WARN] Connection to {smtp_server}:{attempt_port} failed: {err}")
+
+        if not sent:
+            raise last_err or Exception("All SMTP connection attempts failed.")
+
+        print(f"[SUCCESS] Real email dispatched successfully via SMTP ({smtp_server}:{smtp_port}) to {to_email}!")
+
         try:
             import database
             database.record_reminder_history(to_email.split('@')[0], to_email, "REMINDER", "SENT_SUCCESS", datetime.datetime.now().strftime("%d-%b-%y"), f"Sent via {smtp_server}:{smtp_port}")
