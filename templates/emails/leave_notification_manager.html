@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Employee Leave Notification</title>
+</head>
+<body style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #334155;">
+    <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+        
+        <!-- Header Banner -->
+        <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 24px 30px; text-align: center; color: #ffffff;">
+            <div style="font-size: 32px; margin-bottom: 6px;">📢</div>
+            <h2 style="margin: 0; font-size: 22px; font-weight: 700;">Employee Leave Application Notice</h2>
+            <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">Team Workspace: {{ team_name }}</p>
+        </div>
+
+        <!-- Body Content -->
+        <div style="padding: 28px 30px;">
+            <p style="font-size: 15px; line-height: 1.5; margin-top: 0;">
+                Dear <strong>Team Manager</strong>,
+            </p>
+            <p style="font-size: 14px; line-height: 1.6; color: #475569;">
+                Staff member <strong>{{ emp_name }}</strong> (<code>{{ emp_email }}</code>) from team <strong>{{ team_name }}</strong> has submitted a leave application:
+            </p>
+
+            <!-- Details Card -->
+            <div style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #cbd5e1; padding: 18px 20px; margin: 20px 0;">
+                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                    📝 Leave Details
+                </h4>
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <tr>
+                        <td style="padding: 6px 0; color: #64748b; width: 140px;"><strong>Staff Member:</strong></td>
+                        <td style="padding: 6px 0; color: #0f172a; font-weight: 600;">{{ emp_name }} ({{ emp_email }})</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; color: #64748b;"><strong>Team Workspace:</strong></td>
+                        <td style="padding: 6px 0; color: #0284c7; font-weight: 700;">{{ team_name }}</td>
+                    </tr>
+                    {% if leave_type == 'single' %}
+                    <tr>
+                        <td style="padding: 6px 0; color: #64748b;"><strong>Applied Leave Date:</strong></td>
+                        <td style="padding: 6px 0; color: #d97706; font-weight: 700;">{{ single_date_formatted }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td style="padding: 6px 0; color: #64748b;"><strong>Start Date:</strong></td>
+                        <td style="padding: 6px 0; color: #d97706; font-weight: 700;">{{ start_date_formatted }}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; color: #64748b;"><strong>End Date:</strong></td>
+                        <td style="padding: 6px 0; color: #d97706; font-weight: 700;">{{ end_date_formatted }}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; color: #64748b;"><strong>Total Duration:</strong></td>
+                        <td style="padding: 6px 0; color: #0f172a; font-weight: 600;">{{ count_leave }} Leave Day(s){% if count_weekoff > 0 %}, {{ count_weekoff }} Week Off Day(s){% endif %}</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td style="padding: 6px 0; color: #64748b;"><strong>Reason / Notes:</strong></td>
+                        <td style="padding: 6px 0; color: #0f172a;">{{ leave_note or 'ON LEAVE' }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            {% if detailed_dates %}
+            <!-- Breakdown Table for Multi-Day Range -->
+            <div style="margin: 20px 0;">
+                <h4 style="margin: 0 0 10px 0; font-size: 13px; color: #334155;">🗓️ Applied Dates & Days Breakdown:</h4>
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
+                    <thead>
+                        <tr style="background-color: #f1f5f9; text-align: left;">
+                            <th style="padding: 8px 10px; border: 1px solid #e2e8f0;">Date & Day</th>
+                            <th style="padding: 8px 10px; border: 1px solid #e2e8f0;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in detailed_dates %}
+                        <tr>
+                            <td style="padding: 6px 10px; border: 1px solid #e2e8f0; font-weight: 600;">{{ d.formatted }} ({{ d.day_name }})</td>
+                            <td style="padding: 6px 10px; border: 1px solid #e2e8f0;">
+                                {% if d.status == 'Week Off' %}
+                                    <span style="color: #0284c7; font-weight: 600;">🏖️ Week Off</span>
+                                {% else %}
+                                    <span style="color: #d97706; font-weight: 600;">🌴 Leave</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Auto-Suppression Notice -->
+            <div style="background-color: #e0f2fe; border: 1px solid #bae6fd; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #0369a1; margin-top: 20px;">
+                <strong>ℹ️ System Update:</strong> Automated daily task reminder emails for {{ emp_name }} have been auto-suppressed for all applied leave dates.
+            </div>
+
+            <p style="font-size: 13px; color: #64748b; margin-top: 24px; line-height: 1.5;">
+                Best regards,<br>
+                <strong>Daily Task Reminder System</strong>
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #f8fafc; padding: 14px 30px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            This notification is sent to managers assigned to team {{ team_name }}.
+        </div>
+    </div>
+</body>
+</html>

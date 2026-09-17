@@ -5,13 +5,160 @@ Handles daily task submissions, leave requests, bulk leave, and dashboard views.
 """
 
 import datetime
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
+import threading
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session, current_app
 import database
 
 task_bp = Blueprint('task_bp', __name__)
 
 def log_event(msg: str, level: str = "INFO"):
     database.log_to_db(msg, level)
+
+
+def format_date_with_day(date_str: str) -> str:
+    """Formats YYYY-MM-DD or DD-Mon-YYYY into DayName, DD-Mon-YYYY (e.g. Wednesday, 14-Oct-2026)."""
+    if not date_str:
+        return ""
+    try:
+        if "-" in date_str and len(date_str.split("-")[0]) == 4:
+            dt = datetime.datetime.strptime(date_str, "%Y-%m-%d")
+        else:
+            dt = datetime.datetime.strptime(date_str, "%d-%b-%Y")
+        return dt.strftime("%A, %d-%b-%Y")
+    except Exception:
+        return date_str
+
+
+def get_detailed_date_range(start_date_str: str, end_date_str: str, working_days: list, skip_weekends: bool = True):
+    """Generates detailed list of dates with day names and work status."""
+    try:
+        start_dt = datetime.datetime.strptime(start_date_str, "%Y-%m-%d")
+        end_dt = datetime.datetime.strptime(end_date_str, "%Y-%m-%d")
+        curr = start_dt
+        result = []
+        while curr <= end_dt:
+            is_wo = database.is_date_week_off(curr, working_days) if skip_weekends else False
+            result.append({
+                "date": curr.strftime("%Y-%m-%d"),
+                "day_name": curr.strftime("%A"),
+                "formatted": curr.strftime("%a, %d-%b-%Y"),
+                "status": "Week Off" if is_wo else "Leave"
+            })
+            curr += datetime.timedelta(days=1)
+        return result
+    except Exception:
+        return []
+
+
+def send_leave_acknowledgement(
+    emp_name: str,
+    emp_email: str,
+    manager_cc: str,
+    dates_summary: str,
+    leave_note: str,
+    team_name: str,
+    leave_type: str = "single",
+    start_date: str = "",
+    end_date: str = "",
+    count_leave: int = 1,
+    count_weekoff: int = 0,
+    detailed_dates: list = None
+):
+    """Sends asynchronous template-based email acknowledgement to employee and manager CC when leave is applied."""
+    app = current_app._get_current_object()
+
+    def _send():
+        with app.test_request_context():
+            try:
+                from daily_reminder import send_email
+
+                clean_name = emp_name.split(" (")[0].strip()
+                to_addr = (emp_email or "").strip()
+                cc_addr = (manager_cc or "").strip()
+
+                if not to_addr:
+                    print(f"[LEAVE ACK WARN] No email for employee '{clean_name}', skipping leave acknowledgement email.")
+                    return
+
+                single_date_formatted = format_date_with_day(start_date or dates_summary)
+                start_date_formatted = format_date_with_day(start_date or dates_summary)
+                end_date_formatted = format_date_with_day(end_date or dates_summary)
+
+                dates_text = single_date_formatted if leave_type == 'single' else f"{start_date_formatted} to {end_date_formatted}"
+
+                template_vars = {
+                    "emp_name": clean_name,
+                    "emp_email": to_addr,
+                    "manager_cc": cc_addr or "N/A",
+                    "team_name": team_name or "Infra Team",
+                    "leave_type": leave_type,
+                    "single_date_formatted": single_date_formatted,
+                    "start_date_formatted": start_date_formatted,
+                    "end_date_formatted": end_date_formatted,
+                    "count_leave": count_leave,
+                    "count_weekoff": count_weekoff,
+                    "leave_note": leave_note or "ON LEAVE",
+                    "detailed_dates": detailed_dates or []
+                }
+
+                # Load custom templates configured via Web UI (/templates)
+                db_tpls = database.get_all_templates()
+                emp_tpl = db_tpls.get("leave_ack_employee", {})
+                mgr_tpl = db_tpls.get("leave_notif_manager", {})
+
+                def _replace(text: str) -> str:
+                    if not text:
+                        return ""
+                    return (
+                        text.replace("{name}", clean_name)
+                            .replace("{email}", to_addr)
+                            .replace("{team}", team_name or "Infra Team")
+                            .replace("{dates}", dates_text)
+                            .replace("{reason}", leave_note or "ON LEAVE")
+                            .replace("{mgr_email}", cc_addr or "N/A")
+                    )
+
+                emp_subject = _replace(emp_tpl.get("subject")) if emp_tpl.get("subject") else f"🏖️ Leave Application Confirmation - {clean_name} ({dates_text})"
+                emp_body = _replace(emp_tpl.get("body")) if emp_tpl.get("body") else f"Dear {clean_name},\n\nYour leave application for {dates_text} has been submitted successfully.\n\nReason: {leave_note or 'ON LEAVE'}\nManager CC: {cc_addr or 'N/A'}"
+
+                # Render HTML Template for Employee
+                try:
+                    html_employee = render_template('emails/leave_acknowledgement_employee.html', **template_vars)
+                except Exception:
+                    html_employee = None
+
+                # Send email to Employee
+                send_email(
+                    to_email=to_addr,
+                    cc_email=cc_addr,
+                    subject=emp_subject,
+                    body=emp_body,
+                    html_body=html_employee
+                )
+                print(f"[LEAVE ACK SUCCESS] Sent template-based leave acknowledgement email to {to_addr} (CC: {cc_addr})")
+
+                # Send dedicated Manager notification email using leave_notif_manager template if Manager CC address is provided
+                if cc_addr:
+                    mgr_subject = _replace(mgr_tpl.get("subject")) if mgr_tpl.get("subject") else f"📢 Employee Leave Notice - {clean_name} ({team_name or 'Infra Team'}) on {dates_text}"
+                    mgr_body = _replace(mgr_tpl.get("body")) if mgr_tpl.get("body") else f"Dear Team Manager,\n\nStaff member {clean_name} ({to_addr}) from team '{team_name or 'Infra Team'}' has submitted a leave application for {dates_text}.\n\nReason: {leave_note or 'ON LEAVE'}"
+
+                    try:
+                        html_manager = render_template('emails/leave_notification_manager.html', **template_vars)
+                    except Exception:
+                        html_manager = None
+
+                    send_email(
+                        to_email=cc_addr,
+                        subject=mgr_subject,
+                        body=mgr_body,
+                        html_body=html_manager
+                    )
+                    print(f"[LEAVE MGR NOTIF SUCCESS] Sent template-based manager leave notification email to {cc_addr}")
+            except Exception as err:
+                print(f"[LEAVE ACK ERROR] Failed to send leave acknowledgement email: {err}")
+
+    threading.Thread(target=_send, daemon=True).start()
+
 
 
 @task_bp.route("/")
@@ -130,8 +277,19 @@ def manage_task_logs():
         database.save_task_log(data)
         emp_name = (data.get("employeeName") or data.get("employee_name") or "Employee").split(" (")[0].strip()
         date_str = data.get("dateStr") or data.get("date_str") or datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        # Trigger Leave Acknowledgement email if this is a Leave log
+        is_leave_log = data.get("isLeave") or str(data.get("workStatus") or data.get("work_status") or "").lower() in ("leave", "on leave")
+        if is_leave_log:
+            emp_email_addr = data.get("email") or user_email
+            mgr_cc_addr = database.get_employee_manager_cc(emp_email_addr or emp_name)
+            l_note = data.get("taskDetails") or data.get("task_details") or "ON LEAVE"
+            t_name = data.get("teamName") or data.get("team_name") or "Infra Team"
+            send_leave_acknowledgement(emp_name, emp_email_addr, mgr_cc_addr, date_str, l_note, t_name)
+
         log_event(f"Submitted Daily Task Log for '{emp_name}' on date '{date_str}'.")
         return jsonify({"success": True, "message": f"Task log submitted for {emp_name}"})
+
 
 
 @task_bp.route("/api/task-logs/bulk-leave", methods=["POST"])
@@ -212,6 +370,35 @@ def api_bulk_leave():
     # Perform single batch DB insert/update
     database.save_task_logs_batch(payloads)
 
+    # Trigger Leave Acknowledgement email notification
+    mgr_cc_addr = database.get_employee_manager_cc(email or emp_name)
+    detailed_dates = get_detailed_date_range(start_date_str, end_date_str, working_days, skip_weekends)
+
+    if start_date_str == end_date_str:
+        dates_summary = f"{start_date_str}"
+        l_type = "single"
+    else:
+        dates_summary = f"{start_date_str} to {end_date_str} ({count_leave} Leave day(s)"
+        if count_weekoff > 0:
+            dates_summary += f", {count_weekoff} Week Off day(s)"
+        dates_summary += ")"
+        l_type = "bulk"
+
+    send_leave_acknowledgement(
+        emp_name=emp_name,
+        emp_email=email,
+        manager_cc=mgr_cc_addr,
+        dates_summary=dates_summary,
+        leave_note=leave_note,
+        team_name=team_name,
+        leave_type=l_type,
+        start_date=start_date_str,
+        end_date=end_date_str,
+        count_leave=count_leave,
+        count_weekoff=count_weekoff,
+        detailed_dates=detailed_dates
+    )
+
     total_processed = count_leave + count_weekoff
     log_event(f"Bulk Leave applied for '{emp_name}' across {total_processed} days ({count_leave} Leave, {count_weekoff} Week Off) from {start_date_str} to {end_date_str}.")
     return jsonify({
@@ -219,6 +406,45 @@ def api_bulk_leave():
         "count": count_leave,
         "count_weekoff": count_weekoff,
         "message": f"Successfully processed {count_leave} Leave day(s) and {count_weekoff} Week Off day(s) for {emp_name} ({start_date_str} to {end_date_str})."
+    })
+
+
+@task_bp.route("/api/task-logs/bulk-delete", methods=["POST"])
+def bulk_delete_task_logs_route():
+    current_user = session.get("user") or {}
+    user_role = current_user.get("role", "employee")
+    user_name = current_user.get("name", "")
+    user_email = current_user.get("email", "")
+
+    data = request.json or {}
+    log_ids = data.get("log_ids") or data.get("logIds") or []
+
+    if not isinstance(log_ids, list) or not log_ids:
+        return jsonify({"success": False, "error": "No leave record IDs selected for deletion."}), 400
+
+    if user_role == "employee":
+        clean_user_name = user_name.split(" (")[0].strip().lower()
+        clean_user_email = user_email.strip().lower()
+
+        valid_log_ids = []
+        for lid in log_ids:
+            log = database.get_task_log_by_id(lid)
+            if log:
+                l_emp = (log.get("employee_name") or "").split(" (")[0].strip().lower()
+                l_email = (log.get("email") or "").strip().lower()
+                if l_emp == clean_user_name or l_email == clean_user_email:
+                    valid_log_ids.append(lid)
+        log_ids = valid_log_ids
+
+        if not log_ids:
+            return jsonify({"success": False, "error": "Forbidden: None of the selected leave records belong to your account."}), 403
+
+    deleted_count = database.delete_task_logs_batch(log_ids)
+    log_event(f"Bulk deleted {deleted_count} leave record(s).")
+    return jsonify({
+        "success": True,
+        "deleted_count": deleted_count,
+        "message": f"Successfully deleted {deleted_count} selected leave record(s)."
     })
 
 
@@ -240,3 +466,4 @@ def delete_task_log_route(log_id):
     database.delete_task_log(log_id)
     log_event(f"Deleted Task Log ID: {log_id}")
     return jsonify({"success": True})
+

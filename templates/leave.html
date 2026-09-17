@@ -16,7 +16,10 @@
             </div>
         </div>
 
-        <div>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <button id="btn-delete-selected" class="btn" onclick="deleteSelectedLeaves()" style="display: none; padding: 10px 18px; font-size: 14px; font-weight: 700; color: #ffffff !important; border-radius: 10px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.45);">
+                <i class="fa-solid fa-trash-can" style="color: #ffffff !important; font-size: 14px; margin-right: 4px;"></i> <span style="color: #ffffff !important;">Delete Selected (<span id="selected-leaves-count" style="color: #ffffff !important; font-weight: 700;">0</span>)</span>
+            </button>
             <button class="btn btn-primary" onclick="openBulkLeaveModal()" style="padding: 10px 20px; font-size: 14px; font-weight: 600; border-radius: 10px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border: none; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);">
                 <i class="fa-solid fa-plane-departure"></i> Apply Leave / Bulk Leave
             </button>
@@ -51,6 +54,9 @@
         <table>
             <thead>
                 <tr>
+                    <th style="width: 40px; text-align: center;">
+                        <input type="checkbox" id="select-all-leaves" onchange="toggleSelectAllLeaves(this)" style="width: 17px; height: 17px; cursor: pointer; accent-color: #f43f5e;" title="Select / Deselect All">
+                    </th>
                     <th style="width: 140px;">LEAVE DATE</th>
                     <th>STAFF MEMBER</th>
                     <th>TEAM WORKSPACE</th>
@@ -204,8 +210,12 @@
         document.getElementById('stat-leave-count').innerText = leaveLogs.length;
         document.getElementById('stat-suppressed-count').innerText = `${leaveLogs.length} Days`;
 
+        const masterCb = document.getElementById('select-all-leaves');
+        if (masterCb) masterCb.checked = false;
+
         if (leaveLogs.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 40px; color: var(--text-muted);">No leave or week off records found. Click "Apply Leave / Bulk Leave" above to log leave.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 40px; color: var(--text-muted);">Data Not Available</td></tr>`;
+            updateSelectedLeavesCount();
             return;
         }
 
@@ -231,6 +241,9 @@
 
             rowsHtml += `
                 <tr>
+                    <td style="text-align: center;">
+                        <input type="checkbox" class="leave-row-checkbox" value="${log.id}" onchange="updateSelectedLeavesCount()" style="width: 17px; height: 17px; cursor: pointer; accent-color: #f43f5e;">
+                    </td>
                     <td><strong>${formattedDate}</strong></td>
                     <td>
                         <strong style="color: var(--text-main);">${escapeHtml(cleanEmpName)}</strong>
@@ -255,6 +268,72 @@
         });
 
         tbody.innerHTML = rowsHtml;
+        updateSelectedLeavesCount();
+    }
+
+    function toggleSelectAllLeaves(masterCheckbox) {
+        const checkboxes = document.querySelectorAll('.leave-row-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = masterCheckbox.checked;
+        });
+        updateSelectedLeavesCount();
+    }
+
+    function updateSelectedLeavesCount() {
+        const selectedBoxes = document.querySelectorAll('.leave-row-checkbox:checked');
+        const totalBoxes = document.querySelectorAll('.leave-row-checkbox');
+        const masterCheckbox = document.getElementById('select-all-leaves');
+        const btnDeleteSelected = document.getElementById('btn-delete-selected');
+        const countSpan = document.getElementById('selected-leaves-count');
+
+        if (masterCheckbox && totalBoxes.length > 0) {
+            masterCheckbox.checked = (selectedBoxes.length === totalBoxes.length);
+        }
+
+        if (countSpan) countSpan.innerText = selectedBoxes.length;
+
+        if (btnDeleteSelected) {
+            if (selectedBoxes.length > 0) {
+                btnDeleteSelected.style.display = 'inline-flex';
+                btnDeleteSelected.style.alignItems = 'center';
+                btnDeleteSelected.style.gap = '8px';
+            } else {
+                btnDeleteSelected.style.display = 'none';
+            }
+        }
+    }
+
+    async function deleteSelectedLeaves() {
+        const selectedBoxes = document.querySelectorAll('.leave-row-checkbox:checked');
+        const selectedIds = Array.from(selectedBoxes).map(cb => cb.value);
+
+        if (selectedIds.length === 0) {
+            showToast('Please select at least one leave record to delete.', 'error');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to delete ${selectedIds.length} selected leave record(s)?`)) {
+            return;
+        }
+
+        showToast(`Deleting ${selectedIds.length} selected leave record(s)...`);
+
+        const res = await fetch('/api/task-logs/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ log_ids: selectedIds })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message || `Successfully deleted ${data.deleted_count} leave record(s).`);
+            const logsRes = await fetch('/api/task-logs');
+            const logsData = await logsRes.json();
+            if (logsData.success) taskLogsData = logsData.logs;
+            renderLeaveLogs();
+        } else {
+            showToast(data.error || 'Failed to delete selected leave records.', 'error');
+        }
     }
 
     async function deleteLeaveLog(logId) {

@@ -27,6 +27,8 @@
                     <option value="final_reminder">Reminder 3 (Shift Close / End)</option>
                     <option value="ignore_filled">Log Hours Filled - Courtesy / Ignore Template</option>
                     <option value="welcome_email">Welcome Email - New User Account Onboarding Template</option>
+                    <option value="leave_ack_employee">Leave Application Confirmation - Employee</option>
+                    <option value="leave_notif_manager">Leave Application Notification - Manager</option>
                 </select>
 
             </div>
@@ -37,7 +39,7 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">Email Message Body (Variables: <code>{name}</code>, <code>{email}</code>, <code>{password}</code>, <code>{portal_url}</code>, <code>{role}</code>, <code>{mgr_email}</code>, <code>{date}</code>, <code>{quote}</code>)</label>
+                <label class="form-label">Email Message Body (Variables: <code>{name}</code>, <code>{email}</code>, <code>{team}</code>, <code>{dates}</code>, <code>{reason}</code>, <code>{mgr_email}</code>, <code>{password}</code>, <code>{portal_url}</code>, <code>{role}</code>, <code>{date}</code>, <code>{quote}</code>)</label>
                 <textarea id="template-body" class="form-control" rows="8" oninput="updateLivePreview()" placeholder="Enter main email message body..."></textarea>
             </div>
 
@@ -148,8 +150,11 @@
 
         const applyReplacements = (str) => {
             if (!str) return '';
-            return str.replace(/{name}/g, 'Ravi Saini')
-                      .replace(/{email}/g, 'ravi.saini@digital-twin-solutions.com')
+            return str.replace(/{name}/g, 'Sachin')
+                      .replace(/{email}/g, 'sachin@d2backoffice.onmicrosoft.com')
+                      .replace(/{team}/g, 'Infra Team')
+                      .replace(/{dates}/g, 'Saturday, 10-Oct-2026 to Wednesday, 14-Oct-2026')
+                      .replace(/{reason}/g, 'Medical Leave')
                       .replace(/{password}/g, 'Amin@123')
                       .replace(/{portal_url}/g, 'http://192.168.1.163:5050/login')
                       .replace(/{role}/g, 'Employee')

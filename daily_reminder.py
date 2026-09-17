@@ -537,7 +537,7 @@ def load_config(config_path: str) -> dict:
         }
     }
 
-def send_email(to_email: str, cc_email: str, subject: str, body: str, dry_run: bool = False, config: Optional[dict] = None) -> bool:
+def send_email(to_email: str, cc_email: str, subject: str, body: str, dry_run: bool = False, config: Optional[dict] = None, html_body: Optional[str] = None) -> bool:
     """Handles sending email notifications via SSL 465 / TLS 587 SMTP using manager or default credentials."""
     import database
 
@@ -587,9 +587,9 @@ def send_email(to_email: str, cc_email: str, subject: str, body: str, dry_run: b
         msg['Subject'] = subject
 
         # Attach Plain Text Fallback & Rich HTML Version
-        html_body = generate_html_email(body)
+        final_html = html_body if html_body else generate_html_email(body)
         msg.attach(MIMEText(body, 'plain'))
-        msg.attach(MIMEText(html_body, 'html'))
+        msg.attach(MIMEText(final_html, 'html'))
 
         recipients = [to_email]
         if cc_email:

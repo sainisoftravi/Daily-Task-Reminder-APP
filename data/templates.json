@@ -28,5 +28,17 @@
     "subject": "Welcome to Daily Task Reminder System - Your Login Credentials",
     "body": "Hello {name},\n\nWelcome to the Daily Task Reminder & Multi-Role Task Management System!\n\nYour employee account has been created by your Manager ({mgr_email}). Below are your official login details:\n\n• Portal Login URL: {portal_url}\n• Assigned Role: {role}\n• Username (Email): {email}\n• Password: {password}\n\n⚠️ IMPORTANT SECURITY NOTICE:\nFor your security, your temporary password is valid for 4 HOURS ONLY. You will be required to change your password upon your first login.\n\nIf you do not log in within 4 hours, your password will expire, and you can request a new temporary password on the login page using 'Forgot password?'.\n\nPlease log in to the portal using your Username ({email}) and Password to set up your permanent credentials.\n\nBest regards,\nDaily Task Reminder System Team",
     "ignore_note": "⚠️ Temporary Password Notice: Valid for 4 hours only. Must be changed upon first login."
+  },
+  "leave_ack_employee": {
+    "name": "Leave Application Acknowledgement (Employee)",
+    "subject": "🏖️ Leave Application Confirmation - {name} ({dates})",
+    "body": "Dear {name},\n\nYour leave application has been submitted successfully.\n\nLeave Application Details:\n--------------------------------------------------\n• Staff Member:   {name} ({email})\n• Team Workspace: {team}\n• Applied Dates:  {dates}\n• Reason / Note:  {reason}\n• Manager CC:     {mgr_email}\n--------------------------------------------------\n\nNote: Daily task submission reminder emails are automatically suppressed for all applied leave dates.\n\nBest regards,\nDaily Task Reminder System",
+    "ignore_note": "Daily task submission reminder emails are automatically suppressed for all applied leave dates."
+  },
+  "leave_notif_manager": {
+    "name": "Leave Application Notification (Manager)",
+    "subject": "📢 Employee Leave Notice - {name} ({team}) on {dates}",
+    "body": "Dear Team Manager,\n\nStaff member {name} ({email}) from team '{team}' has submitted a leave application.\n\nLeave Application Details:\n--------------------------------------------------\n• Staff Member:   {name} ({email})\n• Team Workspace: {team}\n• Applied Dates:  {dates}\n• Reason / Note:  {reason}\n--------------------------------------------------\n\nNote: Automated daily task reminder emails for {name} are auto-suppressed for these leave dates.\n\nBest regards,\nDaily Task Reminder System",
+    "ignore_note": "Automated daily task reminder emails for {name} are auto-suppressed for these leave dates."
   }
 }

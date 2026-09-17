@@ -235,7 +235,7 @@
                     <i class="fa-solid fa-clock"></i>
                 </div>
                 <div>
-                    <div style="font-size: 12px; color: var(--text-muted);">Pending Logs</div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Data Not Available</div>
                     <div style="font-size: 22px; font-weight: 700; color: #f87171;" id="admin-stat-pending">0</div>
                 </div>
             </div>
@@ -536,15 +536,15 @@
                 } else if (todayLog.task_details && todayLog.task_details.trim()) {
                     todayBadge.innerHTML = `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">✅ Submitted (No Reminder)</span>`;
                 } else {
-                    todayBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Submission</span>`;
+                    todayBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">Data Not Available</span>`;
                 }
             } else {
-                todayBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Submission</span>`;
+                todayBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">Data Not Available</span>`;
             }
         }
 
         if (logs.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 40px; color: var(--text-muted);">No task logs found for this selected time period.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 40px; color: var(--text-muted);">Data Not Available</td></tr>`;
             return;
         }
 
@@ -823,7 +823,7 @@
                         if (isEmpWeekOff(emp, dtStr)) {
                             cells += `<td style="background: rgba(6, 182, 212, 0.08); font-size:12px;"><span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6, 182, 212, 0.4);">🏖️ Week Off</span></td>`;
                         } else {
-                            cells += `<td style="background: rgba(255,255,255,0.01); font-size:12px;"><span class="badge badge-india">⚠️ Pending</span></td>`;
+                            cells += `<td style="background: rgba(255,255,255,0.01); font-size:12px;"><span class="badge badge-india">Data Not Available</span></td>`;
                         }
                     }
                 });
@@ -870,7 +870,7 @@
                     statusCell = `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);">✅ Submitted (No Reminder)</span>`;
                     detailsSnippet = `<div style="font-size: 12px; color: var(--text-main); white-space: pre-line; line-height: 1.4; max-height: 60px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(foundLog.task_details)}</div>`;
                 } else {
-                    statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Log</span>`;
+                    statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">Data Not Available</span>`;
                     detailsSnippet = `<span style="font-size: 12px; color: var(--text-muted); italic;">No daily task log submitted for today.</span>`;
                 }
                 actionBtn = `<button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="viewTaskDetailDrawer('${foundLog.id}')"><i class="fa-solid fa-eye"></i> View Log</button>`;
@@ -880,7 +880,7 @@
                     detailsSnippet = `<div style="font-size: 12px; color: #06b6d4; font-weight: 600;">🏖️ Scheduled Week Off</div>`;
                     actionBtn = `<span style="font-size: 12px; color: var(--text-muted);">N/A</span>`;
                 } else {
-                    statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">⚠️ Pending Log</span>`;
+                    statusCell = `<span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">Data Not Available</span>`;
                     detailsSnippet = `<span style="font-size: 12px; color: var(--text-muted); italic;">No daily task log submitted for today.</span>`;
                     actionBtn = `<span style="font-size: 12px; color: var(--text-muted);">N/A</span>`;
                 }

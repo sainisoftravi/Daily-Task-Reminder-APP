@@ -448,22 +448,10 @@ def _seed_from_json(conn: sqlite3.Connection):
             with open(json_file, "r", encoding="utf-8") as f:
                 tpls = json.load(f)
                 for k, v in tpls.items():
-                    if k == 'welcome_email':
-                        cursor.execute(
-                            """INSERT INTO templates (key, name, subject, body, ignore_note)
-                               VALUES (?, ?, ?, ?, ?)
-                               ON CONFLICT(key) DO UPDATE SET
-                                   name=excluded.name,
-                                   subject=excluded.subject,
-                                   body=excluded.body,
-                                   ignore_note=excluded.ignore_note""",
-                            (k, v.get("name", k), v.get("subject", ""), v.get("body", ""), v.get("ignore_note", ""))
-                        )
-                    else:
-                        cursor.execute(
-                            "INSERT INTO templates (key, name, subject, body, ignore_note) VALUES (?, ?, ?, ?, ?) ON CONFLICT(key) DO NOTHING",
-                            (k, v.get("name", k), v.get("subject", ""), v.get("body", ""), v.get("ignore_note", ""))
-                        )
+                    cursor.execute(
+                        "INSERT INTO templates (key, name, subject, body, ignore_note) VALUES (?, ?, ?, ?, ?) ON CONFLICT(key) DO NOTHING",
+                        (k, v.get("name", k), v.get("subject", ""), v.get("body", ""), v.get("ignore_note", ""))
+                    )
         except Exception as e:
             print(f"[DB SEED WARN] Templates seed error: {e}")
 
@@ -1719,5 +1707,33 @@ def delete_task_log(log_id: str) -> bool:
     conn.close()
     return True
 
+def delete_task_logs_batch(log_ids: List[str]) -> int:
+    if not log_ids:
+        return 0
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    placeholders = ",".join(["?"] * len(log_ids))
+    cursor.execute(f"DELETE FROM task_logs WHERE id IN ({placeholders})", tuple(log_ids))
+    deleted_count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return deleted_count
+
+def get_employee_manager_cc(identifier: str) -> str:
+    """Returns the manager CC email address for a given employee name or email."""
+    if not identifier:
+        return "Ravi@d2backoffice.onmicrosoft.com"
+    clean_id = identifier.split(" (")[0].strip().lower()
+    conn = get_db_connection()
+    row = conn.execute(
+        "SELECT manager_cc FROM employees WHERE LOWER(email) = ? OR LOWER(name) = ?",
+        (clean_id, clean_id)
+    ).fetchone()
+    conn.close()
+    if row and row["manager_cc"]:
+        return row["manager_cc"]
+    return "Ravi@d2backoffice.onmicrosoft.com"
+
 # Initialize database schema immediately on import
 init_db()
+
