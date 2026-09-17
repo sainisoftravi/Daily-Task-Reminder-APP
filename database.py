@@ -61,9 +61,11 @@ os.makedirs(DATA_DIR, exist_ok=True)
 try:
     import psycopg2
     import psycopg2.extras
+    import psycopg2.pool
     PSYCOPG2_AVAILABLE = True
 except ImportError:
     PSYCOPG2_AVAILABLE = False
+
 
 DB_URL = os.environ.get("DATABASE_URL") or os.environ.get("SUPABASE_DB_URL")
 if DB_URL and DB_URL.startswith("postgres://"):
@@ -165,8 +167,68 @@ class PgConnectionWrapper:
     def close(self):
         self._conn.close()
 
+_PG_POOL = None
+
+def get_pg_pool():
+    global _PG_POOL
+    if not USE_POSTGRES:
+        return None
+    if _PG_POOL is None or getattr(_PG_POOL, "closed", True):
+        try:
+            _PG_POOL = psycopg2.pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=10,
+                dsn=DB_URL,
+                connect_timeout=10
+            )
+        except Exception:
+            _PG_POOL = None
+            return None
+    return _PG_POOL
+
+class PgPooledConnectionWrapper(PgConnectionWrapper):
+    """Wrapper around a pooled PostgreSQL connection that returns it to the pool on close()."""
+    def __init__(self, pg_conn, pool_ref):
+        super().__init__(pg_conn)
+        self._pool_ref = pool_ref
+        self._is_returned = False
+
+    def close(self):
+        if not self._is_returned:
+            self._is_returned = True
+            if self._pool_ref and not getattr(self._pool_ref, "closed", True):
+                try:
+                    if hasattr(self._conn, "closed") and self._conn.closed == 0:
+                        self._conn.rollback()
+                    self._pool_ref.putconn(self._conn)
+                    return
+                except Exception:
+                    pass
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+
 def get_db_connection():
     if USE_POSTGRES:
+        # 1. Attempt to acquire a warm, persistent connection from the connection pool
+        p = get_pg_pool()
+        if p:
+            try:
+                raw_conn = p.getconn()
+                if raw_conn and hasattr(raw_conn, "closed") and raw_conn.closed == 0:
+                    try:
+                        raw_conn.poll()
+                        return PgPooledConnectionWrapper(raw_conn, p)
+                    except Exception:
+                        p.putconn(raw_conn, close=True)
+                else:
+                    if raw_conn:
+                        p.putconn(raw_conn, close=True)
+            except Exception:
+                pass
+
+        # 2. Fallback to direct connection if connection pool is unavailable
         try:
             pg_conn = psycopg2.connect(DB_URL, connect_timeout=15)
             return PgConnectionWrapper(pg_conn)
@@ -183,6 +245,7 @@ def get_db_connection():
         conn = sqlite3.connect(DB_FILE, timeout=30.0)
         conn.row_factory = sqlite3.Row
         return conn
+
 
 def init_db():
     """Initializes Database schema (SQLite or PostgreSQL) and seeds initial data if empty."""
