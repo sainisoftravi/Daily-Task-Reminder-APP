@@ -69,6 +69,10 @@ def _adapt_sql_for_pg(sql: str) -> str:
         sql = sql.replace("INSERT OR IGNORE INTO", "INSERT INTO")
         if "ON CONFLICT" not in sql.upper():
             sql = sql + " ON CONFLICT DO NOTHING"
+
+    # Add IF NOT EXISTS to ADD COLUMN for PostgreSQL
+    if "ADD COLUMN" in sql.upper() and "IF NOT EXISTS" not in sql.upper():
+        sql = sql.replace("ADD COLUMN", "ADD COLUMN IF NOT EXISTS").replace("add column", "ADD COLUMN IF NOT EXISTS")
             
     # Convert positional parameter ? to %s
     sql = sql.replace("?", "%s")
@@ -149,12 +153,10 @@ def get_db_connection():
         conn.row_factory = sqlite3.Row
         return conn
 
-
 def init_db():
     """Initializes Database schema (SQLite or PostgreSQL) and seeds initial data if empty."""
     conn = get_db_connection()
     cursor = conn.cursor()
-
 
     # 1. Shifts Table
     cursor.execute("""
@@ -186,7 +188,8 @@ def init_db():
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             email TEXT NOT NULL,
-            team_id TEXT
+            team_id TEXT,
+            team_name TEXT
         )
     """)
 
@@ -206,7 +209,10 @@ def init_db():
             team_name TEXT,
             sheet_name TEXT,
             manager_cc TEXT,
-            role TEXT DEFAULT 'employee'
+            role TEXT DEFAULT 'employee',
+            location_id TEXT,
+            must_change_password INTEGER DEFAULT 0,
+            pwd_expires_at TEXT
         )
     """)
 
@@ -298,56 +304,38 @@ def init_db():
             password TEXT NOT NULL,
             role TEXT NOT NULL,
             team_id TEXT,
-            created_at TEXT
+            created_at TEXT,
+            must_change_password INTEGER DEFAULT 0,
+            pwd_expires_at TEXT
         )
     """)
 
-    try:
-        cursor.execute("ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0")
-    except Exception:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE users ADD COLUMN pwd_expires_at TEXT")
-    except Exception:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE employees ADD COLUMN must_change_password INTEGER DEFAULT 0")
-    except Exception:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE employees ADD COLUMN pwd_expires_at TEXT")
-    except Exception:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE employees ADD COLUMN role TEXT DEFAULT 'employee'")
-    except Exception:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE employees ADD COLUMN location_id TEXT")
-    except Exception:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE managers ADD COLUMN team_name TEXT")
-    except Exception:
-        pass
-
-    try:
-        cursor.execute("ALTER TABLE templates ADD COLUMN ignore_note TEXT")
-    except Exception:
-        pass
-
-
     conn.commit()
+
+    # Legacy schema column migrations (safe with ADD COLUMN IF NOT EXISTS)
+    for alter_cmd in [
+        "ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN pwd_expires_at TEXT",
+        "ALTER TABLE employees ADD COLUMN must_change_password INTEGER DEFAULT 0",
+        "ALTER TABLE employees ADD COLUMN pwd_expires_at TEXT",
+        "ALTER TABLE employees ADD COLUMN role TEXT DEFAULT 'employee'",
+        "ALTER TABLE employees ADD COLUMN location_id TEXT",
+        "ALTER TABLE managers ADD COLUMN team_name TEXT",
+        "ALTER TABLE templates ADD COLUMN ignore_note TEXT"
+    ]:
+        try:
+            cursor.execute(alter_cmd)
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     # --- SEED INITIAL DATA IF TABLES ARE EMPTY ---
     _seed_from_json(conn)
     conn.close()
+
 
 def _seed_from_json(conn: sqlite3.Connection):
     cursor = conn.cursor()
