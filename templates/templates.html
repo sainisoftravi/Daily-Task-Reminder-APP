@@ -27,6 +27,7 @@
                     <option value="final_reminder">Reminder 3 (Shift Close / End)</option>
                     <option value="ignore_filled">Log Hours Filled - Courtesy / Ignore Template</option>
                     <option value="welcome_email">Welcome Email - New User Account Onboarding Template</option>
+                    <option value="birthday_email">Birthday Wish Email - Automated Annual Celebration Template</option>
                     <option value="leave_ack_employee">Leave Application Confirmation - Employee</option>
                     <option value="leave_notif_manager">Leave Application Notification - Manager</option>
                 </select>
@@ -91,7 +92,8 @@
         'second_reminder': "💡 THOUGHT OF THE DAY:\n\"Individually we are one drop; together, we build a seamless system.\"",
         'final_reminder': "💡 THOUGHT OF THE DAY:\n\"Rest is not a reward for work completed; it is a prerequisite for tomorrow’s best performance.\"",
         'ignore_filled': "💡 THOUGHT OF THE DAY:\n\"Continuous, deliberate improvement is what turns good engineering into great engineering.\"",
-        'welcome_email': "💡 THOUGHT OF THE DAY:\n\"Welcome aboard! Great teams build great systems together.\""
+        'welcome_email': "💡 THOUGHT OF THE DAY:\n\"Welcome aboard! Great teams build great systems together.\"",
+        'birthday_email': "💡 THOUGHT OF THE DAY:\n\"Count your age by friends, not years. Count your life by smiles, not tears. Happy Birthday!\""
     };
 
     async function fetchTemplates() {
@@ -127,7 +129,8 @@
                 'second_reminder': 'teamwork',
                 'final_reminder': 'recharge',
                 'ignore_filled': 'focus',
-                'welcome_email': 'teamwork'
+                'welcome_email': 'teamwork',
+                'birthday_email': 'recharge'
             };
             const catKey = catMap[key] || 'focus';
             const matched = dbQuotesData.filter(q => (q.category || '').toLowerCase().includes(catKey));

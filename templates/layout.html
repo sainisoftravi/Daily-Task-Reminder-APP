@@ -1015,8 +1015,28 @@
                         <strong style="color: var(--link-color);">{{ current_user.email }}</strong>
                     </div>
                     <div>
+                        <span style="color: var(--text-muted); font-size: 11px; display: block;">MOBILE / PHONE</span>
+                        <strong style="color: var(--text-main);">📞 {{ current_user.phone or 'Not Provided' }}</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-muted); font-size: 11px; display: block;">DATE OF BIRTH (DOB)</span>
+                        <strong style="color: var(--text-main);">🎂 {{ current_user.dob or 'Not Specified' }}</strong>
+                    </div>
+                    <div>
                         <span style="color: var(--text-muted); font-size: 11px; display: block;">TEAM WORKSPACE</span>
                         <span class="badge badge-team" style="font-size: 11px;">🏢 {{ current_user.teamName or 'Infra Team' }}</span>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-muted); font-size: 11px; display: block;">REPORTING MANAGER</span>
+                        <strong style="color: var(--text-main);">👔 {{ current_user.managerName or 'N/A' }}</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-muted); font-size: 11px; display: block;">MANAGER EMAIL ID</span>
+                        <strong style="color: var(--link-color);">✉️ {{ current_user.managerEmail or current_user.managerCc or 'N/A' }}</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-muted); font-size: 11px; display: block;">MANAGER MOBILE</span>
+                        <strong style="color: var(--text-main);">📱 {{ current_user.managerPhone or 'Not Provided' }}</strong>
                     </div>
                     <div>
                         <span style="color: var(--text-muted); font-size: 11px; display: block;">LOCATION / TIMEZONE</span>

@@ -206,6 +206,13 @@ def manage_employees():
         emp_id = data.get("id")
         is_new = not emp_id or emp_id == ""
 
+        emp_e = (data.get("email") or "").strip()
+        if database.check_email_exists(emp_e, emp_id):
+            return jsonify({
+                "success": False,
+                "error": f"Email address '{emp_e}' is already registered. Duplicate email addresses cannot be used."
+            }), 400
+
         raw_pwd = data.get("password", "")
         if is_new and (not raw_pwd or len(raw_pwd) < 3):
             data["password"] = database.generate_random_password(12)
@@ -217,14 +224,7 @@ def manage_employees():
         emp_role = (data.get("role") or "employee").lower()
         log_event(f"Saved User Account Record for '{emp_name}' (Role: {emp_role}).")
 
-        # Determine manager CC (only send CC for employees, not admins/managers unless explicitly specified)
-        if emp_role in ("admin", "manager"):
-            mgr_cc = data.get("managerCc") or data.get("manager_cc") or ""
-        else:
-            mgr_cc = data.get("managerCc") or data.get("manager_cc") or "Ravi@d2backoffice.onmicrosoft.com"
-
         if is_new or (data.get("password") and data.get("password") != "••••••••••••"):
-            emp_e = data.get("email", "")
             pwd_val = data.get("password", "")
             t_val = data.get("teamName") or data.get("team_name", "")
             p_url = ""
@@ -234,7 +234,8 @@ def manage_employees():
                 p_url = "https://ticktask-silk.vercel.app"
 
             if emp_e and pwd_val:
-                send_welcome_onboarding_email(emp_name, emp_e, mgr_cc, pwd_val, emp_role, t_val, portal_url=p_url)
+                # Credentials sent STRICTLY to the new user (no manager CC on password email)
+                send_welcome_onboarding_email(emp_name, emp_e, "", pwd_val, emp_role, t_val, portal_url=p_url)
 
         employees = database.get_all_employees()
         return jsonify({"success": True, "employees": employees})
@@ -259,6 +260,13 @@ def manage_managers():
         is_new = not mgr_id or mgr_id == ""
         data["role"] = "manager"
 
+        mgr_email = (data.get("email") or "").strip()
+        if database.check_email_exists(mgr_email, mgr_id):
+            return jsonify({
+                "success": False,
+                "error": f"Email address '{mgr_email}' is already registered. Duplicate email addresses cannot be used."
+            }), 400
+
         raw_pwd = data.get("password", "")
         if is_new and (not raw_pwd or len(raw_pwd) < 3):
             data["password"] = database.generate_random_password(12)
@@ -269,7 +277,6 @@ def manage_managers():
 
         if is_new or (data.get("password") and data.get("password") != "••••••••••••"):
             mgr_name = data.get("name", "Manager")
-            mgr_email = data.get("email", "")
             pwd_val = data.get("password", "")
             t_val = data.get("teamName") or data.get("team_name", "")
             p_url = ""

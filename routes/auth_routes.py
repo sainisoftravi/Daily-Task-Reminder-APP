@@ -47,11 +47,25 @@ def api_login():
             user["timezone"] = emp_match.get("timezone") or "Asia/Kolkata"
             user["shiftName"] = emp_match.get("shiftName") or "Standard Day Shift"
             user["managerCc"] = emp_match.get("managerCc") or ""
+            user["dob"] = emp_match.get("dob") or user.get("dob") or ""
+            user["phone"] = emp_match.get("phone") or user.get("phone") or ""
+
+            mgr_cc = (user.get("managerCc") or "").strip()
+            mgr_info = database.get_manager_details(mgr_cc)
+            user["managerName"] = mgr_info.get("name", "N/A")
+            user["managerEmail"] = mgr_info.get("email", "N/A")
+            user["managerPhone"] = mgr_info.get("phone", "Not Provided")
         else:
             user.setdefault("teamName", "Infra Team")
             user.setdefault("location", "India")
             user.setdefault("timezone", "Asia/Kolkata")
             user.setdefault("shiftName", "Standard Day Shift")
+            user.setdefault("dob", "")
+            user.setdefault("phone", "")
+            mgr_info = database.get_manager_details(user.get("managerCc") or "")
+            user.setdefault("managerName", mgr_info.get("name", "N/A"))
+            user.setdefault("managerEmail", mgr_info.get("email", "N/A"))
+            user.setdefault("managerPhone", mgr_info.get("phone", "Not Provided"))
     session["user"] = user
     log_event(f"User '{user.get('name')}' ({user.get('email')}) logged in successfully as role '{user.get('role')}'.")
     return jsonify({
@@ -76,9 +90,6 @@ def api_me():
     if not user:
         return jsonify({"success": False, "user": None})
 
-    if user.get("teamName") and user.get("location") and user.get("shiftName"):
-        return jsonify({"success": True, "user": user})
-
     enriched_user = dict(user)
     if enriched_user.get("name"):
         enriched_user["name"] = enriched_user["name"].split(" (")[0].strip()
@@ -92,11 +103,25 @@ def api_me():
         enriched_user["timezone"] = emp_match.get("timezone") or "Asia/Kolkata"
         enriched_user["shiftName"] = emp_match.get("shiftName") or "Standard Day Shift"
         enriched_user["managerCc"] = emp_match.get("managerCc") or ""
+        enriched_user["dob"] = emp_match.get("dob") or enriched_user.get("dob") or ""
+        enriched_user["phone"] = emp_match.get("phone") or enriched_user.get("phone") or ""
+
+        mgr_cc = (enriched_user.get("managerCc") or "").strip()
+        mgr_info = database.get_manager_details(mgr_cc)
+        enriched_user["managerName"] = mgr_info.get("name", "N/A")
+        enriched_user["managerEmail"] = mgr_info.get("email", "N/A")
+        enriched_user["managerPhone"] = mgr_info.get("phone", "Not Provided")
     else:
         enriched_user.setdefault("teamName", "Infra Team")
         enriched_user.setdefault("location", "India")
         enriched_user.setdefault("timezone", "Asia/Kolkata")
         enriched_user.setdefault("shiftName", "Standard Day Shift")
+        enriched_user.setdefault("dob", "")
+        enriched_user.setdefault("phone", "")
+        mgr_info = database.get_manager_details(enriched_user.get("managerCc") or "")
+        enriched_user.setdefault("managerName", mgr_info.get("name", "N/A"))
+        enriched_user.setdefault("managerEmail", mgr_info.get("email", "N/A"))
+        enriched_user.setdefault("managerPhone", mgr_info.get("phone", "Not Provided"))
     session["user"] = enriched_user
     return jsonify({"success": True, "user": enriched_user})
 

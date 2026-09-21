@@ -57,22 +57,35 @@ def inject_user_context():
     user = session.get("user") or {}
     enriched_user = dict(user)
     if user and (user.get("email") or user.get("name")):
-        if not enriched_user.get("teamName") or not enriched_user.get("location"):
-            employees = database.get_all_employees()
-            email_clean = (user.get("email") or "").strip().lower()
-            name_clean = (user.get("name") or "").strip().lower()
-            emp_match = next((e for e in employees if (e.get("email") or "").strip().lower() == email_clean or (e.get("name") or "").strip().lower() == name_clean), None)
-            if emp_match:
-                enriched_user["teamName"] = emp_match.get("teamName") or "Infra Team"
-                enriched_user["location"] = emp_match.get("location") or "India"
-                enriched_user["timezone"] = emp_match.get("timezone") or "Asia/Kolkata"
-                enriched_user["shiftName"] = emp_match.get("shiftName") or "Standard Day Shift"
-                enriched_user["managerCc"] = emp_match.get("managerCc") or ""
-            else:
-                enriched_user.setdefault("teamName", "Infra Team")
-                enriched_user.setdefault("location", "India")
-                enriched_user.setdefault("timezone", "Asia/Kolkata")
-                enriched_user.setdefault("shiftName", "Standard Day Shift")
+        employees = database.get_all_employees()
+        email_clean = (user.get("email") or "").strip().lower()
+        name_clean = (user.get("name") or "").strip().lower()
+        emp_match = next((e for e in employees if (e.get("email") or "").strip().lower() == email_clean or (e.get("name") or "").split(" (")[0].strip().lower() == name_clean), None)
+        if emp_match:
+            enriched_user["teamName"] = emp_match.get("teamName") or enriched_user.get("teamName") or "Infra Team"
+            enriched_user["location"] = emp_match.get("location") or enriched_user.get("location") or "India"
+            enriched_user["timezone"] = emp_match.get("timezone") or enriched_user.get("timezone") or "Asia/Kolkata"
+            enriched_user["shiftName"] = emp_match.get("shiftName") or enriched_user.get("shiftName") or "Standard Day Shift"
+            enriched_user["managerCc"] = emp_match.get("managerCc") or enriched_user.get("managerCc") or ""
+            enriched_user["dob"] = emp_match.get("dob") or enriched_user.get("dob") or ""
+            enriched_user["phone"] = emp_match.get("phone") or enriched_user.get("phone") or ""
+
+            mgr_cc = (enriched_user.get("managerCc") or "").strip()
+            mgr_info = database.get_manager_details(mgr_cc)
+            enriched_user["managerName"] = mgr_info.get("name", "N/A")
+            enriched_user["managerEmail"] = mgr_info.get("email", "N/A")
+            enriched_user["managerPhone"] = mgr_info.get("phone", "Not Provided")
+        else:
+            enriched_user.setdefault("teamName", "Infra Team")
+            enriched_user.setdefault("location", "India")
+            enriched_user.setdefault("timezone", "Asia/Kolkata")
+            enriched_user.setdefault("shiftName", "Standard Day Shift")
+            enriched_user.setdefault("dob", "")
+            enriched_user.setdefault("phone", "")
+            mgr_info = database.get_manager_details(enriched_user.get("managerCc") or "")
+            enriched_user.setdefault("managerName", mgr_info.get("name", "N/A"))
+            enriched_user.setdefault("managerEmail", mgr_info.get("email", "N/A"))
+            enriched_user.setdefault("managerPhone", mgr_info.get("phone", "Not Provided"))
     return dict(current_user=enriched_user, current_role=user.get("role", "employee"))
 
 

@@ -10,6 +10,7 @@ seeds from JSON files if database tables are empty on initialization.
 
 import os
 import json
+import base64
 import sqlite3
 import datetime
 import time
@@ -281,7 +282,8 @@ def init_db():
             name TEXT NOT NULL,
             email TEXT NOT NULL,
             team_id TEXT,
-            team_name TEXT
+            team_name TEXT,
+            phone TEXT
         )
     """)
 
@@ -304,7 +306,9 @@ def init_db():
             role TEXT DEFAULT 'employee',
             location_id TEXT,
             must_change_password INTEGER DEFAULT 0,
-            pwd_expires_at TEXT
+            pwd_expires_at TEXT,
+            dob TEXT,
+            phone TEXT
         )
     """)
 
@@ -400,7 +404,9 @@ def init_db():
             team_id TEXT,
             created_at TEXT,
             must_change_password INTEGER DEFAULT 0,
-            pwd_expires_at TEXT
+            pwd_expires_at TEXT,
+            dob TEXT,
+            phone TEXT
         )
     """)
 
@@ -410,11 +416,16 @@ def init_db():
     for alter_cmd in [
         "ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0",
         "ALTER TABLE users ADD COLUMN pwd_expires_at TEXT",
+        "ALTER TABLE users ADD COLUMN dob TEXT",
+        "ALTER TABLE users ADD COLUMN phone TEXT",
         "ALTER TABLE employees ADD COLUMN must_change_password INTEGER DEFAULT 0",
         "ALTER TABLE employees ADD COLUMN pwd_expires_at TEXT",
         "ALTER TABLE employees ADD COLUMN role TEXT DEFAULT 'employee'",
         "ALTER TABLE employees ADD COLUMN location_id TEXT",
+        "ALTER TABLE employees ADD COLUMN dob TEXT",
+        "ALTER TABLE employees ADD COLUMN phone TEXT",
         "ALTER TABLE managers ADD COLUMN team_name TEXT",
+        "ALTER TABLE managers ADD COLUMN phone TEXT",
         "ALTER TABLE templates ADD COLUMN ignore_note TEXT",
         "ALTER TABLE task_logs ADD COLUMN is_leave INTEGER DEFAULT 0",
         "ALTER TABLE task_logs ADD COLUMN work_status TEXT DEFAULT 'Present'"
@@ -725,6 +736,8 @@ def authenticate_user(email: str, password_raw: str) -> Dict[str, Any]:
             except Exception:
                 pass
 
+        user_dict["dob"] = decrypt_value(user_dict.get("dob") or "")
+        user_dict["phone"] = decrypt_value(user_dict.get("phone") or "")
         user_dict.pop("password", None)
         return {
             "success": True,
@@ -861,11 +874,102 @@ def get_all_employees(force_refresh: bool = False) -> List[Dict[str, Any]]:
         d["sheetName"] = d.get("sheet_name")
         d["managerCc"] = d.get("manager_cc")
         d["role"] = d.get("role") or "employee"
+        d["dob"] = decrypt_value(d.get("dob") or "")
+        d["phone"] = decrypt_value(d.get("phone") or "")
         result.append(d)
 
     _EMPLOYEES_CACHE = result
     _EMPLOYEES_CACHE_TIME = now
     return result
+
+def check_email_exists(email: str, exclude_id: str = "") -> bool:
+    """Checks if an email address is already assigned to another active account in users or employees table."""
+    if not email:
+        return False
+    email_clean = email.strip().lower()
+    ex_id = (exclude_id or "").strip()
+    u_ex_id = f"u_{ex_id}" if ex_id and not ex_id.startswith("u_") else ex_id
+
+    conn = get_db_connection()
+    try:
+        row1 = conn.execute(
+            "SELECT id FROM users WHERE LOWER(email) = ? AND id != ? AND id != ?",
+            (email_clean, ex_id, u_ex_id)
+        ).fetchone()
+        if row1:
+            conn.close()
+            return True
+        row2 = conn.execute(
+            "SELECT id FROM employees WHERE LOWER(email) = ? AND id != ? AND id != ?",
+            (email_clean, ex_id, u_ex_id)
+        ).fetchone()
+        if row2:
+            conn.close()
+            return True
+    except Exception:
+        pass
+    conn.close()
+    return False
+
+def get_users_with_birthday_today() -> List[Dict[str, Any]]:
+    """Returns employees/users whose Date of Birth (dob) matches today's Month and Day."""
+    emps = get_all_employees()
+    today_dt = datetime.datetime.now()
+    today_mm_dd = today_dt.strftime("%m-%d")
+    matches = []
+
+    for e in emps:
+        raw_dob = (e.get("dob") or "").strip()
+        if not raw_dob:
+            continue
+        matched_dob = False
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y", "%m-%d"):
+            try:
+                dob_dt = datetime.datetime.strptime(raw_dob, fmt)
+                if dob_dt.strftime("%m-%d") == today_mm_dd:
+                    matched_dob = True
+                    break
+            except ValueError:
+                continue
+        if matched_dob:
+            matches.append(e)
+
+    return matches
+
+def get_manager_details(mgr_cc: str) -> Dict[str, str]:
+    """Resolves Manager Name, Manager Email, and Manager Phone from employees, managers, or users tables."""
+    if not mgr_cc or not mgr_cc.strip() or mgr_cc.strip().lower() in ("n/a", "none"):
+        return {"name": "N/A", "email": "N/A", "phone": "N/A"}
+    
+    clean = mgr_cc.strip().lower()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # 1. Search employees table
+    row = cursor.execute("SELECT name, email, phone FROM employees WHERE LOWER(email) = ? OR LOWER(name) = ?", (clean, clean)).fetchone()
+    if not row:
+        # 2. Search managers table
+        row = cursor.execute("SELECT name, email, phone FROM managers WHERE LOWER(email) = ? OR LOWER(name) = ?", (clean, clean)).fetchone()
+    if not row:
+        # 3. Search users table
+        row = cursor.execute("SELECT name, email, phone FROM users WHERE LOWER(email) = ? OR LOWER(name) = ?", (clean, clean)).fetchone()
+        
+    conn.close()
+    
+    if row:
+        m_name, m_email, m_phone = row[0], row[1], row[2]
+        return {
+            "name": m_name or (clean.split("@")[0].title() if "@" in clean else clean),
+            "email": m_email or (clean if "@" in clean else "N/A"),
+            "phone": m_phone if m_phone and m_phone.strip() else "Not Provided"
+        }
+    
+    fallback_name = clean.split("@")[0].title() if "@" in clean else clean
+    return {
+        "name": fallback_name,
+        "email": clean if "@" in clean else "N/A",
+        "phone": "Not Provided"
+    }
 
 def save_employee_record(emp_data: Dict[str, Any]) -> bool:
     conn = get_db_connection()
@@ -879,10 +983,14 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
         w_days = str(raw_w).replace("[", "").replace("]", "").replace('"', "").replace("'", "").strip()
     rems = ",".join(emp_data.get("reminders", [])) if isinstance(emp_data.get("reminders"), list) else "18:30,18:45,19:00"
     role = (emp_data.get("role") or "employee").lower()
+    dob_val = (emp_data.get("dob") or "").strip()
+    phone_val = (emp_data.get("phone") or "").strip()
+    enc_dob = encrypt_value(dob_val)
+    enc_phone = encrypt_value(phone_val)
 
     cursor.execute("""
-        INSERT INTO employees (id, name, email, location, location_id, timezone, working_days, shift_id, shift_name, reminders, team_id, team_name, sheet_name, manager_cc, role)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO employees (id, name, email, location, location_id, timezone, working_days, shift_id, shift_name, reminders, team_id, team_name, sheet_name, manager_cc, role, dob, phone)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             name=excluded.name,
             email=excluded.email,
@@ -897,11 +1005,13 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
             team_name=excluded.team_name,
             sheet_name=excluded.sheet_name,
             manager_cc=excluded.manager_cc,
-            role=excluded.role
+            role=excluded.role,
+            dob=excluded.dob,
+            phone=excluded.phone
     """, (
         emp_id, emp_data.get("name"), emp_data.get("email"), emp_data.get("location"), emp_data.get("locationId"), emp_data.get("timezone"),
         w_days, emp_data.get("shiftId"), emp_data.get("shiftName"), rems,
-        emp_data.get("teamId"), emp_data.get("teamName"), emp_data.get("sheetName"), emp_data.get("managerCc"), role
+        emp_data.get("teamId"), emp_data.get("teamName"), emp_data.get("sheetName"), emp_data.get("managerCc"), role, enc_dob, enc_phone
     ))
 
     # Sync with users table for authentication
@@ -918,34 +1028,38 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
             if custom_pwd:
                 cursor.execute("""
                     UPDATE users 
-                    SET name = ?, role = ?, team_id = ?, password = ?, must_change_password = 1, pwd_expires_at = ? 
+                    SET name = ?, role = ?, team_id = ?, password = ?, must_change_password = 1, pwd_expires_at = ?, dob = ?, phone = ? 
                     WHERE LOWER(email) = ?
-                """, (name_val, role, team_id_val, hash_password(custom_pwd), exp_4h, email_clean))
+                """, (name_val, role, team_id_val, hash_password(custom_pwd), exp_4h, enc_dob, enc_phone, email_clean))
                 emp_data["generated_password"] = custom_pwd
             else:
-                cursor.execute("UPDATE users SET name = ?, role = ?, team_id = ? WHERE LOWER(email) = ?",
-                               (name_val, role, team_id_val, email_clean))
+                cursor.execute("""
+                    UPDATE users 
+                    SET name = ?, role = ?, team_id = ?, dob = ?, phone = ? 
+                    WHERE LOWER(email) = ?
+                """, (name_val, role, team_id_val, enc_dob, enc_phone, email_clean))
         else:
             final_pwd = custom_pwd if custom_pwd else generate_random_password(12)
             u_id = f"u_{emp_id}"
             now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute("""
-                INSERT INTO users (id, name, email, password, role, team_id, created_at, must_change_password, pwd_expires_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
-            """, (u_id, name_val, email_clean, hash_password(final_pwd), role, team_id_val, now_str, exp_4h))
+                INSERT INTO users (id, name, email, password, role, team_id, created_at, must_change_password, pwd_expires_at, dob, phone) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+            """, (u_id, name_val, email_clean, hash_password(final_pwd), role, team_id_val, now_str, exp_4h, enc_dob, enc_phone))
             emp_data["generated_password"] = final_pwd
 
     # If role is manager, sync with managers table
     if role == "manager" and email_clean:
         cursor.execute("""
-            INSERT INTO managers (id, name, email, team_id, team_name)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO managers (id, name, email, team_id, team_name, phone)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,
                 email=excluded.email,
                 team_id=excluded.team_id,
-                team_name=excluded.team_name
-        """, (f"mgr_{emp_id}", name_val, email_clean, team_id_val, emp_data.get("teamName", "")))
+                team_name=excluded.team_name,
+                phone=excluded.phone
+        """, (f"mgr_{emp_id}", name_val, email_clean, team_id_val, emp_data.get("teamName", ""), enc_phone))
 
     conn.commit()
     conn.close()
@@ -1263,6 +1377,62 @@ def decrypt_password(ciphertext: str) -> str:
     except Exception as e:
         print(f"[DECRYPT ERROR] {e}")
         return ciphertext
+
+def encrypt_value(val: str) -> str:
+    """Encrypts a string value (e.g. Phone Number, DOB) using persistent Fernet AES encryption."""
+    if not val or not str(val).strip() or str(val).startswith("gAAAAA"):
+        return val
+    try:
+        f = Fernet(get_or_create_fernet_key())
+        return f.encrypt(str(val).strip().encode('utf-8')).decode('utf-8')
+    except Exception as e:
+        print(f"[ENCRYPT VALUE ERROR] {e}")
+        return val
+
+def decrypt_value(val: str) -> str:
+    """Decrypts a string value (e.g. Phone Number, DOB) if Fernet-encrypted."""
+    if not val or not str(val).startswith("gAAAAA"):
+        return val
+    try:
+        f = Fernet(get_or_create_fernet_key())
+        return f.decrypt(str(val).encode('utf-8')).decode('utf-8')
+    except Exception as e:
+        print(f"[DECRYPT VALUE ERROR] {e}")
+        return val
+
+def _migrate_sensitive_user_data(conn):
+    """Encrypts existing plain-text DOB and Phone numbers stored in employees, users, and managers tables."""
+    try:
+        cursor = conn.cursor()
+        # 1. Migrate employees
+        rows = cursor.execute("SELECT id, dob, phone FROM employees").fetchall()
+        for r in rows:
+            emp_id, dob, phone = r[0], r[1], r[2]
+            enc_dob = encrypt_value(dob) if dob else dob
+            enc_phone = encrypt_value(phone) if phone else phone
+            if enc_dob != dob or enc_phone != phone:
+                cursor.execute("UPDATE employees SET dob = ?, phone = ? WHERE id = ?", (enc_dob, enc_phone, emp_id))
+
+        # 2. Migrate users
+        rows = cursor.execute("SELECT id, dob, phone FROM users").fetchall()
+        for r in rows:
+            u_id, dob, phone = r[0], r[1], r[2]
+            enc_dob = encrypt_value(dob) if dob else dob
+            enc_phone = encrypt_value(phone) if phone else phone
+            if enc_dob != dob or enc_phone != phone:
+                cursor.execute("UPDATE users SET dob = ?, phone = ? WHERE id = ?", (enc_dob, enc_phone, u_id))
+
+        # 3. Migrate managers
+        rows = cursor.execute("SELECT id, phone FROM managers").fetchall()
+        for r in rows:
+            m_id, phone = r[0], r[1]
+            enc_phone = encrypt_value(phone) if phone else phone
+            if enc_phone != phone:
+                cursor.execute("UPDATE managers SET phone = ? WHERE id = ?", (enc_phone, m_id))
+
+        conn.commit()
+    except Exception as e:
+        print(f"[DB SENSITIVE MIGRATION WARN] {e}")
 
 def get_all_smtp_accounts(mask_passwords: bool = False) -> List[Dict[str, Any]]:
     config = get_system_settings()

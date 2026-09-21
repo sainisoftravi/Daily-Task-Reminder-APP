@@ -40,5 +40,11 @@
     "subject": "📢 Employee Leave Notice - {name} ({team}) on {dates}",
     "body": "Dear Team Manager,\n\nStaff member {name} ({email}) from team '{team}' has submitted a leave application.\n\nLeave Application Details:\n--------------------------------------------------\n• Staff Member:   {name} ({email})\n• Team Workspace: {team}\n• Applied Dates:  {dates}\n• Reason / Note:  {reason}\n--------------------------------------------------\n\nNote: Automated daily task reminder emails for {name} are auto-suppressed for these leave dates.\n\nBest regards,\nDaily Task Reminder System",
     "ignore_note": "Automated daily task reminder emails for {name} are auto-suppressed for these leave dates."
+  },
+  "birthday_email": {
+    "name": "Birthday Wishes & Celebration Email",
+    "subject": "🎂 Happy Birthday, {name}! Wishing You a Fantastic Day!",
+    "body": "Dear {name},\n\nOn behalf of the entire team at TickTask, we want to wish you a very Happy Birthday!\n\n💡 MOTIVATIONAL THOUGHT FOR YOUR SPECIAL DAY:\n{quote}\n\nThank you for your dedication, hard work, and positive energy in team '{team}'. May this year bring you great health, happiness, and continued success!\n\nEnjoy your special day!\n\nBest regards,\nDaily Task Reminder & Team Management System",
+    "ignore_note": "🎉 Birthday Celebration Notice - CC: Manager ({mgr_email})"
   }
 }

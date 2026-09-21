@@ -729,16 +729,120 @@ def run_reminder_cycle(args, sample_employees):
 
         is_completed = check_task_sheet_local(excel_path, emp.sheet_name, local_date, emp.name, ignore_checks=bool(test_target))
 
-        if is_completed and not test_target:
-            print(f"  --> Task Check Result: COMPLETED! Employee updated their sheet for {local_date}.")
-            print(f"  --> Status: NO EMAIL REQUIRED.")
-        else:
-            if test_target:
-                print(f"  --> [TEST TRIGGER FORCE SEND] Sending test reminder email to {emp.email} (CC: {emp.manager_cc}).")
-            else:
-                print(f"  --> Task Check Result: BLANK / MISSING for {local_date}.")
-            subject, body = build_email_content(reminder_type, emp.name, local_date)
-            send_email(emp.email, emp.manager_cc, subject, body, dry_run=dry_run_mode, config=config)
+def check_and_send_birthday_emails():
+    """Checks if any active users have a birthday today and sends an automated HTML birthday greeting with Manager CC."""
+    try:
+        birthday_users = database.get_users_with_birthday_today()
+        if not birthday_users:
+            return
+
+        today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        all_tpls = database.get_all_templates()
+        bday_tpl = all_tpls.get("birthday_email", {})
+
+        default_subject = "🎂 Happy Birthday, {name}! Wishing You a Fantastic Day!"
+        default_body = "Dear {name},\n\nOn behalf of the entire team at TickTask, we want to wish you a very Happy Birthday!\n\n💡 MOTIVATIONAL THOUGHT FOR YOUR SPECIAL DAY:\n{quote}\n\nThank you for your dedication, hard work, and positive energy in team '{team}'. May this year bring you great health, happiness, and continued success!\n\nEnjoy your special day!\n\nBest regards,\nDaily Task Reminder & Team Management System"
+        default_ignore = "🎉 Birthday Celebration Notice - CC: Manager ({mgr_email})"
+
+        raw_subject = bday_tpl.get("subject") or default_subject
+        raw_body = bday_tpl.get("body") or default_body
+        raw_ignore = bday_tpl.get("ignore_note") or default_ignore
+
+        bday_quote = "Continuous, deliberate improvement and positive energy build long-term success. Celebrate your day!"
+        try:
+            quotes = database.get_all_quotes()
+            if quotes:
+                import random
+                bday_quote = random.choice(quotes).get("quote", bday_quote)
+        except Exception:
+            pass
+
+        logo_b64 = get_logo_b64()
+        logo_img_html = ""
+        if logo_b64:
+            logo_img_html = f'''<div style="background-color: #ffffff; padding: 10px 22px; border-radius: 8px; display: inline-block; box-shadow: 0 3px 12px rgba(0,0,0,0.2); margin-bottom: 14px;">
+                <img src="data:image/png;base64,{logo_b64}" alt="TickTask Logo" style="max-height: 44px; max-width: 220px; height: auto; width: auto; display: block; border: 0;" />
+            </div>'''
+
+        for emp in birthday_users:
+            emp_name = (emp.get("name") or "Team Member").split(" (")[0].strip()
+            emp_email = (emp.get("email") or "").strip()
+            if not emp_email:
+                continue
+
+            if database.has_reminder_been_sent_today(emp_email, "birthday", today_str):
+                continue
+
+            mgr_cc = emp.get("managerCc") or emp.get("manager_cc") or "Ravi@d2backoffice.onmicrosoft.com"
+            team_name = emp.get("teamName") or emp.get("team_name") or "Infra Team"
+
+            replacements = {
+                "{name}": emp_name,
+                "{email}": emp_email,
+                "{team}": team_name,
+                "{mgr_email}": mgr_cc,
+                "{quote}": bday_quote,
+                "{date}": datetime.datetime.now().strftime("%d-%b-%Y")
+            }
+
+            final_subject = raw_subject
+            final_body = raw_body
+            final_ignore = raw_ignore
+
+            for k_var, v_var in replacements.items():
+                final_subject = final_subject.replace(k_var, str(v_var))
+                final_body = final_body.replace(k_var, str(v_var))
+                final_ignore = final_ignore.replace(k_var, str(v_var))
+
+            body_paragraphs = []
+            for block in final_body.split("\n\n"):
+                if not block.strip():
+                    continue
+                body_paragraphs.append(f'<p style="font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 14px 0;">{block.replace(chr(10), "<br>")}</p>')
+
+            body_html_content = "".join(body_paragraphs)
+
+            ignore_box_html = ""
+            if final_ignore and final_ignore.strip():
+                ignore_box_html = f"""
+                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #166534; margin-top: 18px;">
+                    <strong>{final_ignore}</strong>
+                </div>
+                """
+
+            html_body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #334155;">
+    <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+        <div style="background-color: #0f172a; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 26px 30px; text-align: center; color: #ffffff; border-bottom: 3px solid #8b5cf6;">
+            {logo_img_html}
+            <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff !important;">🎉 Happy Birthday, {emp_name}! 🎂</h2>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #c4b5fd !important;">Daily Task Reminder & Team Management System</p>
+        </div>
+        <div style="padding: 28px 30px;">
+            {body_html_content}
+            {ignore_box_html}
+            <p style="font-size: 13px; color: #64748b; margin-top: 24px;">
+                Best regards,<br>
+                <strong>Daily Task Reminder System Team</strong>
+            </p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+            send_email(to_email=emp_email, cc_email=mgr_cc, subject=final_subject, body=final_body, html_body=html_body)
+            print(f"[BIRTHDAY EMAIL SUCCESS] Sent birthday wishes to {emp_name} ({emp_email}) [CC: {mgr_cc}]")
+    except Exception as e:
+        print(f"[BIRTHDAY EMAIL ERROR] Failed to process birthday check: {e}")
+
+def run_reminder_cycle(args, employees: List[Employee]):
+    """Evaluates shift reminders and automated birthday emails."""
+    try:
+        check_and_send_birthday_emails()
+    except Exception as bday_err:
+        print(f"[BIRTHDAY CYCLE WARN] {bday_err}")
 
 def main():
     import time
