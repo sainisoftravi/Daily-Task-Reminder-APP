@@ -1082,20 +1082,7 @@ def get_all_managers() -> List[Dict[str, Any]]:
     seen_emails = set()
 
     try:
-        rows = conn.execute("SELECT * FROM managers").fetchall()
-        for r in rows:
-            d = dict(r)
-            d["teamId"] = d.get("team_id")
-            d["teamName"] = d.get("team_name")
-            email = (d.get("email") or "").strip().lower()
-            if email:
-                seen_emails.add(email)
-            result.append(d)
-    except Exception:
-        pass
-
-    try:
-        emp_rows = conn.execute("SELECT * FROM employees WHERE LOWER(role) IN ('manager', 'admin')").fetchall()
+        emp_rows = conn.execute("SELECT * FROM employees WHERE LOWER(role) = 'manager'").fetchall()
         for r in emp_rows:
             d = dict(r)
             email = (d.get("email") or "").strip().lower()
@@ -1112,7 +1099,7 @@ def get_all_managers() -> List[Dict[str, Any]]:
         pass
 
     try:
-        user_rows = conn.execute("SELECT * FROM users WHERE LOWER(role) IN ('manager', 'admin')").fetchall()
+        user_rows = conn.execute("SELECT * FROM users WHERE LOWER(role) = 'manager'").fetchall()
         for r in user_rows:
             d = dict(r)
             email = (d.get("email") or "").strip().lower()
@@ -1130,19 +1117,15 @@ def get_all_managers() -> List[Dict[str, Any]]:
 
     if not result:
         try:
-            all_emp = conn.execute("SELECT * FROM employees").fetchall()
-            for r in all_emp:
+            rows = conn.execute("SELECT * FROM managers").fetchall()
+            for r in rows:
                 d = dict(r)
+                d["teamId"] = d.get("team_id")
+                d["teamName"] = d.get("team_name")
                 email = (d.get("email") or "").strip().lower()
                 if email and email not in seen_emails:
                     seen_emails.add(email)
-                    result.append({
-                        "id": d.get("id"),
-                        "name": d.get("name"),
-                        "email": d.get("email"),
-                        "teamId": d.get("team_id") or "",
-                        "teamName": d.get("team_name") or ""
-                    })
+                    result.append(d)
         except Exception:
             pass
 

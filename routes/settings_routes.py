@@ -199,6 +199,8 @@ def test_smtp_account_route():
         found = next((a for a in all_unmasked if a.get("email") == email_addr or a.get("id") == data.get("id")), None)
         if found and found.get("password"):
             password = database.decrypt_password(found["password"])
+    else:
+        password = database.decrypt_password(password)
 
     if not server_host or not email_addr or not password:
         return jsonify({"success": False, "error": "Server, Sender Email, and Password are required."})
@@ -212,15 +214,26 @@ def test_smtp_account_route():
     last_err = None
     for attempt_port in ports_to_try:
         try:
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+
+            msg = MIMEMultipart()
+            msg['From'] = email_addr
+            msg['To'] = email_addr
+            msg['Subject'] = "🧪 SMTP Connection Test - Daily Task Reminder System"
+            msg.attach(MIMEText("This is an automated test email confirming that your SMTP server settings are correctly configured and active.", "plain"))
+
             if attempt_port == 465:
                 with smtplib.SMTP_SSL(server_host, attempt_port, timeout=15) as server:
                     server.login(email_addr, password)
+                    server.sendmail(email_addr, [email_addr], msg.as_string())
             else:
                 with smtplib.SMTP(server_host, attempt_port, timeout=15) as server:
                     server.starttls()
                     server.login(email_addr, password)
+                    server.sendmail(email_addr, [email_addr], msg.as_string())
 
-            return jsonify({"success": True, "message": f"Successfully authenticated SMTP account {email_addr} on {server_host}:{attempt_port}!"})
+            return jsonify({"success": True, "message": f"Successfully authenticated & sent test email to {email_addr} on {server_host}:{attempt_port}!"})
         except Exception as err:
             last_err = err
 
@@ -247,8 +260,21 @@ def trigger_test():
             timezone_str=e["timezone"],
             working_days=",".join(e.get("workingDays", [])),
             sheet_name=e.get("sheetName", "Technical Infra Team-Aug-2026"),
-            manager_cc=e.get("managerCc", "Ravi@d2backoffice.onmicrosoft.com"),
+            manager_cc=e.get("managerCc") or e.get("manager_cc") or "Ravi@d2backoffice.onmicrosoft.com",
             reminders=e.get("reminders")
+        ))
+
+    if emp_name and not any((emp_name.split(" (")[0].strip().lower() in e.name.lower() or e.name.lower() in emp_name.lower()) for e in emp_objects):
+        clean_name = emp_name.split(" (")[0].strip()
+        mgr_cc = database.get_employee_manager_cc(clean_name)
+        emp_objects.append(daily_reminder.Employee(
+            name=clean_name,
+            email=f"{clean_name.lower().replace(' ', '')}@d2backoffice.onmicrosoft.com",
+            location="India",
+            timezone_str="Asia/Kolkata",
+            working_days="Mon,Tue,Wed,Thu,Fri,Sat",
+            sheet_name="Technical Infra Team-Aug-2026",
+            manager_cc=mgr_cc
         ))
 
     class Args:
@@ -265,7 +291,7 @@ def trigger_test():
     try:
         daily_reminder.run_reminder_cycle(args, emp_objects)
         log_event(f"Manual Test completed successfully for '{emp_name}'.")
-        return jsonify({"success": True, "message": f"Test executed for {emp_name}"})
+        return jsonify({"success": True, "message": f"Test reminder email triggered successfully for {emp_name}"})
     except Exception as err:
         log_event(f"Error executing test: {err}", "ERROR")
         return jsonify({"success": False, "error": str(err)})

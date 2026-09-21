@@ -351,23 +351,20 @@
 
         let optionsMap = new Map();
 
+        if (Array.isArray(employeesData)) {
+            const mgrs = employeesData.filter(e => e && e.email && (e.role || '').toLowerCase() === 'manager');
+            mgrs.forEach(e => {
+                const cleanEmail = e.email.trim();
+                const name = e.name || cleanEmail;
+                optionsMap.set(cleanEmail.toLowerCase(), `<option value="${cleanEmail}">${name} (${cleanEmail})</option>`);
+            });
+        }
+
         if (Array.isArray(managersData)) {
             managersData.forEach(m => {
                 if (m && m.email) {
                     const cleanEmail = m.email.trim();
                     const name = m.name || cleanEmail;
-                    optionsMap.set(cleanEmail.toLowerCase(), `<option value="${cleanEmail}">${name} (${cleanEmail})</option>`);
-                }
-            });
-        }
-
-        if (Array.isArray(employeesData)) {
-            const mgrs = employeesData.filter(e => e && e.email && (e.role === 'manager' || e.role === 'admin' || e.role === 'Manager' || e.role === 'Admin'));
-            const listToUse = mgrs.length > 0 ? mgrs : employeesData;
-            listToUse.forEach(e => {
-                if (e && e.email) {
-                    const cleanEmail = e.email.trim();
-                    const name = e.name || cleanEmail;
                     if (!optionsMap.has(cleanEmail.toLowerCase())) {
                         optionsMap.set(cleanEmail.toLowerCase(), `<option value="${cleanEmail}">${name} (${cleanEmail})</option>`);
                     }
@@ -378,8 +375,6 @@
         let html = '<option value="">-- Select Manager CC Oversight --</option>';
         if (optionsMap.size > 0) {
             html += Array.from(optionsMap.values()).join('');
-        } else {
-            html += '<option value="Ravi@d2backoffice.onmicrosoft.com">Ravi Saini (Ravi@d2backoffice.onmicrosoft.com)</option>';
         }
         sel.innerHTML = html;
     }

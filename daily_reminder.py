@@ -189,25 +189,28 @@ def download_sharepoint_file(url: str, dest_path: str) -> bool:
         print(f"[WARN] Could not auto-download from SharePoint URL: {e}")
     return False
 
-def check_task_sheet_local(file_path: str, sheet_name: str, target_date: str, employee_name: str) -> bool:
+def check_task_sheet_local(file_path: str, sheet_name: str, target_date: str, employee_name: str, ignore_checks: bool = False) -> bool:
     """
     Checks local Excel sheet & SQLite Web Task Submissions database to determine if employee has filled their task details.
     Returns True if filled (reminder suppressed), False if blank/missing.
     """
-    # 1. First check Web Form SQLite Task Submissions & On Leave status
-    try:
-        today_iso = datetime.datetime.now().strftime("%Y-%m-%d")
-        if database.is_employee_week_off(employee_name, target_date) or database.is_employee_week_off(employee_name, today_iso):
-            print(f"[WEEK OFF] Employee '{employee_name}' is on WEEK OFF for '{target_date}'. Suppressing reminder email.")
-            return True
-        if database.is_employee_on_leave(employee_name, target_date) or database.is_employee_on_leave(employee_name, today_iso):
-            print(f"[ON LEAVE] Employee '{employee_name}' is ON LEAVE for '{target_date}'. Suppressing reminder email.")
-            return True
-        if database.is_employee_task_filled(employee_name, target_date) or database.is_employee_task_filled(employee_name, today_iso):
-            print(f"[SQLITE TASK SUBMISSION] Employee '{employee_name}' has submitted daily task log via Web Form for '{target_date}'. Suppressing reminder email.")
-            return True
-    except Exception as e:
-        print(f"[WARN] Could not check SQLite task_logs: {e}")
+    if ignore_checks:
+        print(f"[TEST TRIGGER] Force testing enabled for employee '{employee_name}'. Bypassing leave/weekoff/completed task suppression checks.")
+    else:
+        # 1. First check Web Form SQLite Task Submissions & On Leave status
+        try:
+            today_iso = datetime.datetime.now().strftime("%Y-%m-%d")
+            if database.is_employee_week_off(employee_name, target_date) or database.is_employee_week_off(employee_name, today_iso):
+                print(f"[WEEK OFF] Employee '{employee_name}' is on WEEK OFF for '{target_date}'. Suppressing reminder email.")
+                return True
+            if database.is_employee_on_leave(employee_name, target_date) or database.is_employee_on_leave(employee_name, today_iso):
+                print(f"[ON LEAVE] Employee '{employee_name}' is ON LEAVE for '{target_date}'. Suppressing reminder email.")
+                return True
+            if database.is_employee_task_filled(employee_name, target_date) or database.is_employee_task_filled(employee_name, today_iso):
+                print(f"[SQLITE TASK SUBMISSION] Employee '{employee_name}' has submitted daily task log via Web Form for '{target_date}'. Suppressing reminder email.")
+                return True
+        except Exception as e:
+            print(f"[WARN] Could not check SQLite task_logs: {e}")
 
     # 2. Check local Excel file if openpyxl available
     if not openpyxl:
@@ -302,23 +305,21 @@ def get_daily_quote(reminder_stage: str = "first", date_str: str = "") -> str:
                 cat = q.get("category", "").strip()
                 if text:
                     all_quotes.append(text)
-                    if cat.lower() in target_category.lower() or target_category.lower() in cat.lower():
+                    if cat.lower() == target_category.lower():
                         stage_quotes.append(text)
     except Exception:
         pass
 
-    if not stage_quotes:
-        stage_quotes = all_quotes if all_quotes else MOTIVATIONAL_QUOTES
-
-    # Pick a random quote every time (randomized day-wise & time-wise)
-    raw_quote = random.choice(stage_quotes).strip(' "\'')
-    
-    # Formatted Thought of the Day header
-    return f"💡 THOUGHT OF THE DAY:\n\"{raw_quote}\""
+    if stage_quotes:
+        return random.choice(stage_quotes)
+    elif all_quotes:
+        return random.choice(all_quotes)
+    return random.choice(MOTIVATIONAL_QUOTES)
 
 def build_email_content(reminder_type: str, employee_name: str, date_str: str) -> Tuple[str, str]:
     """Generates polite email subject and body for reminders using SQLite database templates."""
-    quote = get_daily_quote(reminder_type, date_str)
+    raw_quote = get_daily_quote(reminder_type, date_str).strip(' "\'')
+    quote = f"💡 THOUGHT OF THE DAY:\n\"{raw_quote}\""
     
     try:
         import database
@@ -560,6 +561,10 @@ def send_email(to_email: str, cc_email: str, subject: str, body: str, dry_run: b
         smtp_port = int(smtp_cfg.get("port", 465))
         smtp_account_name = "Default System SMTP"
 
+    # Always ensure sender_password is decrypted plaintext
+    if sender_password:
+        sender_password = database.decrypt_password(sender_password)
+
     print(f"\n--- [EMAIL DISPATCH via {smtp_account_name} ({smtp_server}:{smtp_port})] ---")
     print(f"FROM:    {sender_email}")
     print(f"TO:      {to_email}")
@@ -658,8 +663,10 @@ def run_reminder_cycle(args, sample_employees):
         print("[DRY-RUN MODE] Active. No emails will be sent.")
 
     for emp in sample_employees:
-        # Filter for single-employee test if specified
-        if test_target and emp.name.lower() != test_target.lower():
+        # Filter for single-employee test if specified (with flexible name matching)
+        clean_emp_name = emp.name.split(" (")[0].strip().lower()
+        clean_test_target = test_target.split(" (")[0].strip().lower() if test_target else ""
+        if test_target and clean_emp_name != clean_test_target and clean_test_target not in clean_emp_name and clean_emp_name not in clean_test_target:
             continue
 
         local_now = emp.get_local_now()
@@ -672,8 +679,8 @@ def run_reminder_cycle(args, sample_employees):
         print(f"  Local Time:       {local_now.strftime('%Y-%m-%d %H:%M:%S')} ({local_day})")
         print(f"  Working Days:     {','.join(emp.working_days)}")
 
-        # 1. Evaluate Working Day
-        if not emp.is_working_day(local_now):
+        # 1. Evaluate Working Day (bypass when manually triggering a test)
+        if not emp.is_working_day(local_now) and not test_target:
             print(f"  --> Status: SKIP ({local_day} is an OFF DAY for {emp.name}).")
             continue
 
@@ -688,11 +695,11 @@ def run_reminder_cycle(args, sample_employees):
         elif len(rem_times) >= 3 and local_time == rem_times[2]:
             reminder_type = "final"
 
-        if not reminder_type and not args.force_time:
+        if not reminder_type and not args.force_time and not test_target:
             print(f"  --> Status: SKIP (Current local time {local_time} does not match shift trigger times {rem_times}).")
             continue
 
-        if args.force_time and not reminder_type:
+        if (args.force_time or test_target) and not reminder_type:
             reminder_type = "first"
 
         print(f"  --> Time Window Matched: {reminder_type.upper()} REMINDER ({local_time})")
@@ -703,13 +710,16 @@ def run_reminder_cycle(args, sample_employees):
         if sp_url:
             download_sharepoint_file(sp_url, excel_path)
 
-        is_completed = check_task_sheet_local(excel_path, emp.sheet_name, local_date, emp.name)
+        is_completed = check_task_sheet_local(excel_path, emp.sheet_name, local_date, emp.name, ignore_checks=bool(test_target))
 
-        if is_completed:
+        if is_completed and not test_target:
             print(f"  --> Task Check Result: COMPLETED! Employee updated their sheet for {local_date}.")
             print(f"  --> Status: NO EMAIL REQUIRED.")
         else:
-            print(f"  --> Task Check Result: BLANK / MISSING for {local_date}.")
+            if test_target:
+                print(f"  --> [TEST TRIGGER FORCE SEND] Sending test reminder email to {emp.email} (CC: {emp.manager_cc}).")
+            else:
+                print(f"  --> Task Check Result: BLANK / MISSING for {local_date}.")
             subject, body = build_email_content(reminder_type, emp.name, local_date)
             send_email(emp.email, emp.manager_cc, subject, body, dry_run=dry_run_mode, config=config)
 
