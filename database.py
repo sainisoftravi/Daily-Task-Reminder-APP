@@ -17,6 +17,7 @@ import secrets
 import string
 import threading
 from typing import List, Dict, Any, Optional
+# pyrefly: ignore [missing-import]
 from cryptography.fernet import Fernet
 from werkzeug.security import generate_password_hash, check_password_hash
 

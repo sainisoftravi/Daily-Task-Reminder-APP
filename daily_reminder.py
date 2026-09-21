@@ -684,15 +684,27 @@ def run_reminder_cycle(args, sample_employees):
             print(f"  --> Status: SKIP ({local_day} is an OFF DAY for {emp.name}).")
             continue
 
-        # 2. Evaluate Dynamic Shift Time Window
+        # 2. Evaluate Dynamic Shift Time Window (with 5-minute tolerance window for background daemon)
         rem_times = getattr(emp, 'reminders', None) or ["18:30", "18:45", "19:00"]
         reminder_type = None
 
-        if len(rem_times) >= 1 and local_time == rem_times[0]:
+        def _match_time(t_str):
+            if not t_str: return False
+            if local_time == t_str: return True
+            try:
+                t_dt = datetime.datetime.strptime(t_str, "%H:%M").time()
+                l_dt = local_now.time()
+                t_mins = t_dt.hour * 60 + t_dt.minute
+                l_mins = l_dt.hour * 60 + l_dt.minute
+                return 0 <= (l_mins - t_mins) <= 5
+            except Exception:
+                return False
+
+        if len(rem_times) >= 1 and _match_time(rem_times[0]):
             reminder_type = "first"
-        elif len(rem_times) >= 2 and local_time == rem_times[1]:
+        elif len(rem_times) >= 2 and _match_time(rem_times[1]):
             reminder_type = "second"
-        elif len(rem_times) >= 3 and local_time == rem_times[2]:
+        elif len(rem_times) >= 3 and _match_time(rem_times[2]):
             reminder_type = "final"
 
         if not reminder_type and not args.force_time and not test_target:
@@ -701,6 +713,11 @@ def run_reminder_cycle(args, sample_employees):
 
         if (args.force_time or test_target) and not reminder_type:
             reminder_type = "first"
+
+        # Deduplication check: Do not re-send if this reminder stage was already sent today
+        if not test_target and database.has_reminder_been_sent_today(emp.email, reminder_type, local_date):
+            print(f"  --> Status: SKIP ({reminder_type.upper()} REMINDER already sent to {emp.email} for {local_date}).")
+            continue
 
         print(f"  --> Time Window Matched: {reminder_type.upper()} REMINDER ({local_time})")
 

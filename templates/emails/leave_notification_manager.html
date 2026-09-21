@@ -8,16 +8,16 @@
     <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
         
         <!-- Header Banner -->
-        <div style="background-color: #0369a1; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 24px 30px; text-align: center; color: #ffffff;">
+        <div style="background-color: #0f172a; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 26px 30px; text-align: center; color: #ffffff; border-bottom: 3px solid #0284c7;">
             {% if logo_b64 %}
-            <div style="margin-bottom: 12px;">
-                <img src="data:image/png;base64,{{ logo_b64 }}" alt="TickTask Logo" style="max-height: 44px; max-width: 220px; height: auto; width: auto; display: inline-block; border: 0;" />
+            <div style="background-color: #ffffff; padding: 10px 22px; border-radius: 8px; display: inline-block; box-shadow: 0 3px 12px rgba(0,0,0,0.2); margin-bottom: 14px;">
+                <img src="data:image/png;base64,{{ logo_b64 }}" alt="TickTask Logo" style="max-height: 44px; max-width: 220px; height: auto; width: auto; display: block; border: 0;" />
             </div>
             {% else %}
             <div style="font-size: 32px; margin-bottom: 6px;">📢</div>
             {% endif %}
             <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff !important;">Employee Leave Application Notice</h2>
-            <p style="margin: 4px 0 0 0; font-size: 13px; color: #e0f2fe !important; opacity: 0.95;">Team Workspace: {{ team_name }}</p>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #94a3b8 !important; opacity: 0.95;">Team Workspace: {{ team_name }}</p>
         </div>
 
         <!-- Body Content -->

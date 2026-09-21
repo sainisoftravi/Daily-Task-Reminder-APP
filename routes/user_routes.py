@@ -24,6 +24,88 @@ def managers_page():
     return redirect(url_for("user_bp.users_page"))
 
 
+def send_welcome_onboarding_email(emp_name: str, emp_email: str, manager_cc: str, temp_password: str, role: str, team_name: str = ""):
+    """Dispatches onboarding welcome email notification with credentials via SMTP in a background thread."""
+    def _send():
+        try:
+            from daily_reminder import send_email, get_logo_b64
+            logo_b64 = get_logo_b64()
+
+            clean_name = emp_name.split(" (")[0].strip()
+            to_addr = (emp_email or "").strip()
+            cc_addr = (manager_cc or "").strip()
+
+            if not to_addr:
+                return
+
+            subject = f"🎉 Welcome to TickTask - Account Created ({clean_name})"
+            
+            logo_img_html = ""
+            if logo_b64:
+                logo_img_html = f'''<div style="background-color: #ffffff; padding: 10px 22px; border-radius: 8px; display: inline-block; box-shadow: 0 3px 12px rgba(0,0,0,0.2); margin-bottom: 14px;">
+                    <img src="data:image/png;base64,{logo_b64}" alt="TickTask Logo" style="max-height: 44px; max-width: 220px; height: auto; width: auto; display: block; border: 0;" />
+                </div>'''
+
+            html_body = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #334155;">
+    <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+        <div style="background-color: #0f172a; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 26px 30px; text-align: center; color: #ffffff; border-bottom: 3px solid #0284c7;">
+            {logo_img_html}
+            <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff !important;">Welcome to TickTask!</h2>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #94a3b8 !important;">Daily Task Reminder & Team Management System</p>
+        </div>
+        <div style="padding: 28px 30px;">
+            <p style="font-size: 15px; margin-top: 0;">Dear <strong>{clean_name}</strong>,</p>
+            <p style="font-size: 14px; line-height: 1.6; color: #475569;">
+                Your new account has been created on the <strong>TickTask Portal</strong>. Below are your login credentials:
+            </p>
+            <div style="background-color: #f8fafc; border-radius: 8px; border: 1px solid #cbd5e1; padding: 18px 20px; margin: 20px 0;">
+                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                    🔑 Account Credentials
+                </h4>
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <tr>
+                        <td style="padding: 6px 0; color: #64748b; width: 140px;"><strong>Username (Email):</strong></td>
+                        <td style="padding: 6px 0; color: #0f172a; font-weight: 600;"><code>{to_addr}</code></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; color: #64748b;"><strong>Temporary Password:</strong></td>
+                        <td style="padding: 6px 0; color: #0284c7; font-weight: 700; font-family: monospace; font-size: 15px;">{temp_password}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; color: #64748b;"><strong>Assigned Role:</strong></td>
+                        <td style="padding: 6px 0; color: #0f172a; text-transform: capitalize; font-weight: 600;">{role}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; color: #64748b;"><strong>Team Workspace:</strong></td>
+                        <td style="padding: 6px 0; color: #0f172a;">{team_name or 'Infra Team'}</td>
+                    </tr>
+                </table>
+            </div>
+            <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #991b1b; margin-top: 18px;">
+                <strong>⚠️ Security Notice:</strong> Temporary passwords are valid for 4 hours only. You will be prompted to set your new password upon your first login.
+            </div>
+            <p style="font-size: 13px; color: #64748b; margin-top: 24px;">
+                Best regards,<br>
+                <strong>Daily Task Reminder System Team</strong>
+            </p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+            body_text = f"Dear {clean_name},\n\nWelcome to TickTask!\n\nYour account has been created.\n• Username: {to_addr}\n• Temporary Password: {temp_password}\n• Role: {role}\n\nNote: Temporary passwords expire in 4 hours. Please log in to set your password.\n\nBest regards,\nDaily Task Reminder System Team"
+            send_email(to_email=to_addr, cc_email=cc_addr, subject=subject, body=body_text, html_body=html_body)
+            print(f"[WELCOME EMAIL SUCCESS] Dispatched onboarding welcome email to {to_addr}")
+        except Exception as err:
+            print(f"[WELCOME EMAIL ERROR] Failed to send welcome email to {emp_email}: {err}")
+
+    import threading
+    threading.Thread(target=_send, daemon=True).start()
+
+
 @user_bp.route("/api/users", methods=["GET", "POST"])
 @user_bp.route("/api/employees", methods=["GET", "POST"])
 def manage_employees():
@@ -65,6 +147,15 @@ def manage_employees():
         emp_name = data.get("name", "Employee")
         emp_role = data.get("role", "employee")
         log_event(f"Saved User Account Record for '{emp_name}' (Role: {emp_role}).")
+
+        if is_new or (data.get("password") and data.get("password") != "••••••••••••"):
+            emp_e = data.get("email", "")
+            mgr_cc = data.get("managerCc") or data.get("manager_cc") or "Ravi@d2backoffice.onmicrosoft.com"
+            pwd_val = data.get("password", "")
+            r_val = data.get("role", "employee")
+            t_val = data.get("teamName") or data.get("team_name", "")
+            if emp_e and pwd_val:
+                send_welcome_onboarding_email(emp_name, emp_e, mgr_cc, pwd_val, r_val, t_val)
 
         employees = database.get_all_employees()
         return jsonify({"success": True, "employees": employees})

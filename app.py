@@ -121,7 +121,7 @@ app.register_blueprint(settings_bp)
 
 
 def background_reminder_daemon():
-    """Runs reminder evaluation cycle every 15 minutes continuously (local daemon only)."""
+    """Runs reminder evaluation cycle every 60 seconds continuously (local daemon only)."""
     log_event("Background Reminder Daemon started.")
     while True:
         try:
@@ -138,7 +138,7 @@ def background_reminder_daemon():
                         timezone_str=e["timezone"],
                         working_days=",".join(e.get("workingDays", [])),
                         sheet_name=e.get("sheetName", "Technical Infra Team-Aug-2026"),
-                        manager_cc=e.get("managerCc", "Ravi@d2backoffice.onmicrosoft.com"),
+                        manager_cc=e.get("managerCc") or e.get("manager_cc") or "Ravi@d2backoffice.onmicrosoft.com",
                         reminders=e.get("reminders")
                     ))
 
@@ -153,12 +153,11 @@ def background_reminder_daemon():
                 args.excel_file = config.get("excel_file_path", "Daily Task and Update Sheet.xlsx")
                 args.sharepoint_url = config.get("sharepoint_url")
 
-                log_event("Evaluating 15-minute daily reminder cycle...")
                 daily_reminder.run_reminder_cycle(args, emp_objects)
         except Exception as e:
             log_event(f"Daemon Error: {e}", "ERROR")
 
-        time.sleep(900)  # 15 minutes
+        time.sleep(60)  # 60 seconds (1 minute) interval ensures exact trigger time window matching
 
 
 if __name__ == "__main__":
