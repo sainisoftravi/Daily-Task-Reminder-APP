@@ -6,7 +6,7 @@ Supports multi-timezone staff roster management (**India, UAE, Saudi Arabia, USA
 
 ---
 
-## 📑 Table of Contents
+## 📑 Table of Contents ch
 1. [Default Application Credentials & Test Accounts](#1-default-application-credentials--test-accounts)
 2. [Architecture & System Features](#2-architecture--system-features)
 3. [Web Application Pages Sitemap](#3-web-application-pages-sitemap)
