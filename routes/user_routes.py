@@ -76,3 +76,22 @@ def delete_employee_route(emp_id):
     log_event(f"Deleted User Account ID: {emp_id}")
     employees = database.get_all_employees()
     return jsonify({"success": True, "employees": employees})
+
+
+@user_bp.route("/api/managers", methods=["GET", "POST"])
+def manage_managers():
+    if request.method == "GET":
+        managers = database.get_all_managers()
+        return jsonify({"success": True, "managers": managers})
+    elif request.method == "POST":
+        data = request.json or {}
+        database.save_manager_record(data)
+        managers = database.get_all_managers()
+        return jsonify({"success": True, "managers": managers})
+
+
+@user_bp.route("/api/managers/<mgr_id>", methods=["DELETE"])
+def delete_manager_route(mgr_id):
+    database.delete_manager_record(mgr_id)
+    managers = database.get_all_managers()
+    return jsonify({"success": True, "managers": managers})

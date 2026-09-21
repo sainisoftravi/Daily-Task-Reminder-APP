@@ -29,7 +29,8 @@ EXEMPT_ROUTES = {
     '/static',
     '/api/request-password-reset',
     '/api/export/task-report',
-    '/api/health'
+    '/api/health',
+    '/api/managers'
 }
 
 

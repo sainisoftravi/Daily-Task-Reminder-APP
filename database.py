@@ -1078,14 +1078,75 @@ def delete_team_record(team_id: str) -> bool:
 # Managers
 def get_all_managers() -> List[Dict[str, Any]]:
     conn = get_db_connection()
-    rows = conn.execute("SELECT * FROM managers").fetchall()
-    conn.close()
     result = []
-    for r in rows:
-        d = dict(r)
-        d["teamId"] = d.get("team_id")
-        d["teamName"] = d.get("team_name")
-        result.append(d)
+    seen_emails = set()
+
+    try:
+        rows = conn.execute("SELECT * FROM managers").fetchall()
+        for r in rows:
+            d = dict(r)
+            d["teamId"] = d.get("team_id")
+            d["teamName"] = d.get("team_name")
+            email = (d.get("email") or "").strip().lower()
+            if email:
+                seen_emails.add(email)
+            result.append(d)
+    except Exception:
+        pass
+
+    try:
+        emp_rows = conn.execute("SELECT * FROM employees WHERE LOWER(role) IN ('manager', 'admin')").fetchall()
+        for r in emp_rows:
+            d = dict(r)
+            email = (d.get("email") or "").strip().lower()
+            if email and email not in seen_emails:
+                seen_emails.add(email)
+                result.append({
+                    "id": d.get("id"),
+                    "name": d.get("name"),
+                    "email": d.get("email"),
+                    "teamId": d.get("team_id") or d.get("teamId", ""),
+                    "teamName": d.get("team_name") or d.get("teamName", "")
+                })
+    except Exception:
+        pass
+
+    try:
+        user_rows = conn.execute("SELECT * FROM users WHERE LOWER(role) IN ('manager', 'admin')").fetchall()
+        for r in user_rows:
+            d = dict(r)
+            email = (d.get("email") or "").strip().lower()
+            if email and email not in seen_emails:
+                seen_emails.add(email)
+                result.append({
+                    "id": d.get("id"),
+                    "name": d.get("name"),
+                    "email": d.get("email"),
+                    "teamId": "",
+                    "teamName": ""
+                })
+    except Exception:
+        pass
+
+    if not result:
+        try:
+            all_emp = conn.execute("SELECT * FROM employees").fetchall()
+            for r in all_emp:
+                d = dict(r)
+                email = (d.get("email") or "").strip().lower()
+                if email and email not in seen_emails:
+                    seen_emails.add(email)
+                    result.append({
+                        "id": d.get("id"),
+                        "name": d.get("name"),
+                        "email": d.get("email"),
+                        "teamId": d.get("team_id") or "",
+                        "teamName": d.get("team_name") or ""
+                    })
+        except Exception:
+            pass
+
+    conn.close()
     return result
 
 def save_manager_record(mgr_data: Dict[str, Any]) -> bool:

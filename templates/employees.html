@@ -261,6 +261,7 @@
         const data = await res.json();
         if (data.success) {
             employeesData = data.employees;
+            populateManagerDropdowns();
             renderEmployeesTable();
         }
     }
@@ -346,7 +347,41 @@
 
     function populateManagerDropdowns() {
         const sel = document.getElementById('emp-manager-select');
-        if (sel) sel.innerHTML = managersData.map(m => `<option value="${m.email}">${m.name} (${m.email})</option>`).join('');
+        if (!sel) return;
+
+        let optionsMap = new Map();
+
+        if (Array.isArray(managersData)) {
+            managersData.forEach(m => {
+                if (m && m.email) {
+                    const cleanEmail = m.email.trim();
+                    const name = m.name || cleanEmail;
+                    optionsMap.set(cleanEmail.toLowerCase(), `<option value="${cleanEmail}">${name} (${cleanEmail})</option>`);
+                }
+            });
+        }
+
+        if (Array.isArray(employeesData)) {
+            const mgrs = employeesData.filter(e => e && e.email && (e.role === 'manager' || e.role === 'admin' || e.role === 'Manager' || e.role === 'Admin'));
+            const listToUse = mgrs.length > 0 ? mgrs : employeesData;
+            listToUse.forEach(e => {
+                if (e && e.email) {
+                    const cleanEmail = e.email.trim();
+                    const name = e.name || cleanEmail;
+                    if (!optionsMap.has(cleanEmail.toLowerCase())) {
+                        optionsMap.set(cleanEmail.toLowerCase(), `<option value="${cleanEmail}">${name} (${cleanEmail})</option>`);
+                    }
+                }
+            });
+        }
+
+        let html = '<option value="">-- Select Manager CC Oversight --</option>';
+        if (optionsMap.size > 0) {
+            html += Array.from(optionsMap.values()).join('');
+        } else {
+            html += '<option value="Ravi@d2backoffice.onmicrosoft.com">Ravi Saini (Ravi@d2backoffice.onmicrosoft.com)</option>';
+        }
+        sel.innerHTML = html;
     }
 
     function updateTeamSheetName() {
@@ -648,6 +683,7 @@
         document.getElementById('emp-password').placeholder = "Set initial password (e.g. Pass@123)";
         document.getElementById('emp-role-select').value = 'employee';
         onUserRoleChange();
+        populateManagerDropdowns();
         if (locationsData.length > 0) {
             document.getElementById('emp-location-select').value = locationsData[0].id;
             onLocationSelectChange();
@@ -672,6 +708,7 @@
         document.getElementById('emp-password').placeholder = "Leave blank to keep current password";
         document.getElementById('emp-role-select').value = emp.role || 'employee';
         onUserRoleChange();
+        populateManagerDropdowns();
 
         document.getElementById('emp-timezone').value = emp.timezone;
         document.getElementById('emp-sheetname').value = emp.sheetName || 'Technical Infra Team-Aug-2026';
