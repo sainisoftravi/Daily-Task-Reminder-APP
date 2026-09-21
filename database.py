@@ -529,10 +529,22 @@ def _seed_from_json(conn: sqlite3.Connection):
             with open(json_file, "r", encoding="utf-8") as f:
                 tpls = json.load(f)
                 for k, v in tpls.items():
-                    cursor.execute(
-                        "INSERT INTO templates (key, name, subject, body, ignore_note) VALUES (?, ?, ?, ?, ?) ON CONFLICT(key) DO NOTHING",
-                        (k, v.get("name", k), v.get("subject", ""), v.get("body", ""), v.get("ignore_note", ""))
-                    )
+                    if k == "welcome_email":
+                        cursor.execute("""
+                            INSERT INTO templates (key, name, subject, body, ignore_note) 
+                            VALUES (?, ?, ?, ?, ?) 
+                            ON CONFLICT(key) DO UPDATE SET 
+                                name=excluded.name, 
+                                subject=excluded.subject, 
+                                body=excluded.body, 
+                                ignore_note=excluded.ignore_note 
+                            WHERE templates.body LIKE '%Hello {name}%' OR templates.subject LIKE '%Welcome to Daily Task%'
+                        """, (k, v.get("name", k), v.get("subject", ""), v.get("body", ""), v.get("ignore_note", "")))
+                    else:
+                        cursor.execute(
+                            "INSERT INTO templates (key, name, subject, body, ignore_note) VALUES (?, ?, ?, ?, ?) ON CONFLICT(key) DO NOTHING",
+                            (k, v.get("name", k), v.get("subject", ""), v.get("body", ""), v.get("ignore_note", ""))
+                        )
         except Exception as e:
             print(f"[DB SEED WARN] Templates seed error: {e}")
 

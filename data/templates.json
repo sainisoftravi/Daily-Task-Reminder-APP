@@ -25,9 +25,9 @@
   },
   "welcome_email": {
     "name": "Welcome Email - New User Account Onboarding Template",
-    "subject": "Welcome to Daily Task Reminder System - Your Login Credentials",
-    "body": "Hello {name},\n\nWelcome to the Daily Task Reminder & Multi-Role Task Management System!\n\nYour employee account has been created by your Manager ({mgr_email}). Below are your official login details:\n\n• Portal Login URL: {portal_url}\n• Assigned Role: {role}\n• Username (Email): {email}\n• Password: {password}\n\n⚠️ IMPORTANT SECURITY NOTICE:\nFor your security, your temporary password is valid for 4 HOURS ONLY. You will be required to change your password upon your first login.\n\nIf you do not log in within 4 hours, your password will expire, and you can request a new temporary password on the login page using 'Forgot password?'.\n\nPlease log in to the portal using your Username ({email}) and Password to set up your permanent credentials.\n\nBest regards,\nDaily Task Reminder System Team",
-    "ignore_note": "⚠️ Temporary Password Notice: Valid for 4 hours only. Must be changed upon first login."
+    "subject": "🎉 Welcome to TickTask - {role} Account Created ({name})",
+    "body": "Dear {name},\n\nYour new {role} account has been created on the TickTask Portal. Below are your login credentials:\n\n• Portal Login URL: {portal_url}\n• Username (Email): {email}\n• Temporary Password: {password}\n• Assigned Role: {role}\n• Team Workspace: {team}\n\nNote: Temporary passwords expire in 4 hours. You will be prompted to set your new permanent password upon your first login.",
+    "ignore_note": "⚠️ Security Notice: Temporary passwords are valid for 4 hours only. You will be prompted to set your new password upon your first login."
   },
   "leave_ack_employee": {
     "name": "Leave Application Acknowledgement (Employee)",
