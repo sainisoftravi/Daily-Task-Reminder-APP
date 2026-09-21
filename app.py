@@ -28,7 +28,8 @@ EXEMPT_ROUTES = {
     '/api/me',
     '/static',
     '/api/request-password-reset',
-    '/api/export/task-report'
+    '/api/export/task-report',
+    '/api/health'
 }
 
 
@@ -88,6 +89,16 @@ def add_cors_headers(response):
 @app.route('/<path:path>', methods=['OPTIONS'])
 def handle_options_preflight(path):
     return '', 204
+
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Ultra-lightweight keep-alive route to prevent Vercel Serverless Function cold starts."""
+    return jsonify({
+        "status": "warm",
+        "app": "TickTask Daily Task Log System",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    }), 200
 
 
 def log_event(msg: str, level: str = "INFO"):

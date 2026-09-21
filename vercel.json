@@ -6,6 +6,12 @@
       "use": "@vercel/python"
     }
   ],
+  "crons": [
+    {
+      "path": "/api/health",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "routes": [
     {
       "src": "/(.*)",
