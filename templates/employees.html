@@ -181,8 +181,19 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Manager CC Oversight</label>
+                        <label class="form-label">Manager CC Email Oversight</label>
                         <select id="emp-manager-select" class="form-control"></select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">🎉 Assigned Location Holiday Calendar</label>
+                        <select id="emp-holiday-calendar-select" class="form-control">
+                            <option value="">-- None / Default --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <input type="hidden" id="emp-sheetname" value="Technical Infra Team-Aug-2026">
                     </div>
                 </div>
@@ -240,6 +251,7 @@
     let teamsData = [];
     let managersData = [];
     let locationsData = [];
+    let holidayCalendarsData = [];
     let currentRoleFilter = 'ALL';
     let currentTeamFilter = 'ALL';
     let currentLocationFilter = 'ALL';
@@ -265,8 +277,29 @@
 
 
     async function loadData() {
-        await Promise.all([fetchEmployees(), fetchShifts(), fetchTeams(), fetchManagers(), fetchLocations()]);
+        await Promise.all([fetchEmployees(), fetchShifts(), fetchTeams(), fetchManagers(), fetchLocations(), fetchHolidayCalendars()]);
         renderEmployeesTable();
+    }
+
+    async function fetchHolidayCalendars() {
+        try {
+            const res = await fetch('/api/holiday-calendars');
+            const data = await res.json();
+            if (data.success) {
+                holidayCalendarsData = data.calendars;
+                populateHolidayCalendarDropdown();
+            }
+        } catch (e) {}
+    }
+
+    function populateHolidayCalendarDropdown() {
+        const sel = document.getElementById('emp-holiday-calendar-select');
+        if (!sel) return;
+        let html = '<option value="">-- None / Default --</option>';
+        holidayCalendarsData.forEach(c => {
+            html += `<option value="${c.id}">${c.name} (${c.location || 'Global'} - ${c.year})</option>`;
+        });
+        sel.innerHTML = html;
     }
 
     async function fetchEmployees() {
@@ -692,6 +725,7 @@
         document.getElementById('emp-role-select').value = 'employee';
         if (document.getElementById('emp-dob')) document.getElementById('emp-dob').value = '';
         if (document.getElementById('emp-phone')) document.getElementById('emp-phone').value = '';
+        if (document.getElementById('emp-holiday-calendar-select')) document.getElementById('emp-holiday-calendar-select').value = '';
         onUserRoleChange();
         populateManagerDropdowns();
         if (locationsData.length > 0) {
@@ -719,6 +753,7 @@
         document.getElementById('emp-role-select').value = emp.role || 'employee';
         if (document.getElementById('emp-dob')) document.getElementById('emp-dob').value = emp.dob || '';
         if (document.getElementById('emp-phone')) document.getElementById('emp-phone').value = emp.phone || '';
+        if (document.getElementById('emp-holiday-calendar-select')) document.getElementById('emp-holiday-calendar-select').value = emp.holidayCalendarId || emp.holiday_calendar_id || '';
         onUserRoleChange();
         populateManagerDropdowns();
 
@@ -778,6 +813,7 @@
         const shift = shiftsData.find(s => s.id === shiftId);
         const locId = document.getElementById('emp-location-select').value;
         const loc = locationsData.find(l => l.id === locId);
+        const holCalId = document.getElementById('emp-holiday-calendar-select') ? document.getElementById('emp-holiday-calendar-select').value : '';
 
         const payload = {
             id: document.getElementById('emp-id').value,
@@ -787,6 +823,7 @@
             role: role,
             dob: document.getElementById('emp-dob') ? document.getElementById('emp-dob').value : '',
             phone: document.getElementById('emp-phone') ? document.getElementById('emp-phone').value : '',
+            holidayCalendarId: holCalId,
             location: loc ? loc.country : 'India',
             locationId: locId,
             timezone: loc ? loc.timezoneName : 'India Standard Time',

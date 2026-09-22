@@ -41,7 +41,7 @@ def check_authentication():
         return
 
     path = request.path
-    if path in EXEMPT_ROUTES or path.startswith('/static'):
+    if path in EXEMPT_ROUTES or path.startswith('/static') or 'download-template' in path:
         return
 
     # Check session
@@ -99,10 +99,7 @@ def add_cors_headers(response):
     return response
 
 
-@app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
-@app.route('/<path:path>', methods=['OPTIONS'])
-def handle_options_preflight(path):
-    return '', 204
+# Preflight OPTIONS requests are handled in @app.before_request check_authentication() and @app.after_request add_cors_headers()
 
 
 @app.route('/api/health', methods=['GET'])
@@ -125,12 +122,15 @@ from routes.task_routes import task_bp
 from routes.report_routes import report_bp
 from routes.user_routes import user_bp
 from routes.settings_routes import settings_bp
+from routes.holiday_routes import holiday_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(task_bp)
 app.register_blueprint(report_bp)
 app.register_blueprint(user_bp)
 app.register_blueprint(settings_bp)
+app.register_blueprint(holiday_bp)
+
 
 
 def background_reminder_daemon():

@@ -228,6 +228,7 @@ Ciphertext: "gAAAAABnX9Z2kK... (Stored securely in Database)"
 | View Team Task Matrix & Export Reports | ❌ | ✅ | ✅ |
 | Download & Upload Bulk Excel Templates | ❌ | ✅ | ✅ |
 | Apply Bulk Leave for Team Members | ❌ | ✅ | ✅ |
+| Manage Location Holiday Calendars | ❌ | ✅ | ✅ |
 | Manage System SMTP & Shift Configurations | ❌ | ❌ | ✅ |
 | Edit GUI Email Templates | ❌ | ❌ | ✅ |
 | Manage User Accounts & Permissions | ❌ | ❌ | ✅ |
@@ -268,6 +269,48 @@ A centralized audit log portal (`/daemon-logs`) tracking system execution, SMTP 
 #### Key Benefits:
 * **Full Accountability**: Every bulk upload, leave application, user creation, and SMTP dispatch is logged with timestamps and severity levels.
 * **Real-Time Monitoring**: Enables administrators to audit system events and troubleshoot SMTP connection status.
+
+---
+
+### Feature 13: Location-Based Holiday Calendars & Regional Festival Leave Management
+
+#### Overview
+A multi-region holiday calendar management engine designed for multi-national and multi-location enterprises (e.g., Jaipur, Chennai, US Branch Offices). It allows Admins and Managers to configure location-specific holiday schedules, assign calendars to individual employees, auto-fill holiday entries in monthly log templates and matrix reports, suppress automated shift reminders on festival holidays, download pre-populated Excel syntax files for calendar updates, and view regional holiday calendars across all user roles (Employees, Managers, Admins) under Leave Management (`/leave`).
+
+```
++-----------------------------------------------------------------------------------+
+| 🗓️ HOLIDAY CALENDAR MANAGEMENT                                                     |
+| Select Calendar: [ Jaipur Location 2026  v ]  [ + Create New Calendar ]          |
+| +------------+---------------+----------------------+--------------------------+  |
+| | Date       | Day of Week   | Festival Name        | Actions                  |  |
+| +------------+---------------+----------------------+--------------------------+  |
+| | 2026-10-20 | Tuesday       | Diwali               | [ Delete ]               |  |
+| | 2026-03-25 | Wednesday     | Holi                 | [ Delete ]               |  |
+| +------------+---------------+----------------------+--------------------------+  |
+| [ 📥 Download Syntax File ]  [ 📥 Import Excel Dates ]  [ + Add Date Row ]        |
++-----------------------------------------------------------------------------------+
+```
+
+#### Step-by-Step Process:
+1. **Calendar Creation & Date Management** (`/holidays` under Settings):
+   * Create location-specific calendars (e.g., `Jaipur Festival Calendar 2026`, `Chennai Tech Hub Leaves`).
+   * **1-Click Excel Syntax Download**: Click **Download Syntax File** to download a formatted `.xlsx` template pre-filled with existing (or sample) holiday dates, weekdays, and holiday names. Edit dates directly in Excel and re-upload!
+   * Manually add holiday date rows with auto-computed weekdays or bulk upload dates using Microsoft Excel files (`.xlsx` or `.xls`).
+2. **Employee Calendar Assignment** (`/employees`):
+   * Select the appropriate regional **Assigned Location Holiday Calendar** dropdown when creating or updating employee/manager profiles.
+3. **Universal Holiday Visibility under Leave Management (`/leave`)**:
+   * All user roles (Employees 👤, Managers 👔, Admins 🛡️) can access the **Location Holiday Calendar** tab on the Leave Management portal (`/leave`).
+   * Displays the employee's assigned location calendar badge, calendar selection dropdown to check other branch locations, search filters, and full festival holiday schedules.
+4. **Automated Log Pre-filling & Suppression**:
+   * **Monthly Log Generator (`/api/task-logs/user-template`)**: Pre-fills regional festival dates with `Work Status = "Holiday"` and `Task Details = "HOLIDAY: <Festival Name>"`.
+   * **Bulk Excel Import**: Excel uploads automatically parse holiday entries for assigned location calendars.
+   * **Matrix Reports (XLSX & PDF)**: Displays festival leaves highlighted with purple/teal badge fills (`#F3E8FF` background, `#7E22CE` font) and `🎉 <Festival Name>` text.
+   * **Automated Shift Daemon**: Automatically suppresses email shift reminders for employees on their location's holiday dates.
+
+#### Key Business Advantages:
+* **Multi-Location Operational Accuracy**: Prevents false missed-log notifications for employees working across regional offices with differing holiday lists.
+* **Universal Employee Transparency**: Enables every employee to view their assigned regional festival calendar directly from the Leave Management page.
+* **1-Click Excel Syntax Migration & Updates**: Download pre-populated syntax files to update or add holiday dates in bulk using Microsoft Excel.
 
 ---
 

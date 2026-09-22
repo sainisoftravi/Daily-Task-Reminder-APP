@@ -201,14 +201,19 @@ def export_task_report():
             if existing_val and str(existing_val).strip():
                 logs_map[key_name] = existing_val
             else:
-                # Fast in-memory week off check without opening DB connections inside loops
-                w_days = emp.get("workingDays") or emp.get("working_days") or ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-                if isinstance(w_days, str):
-                    w_days = [w.strip() for w in w_days.replace("[", "").replace("]", "").replace('"', "").replace("'", "").split(",") if w.strip()]
-                if database.is_date_week_off(d_str, w_days):
-                    logs_map[key_name] = "🏖️ Week Off"
+                # Fast in-memory holiday & week off check
+                hol_map = database.get_employee_holiday_map(emp_email_lower or emp_name_lower)
+                is_hol, hol_name = database.is_date_holiday(d_str, hol_map)
+                if is_hol:
+                    logs_map[key_name] = f"🎉 {hol_name}"
                 else:
-                    logs_map[key_name] = "Data Not Available"
+                    w_days = emp.get("workingDays") or emp.get("working_days") or ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+                    if isinstance(w_days, str):
+                        w_days = [w.strip() for w in w_days.replace("[", "").replace("]", "").replace('"', "").replace("'", "").split(",") if w.strip()]
+                    if database.is_date_week_off(d_str, w_days):
+                        logs_map[key_name] = "🏖️ Week Off"
+                    else:
+                        logs_map[key_name] = "Data Not Available"
 
     # Extract logged-in user full name
     user = session.get("user") or {}

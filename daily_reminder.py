@@ -684,6 +684,14 @@ def run_reminder_cycle(args, sample_employees):
             print(f"  --> Status: SKIP ({local_day} is an OFF DAY for {emp.name}).")
             continue
 
+        # 1b. Evaluate Holiday Calendar (bypass when manually triggering a test)
+        iso_date_str = local_now.strftime("%Y-%m-%d")
+        hol_map = database.get_employee_holiday_map(emp.email or emp.name)
+        is_hol, hol_name = database.is_date_holiday(iso_date_str, hol_map)
+        if is_hol and not test_target:
+            print(f"  --> Status: SKIP ({iso_date_str} is a HOLIDAY [{hol_name}] for {emp.name}).")
+            continue
+
         # 2. Evaluate Dynamic Shift Time Window (with 5-minute tolerance window for background daemon)
         rem_times = getattr(emp, 'reminders', None) or ["18:30", "18:45", "19:00"]
         reminder_type = None

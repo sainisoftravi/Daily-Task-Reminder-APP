@@ -17,7 +17,7 @@ import time
 import secrets
 import string
 import threading
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 # pyrefly: ignore [missing-import]
 from cryptography.fernet import Fernet
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -393,20 +393,27 @@ def init_db():
         )
     """)
 
-    # 12. Users Table (Multi-Role Authentication System)
+    # 13. Holiday Calendars Table
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE IF NOT EXISTS holiday_calendars (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            role TEXT NOT NULL,
-            team_id TEXT,
-            created_at TEXT,
-            must_change_password INTEGER DEFAULT 0,
-            pwd_expires_at TEXT,
-            dob TEXT,
-            phone TEXT
+            location TEXT,
+            year INTEGER,
+            description TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    # 14. Holiday Dates Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS holiday_dates (
+            id TEXT PRIMARY KEY,
+            calendar_id TEXT NOT NULL,
+            date_str TEXT NOT NULL,
+            holiday_name TEXT NOT NULL,
+            day_of_week TEXT,
+            created_at TEXT NOT NULL
         )
     """)
 
@@ -418,14 +425,17 @@ def init_db():
         "ALTER TABLE users ADD COLUMN pwd_expires_at TEXT",
         "ALTER TABLE users ADD COLUMN dob TEXT",
         "ALTER TABLE users ADD COLUMN phone TEXT",
+        "ALTER TABLE users ADD COLUMN holiday_calendar_id TEXT",
         "ALTER TABLE employees ADD COLUMN must_change_password INTEGER DEFAULT 0",
         "ALTER TABLE employees ADD COLUMN pwd_expires_at TEXT",
         "ALTER TABLE employees ADD COLUMN role TEXT DEFAULT 'employee'",
         "ALTER TABLE employees ADD COLUMN location_id TEXT",
         "ALTER TABLE employees ADD COLUMN dob TEXT",
         "ALTER TABLE employees ADD COLUMN phone TEXT",
+        "ALTER TABLE employees ADD COLUMN holiday_calendar_id TEXT",
         "ALTER TABLE managers ADD COLUMN team_name TEXT",
         "ALTER TABLE managers ADD COLUMN phone TEXT",
+        "ALTER TABLE managers ADD COLUMN holiday_calendar_id TEXT",
         "ALTER TABLE templates ADD COLUMN ignore_note TEXT",
         "ALTER TABLE task_logs ADD COLUMN is_leave INTEGER DEFAULT 0",
         "ALTER TABLE task_logs ADD COLUMN work_status TEXT DEFAULT 'Present'"
@@ -874,6 +884,7 @@ def get_all_employees(force_refresh: bool = False) -> List[Dict[str, Any]]:
         d["sheetName"] = d.get("sheet_name")
         d["managerCc"] = d.get("manager_cc")
         d["role"] = d.get("role") or "employee"
+        d["holidayCalendarId"] = d.get("holiday_calendar_id")
         d["dob"] = decrypt_value(d.get("dob") or "")
         d["phone"] = decrypt_value(d.get("phone") or "")
         result.append(d)
@@ -985,12 +996,13 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
     role = (emp_data.get("role") or "employee").lower()
     dob_val = (emp_data.get("dob") or "").strip()
     phone_val = (emp_data.get("phone") or "").strip()
+    hol_cal_id = (emp_data.get("holidayCalendarId") or emp_data.get("holiday_calendar_id") or "").strip()
     enc_dob = encrypt_value(dob_val)
     enc_phone = encrypt_value(phone_val)
 
     cursor.execute("""
-        INSERT INTO employees (id, name, email, location, location_id, timezone, working_days, shift_id, shift_name, reminders, team_id, team_name, sheet_name, manager_cc, role, dob, phone)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO employees (id, name, email, location, location_id, timezone, working_days, shift_id, shift_name, reminders, team_id, team_name, sheet_name, manager_cc, role, dob, phone, holiday_calendar_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             name=excluded.name,
             email=excluded.email,
@@ -1007,11 +1019,12 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
             manager_cc=excluded.manager_cc,
             role=excluded.role,
             dob=excluded.dob,
-            phone=excluded.phone
+            phone=excluded.phone,
+            holiday_calendar_id=excluded.holiday_calendar_id
     """, (
         emp_id, emp_data.get("name"), emp_data.get("email"), emp_data.get("location"), emp_data.get("locationId"), emp_data.get("timezone"),
         w_days, emp_data.get("shiftId"), emp_data.get("shiftName"), rems,
-        emp_data.get("teamId"), emp_data.get("teamName"), emp_data.get("sheetName"), emp_data.get("managerCc"), role, enc_dob, enc_phone
+        emp_data.get("teamId"), emp_data.get("teamName"), emp_data.get("sheetName"), emp_data.get("managerCc"), role, enc_dob, enc_phone, hol_cal_id
     ))
 
     # Sync with users table for authentication
@@ -1028,24 +1041,24 @@ def save_employee_record(emp_data: Dict[str, Any]) -> bool:
             if custom_pwd:
                 cursor.execute("""
                     UPDATE users 
-                    SET name = ?, role = ?, team_id = ?, password = ?, must_change_password = 1, pwd_expires_at = ?, dob = ?, phone = ? 
+                    SET name = ?, role = ?, team_id = ?, password = ?, must_change_password = 1, pwd_expires_at = ?, dob = ?, phone = ?, holiday_calendar_id = ? 
                     WHERE LOWER(email) = ?
-                """, (name_val, role, team_id_val, hash_password(custom_pwd), exp_4h, enc_dob, enc_phone, email_clean))
+                """, (name_val, role, team_id_val, hash_password(custom_pwd), exp_4h, enc_dob, enc_phone, hol_cal_id, email_clean))
                 emp_data["generated_password"] = custom_pwd
             else:
                 cursor.execute("""
                     UPDATE users 
-                    SET name = ?, role = ?, team_id = ?, dob = ?, phone = ? 
+                    SET name = ?, role = ?, team_id = ?, dob = ?, phone = ?, holiday_calendar_id = ? 
                     WHERE LOWER(email) = ?
-                """, (name_val, role, team_id_val, enc_dob, enc_phone, email_clean))
+                """, (name_val, role, team_id_val, enc_dob, enc_phone, hol_cal_id, email_clean))
         else:
             final_pwd = custom_pwd if custom_pwd else generate_random_password(12)
             u_id = f"u_{emp_id}"
             now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute("""
-                INSERT INTO users (id, name, email, password, role, team_id, created_at, must_change_password, pwd_expires_at, dob, phone) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-            """, (u_id, name_val, email_clean, hash_password(final_pwd), role, team_id_val, now_str, exp_4h, enc_dob, enc_phone))
+                INSERT INTO users (id, name, email, password, role, team_id, created_at, must_change_password, pwd_expires_at, dob, phone, holiday_calendar_id) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+            """, (u_id, name_val, email_clean, hash_password(final_pwd), role, team_id_val, now_str, exp_4h, enc_dob, enc_phone, hol_cal_id))
             emp_data["generated_password"] = final_pwd
 
     # If role is manager, sync with managers table
@@ -2163,6 +2176,185 @@ def get_employee_manager_cc(identifier: str) -> str:
         return row["manager_cc"]
     return "Ravi@d2backoffice.onmicrosoft.com"
 
+# --- HOLIDAY CALENDARS HELPER FUNCTIONS ---
+
+def get_all_holiday_calendars() -> List[Dict[str, Any]]:
+    """Returns all holiday calendars with date counts."""
+    conn = get_db_connection()
+    cals = conn.execute("SELECT * FROM holiday_calendars ORDER BY name ASC").fetchall()
+    result = []
+    for c in cals:
+        c_dict = dict(c)
+        cnt = conn.execute("SELECT COUNT(*) as cnt FROM holiday_dates WHERE calendar_id = ?", (c_dict["id"],)).fetchone()
+        c_dict["dates_count"] = cnt["cnt"] if cnt else 0
+        result.append(c_dict)
+    conn.close()
+    return result
+
+
+def get_holiday_calendar_by_id(cal_id: str) -> Optional[Dict[str, Any]]:
+    """Returns a specific holiday calendar and its dates."""
+    conn = get_db_connection()
+    row = conn.execute("SELECT * FROM holiday_calendars WHERE id = ?", (cal_id,)).fetchone()
+    if not row:
+        conn.close()
+        return None
+    c_dict = dict(row)
+    dates = conn.execute("SELECT * FROM holiday_dates WHERE calendar_id = ? ORDER BY date_str ASC", (cal_id,)).fetchall()
+    c_dict["dates"] = [dict(d) for d in dates]
+    c_dict["dates_count"] = len(c_dict["dates"])
+    conn.close()
+    return c_dict
+
+
+def save_holiday_calendar(cal_data: Dict[str, Any]) -> str:
+    """Creates or updates a holiday calendar metadata record."""
+    cal_id = cal_data.get("id") or f"cal_{int(datetime.datetime.now().timestamp())}"
+    name = (cal_data.get("name") or "Standard Holiday Calendar").strip()
+    location = (cal_data.get("location") or "").strip()
+    year = int(cal_data.get("year") or datetime.datetime.now().year)
+    description = (cal_data.get("description") or "").strip()
+    created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    conn = get_db_connection()
+    conn.execute(
+        """
+        INSERT INTO holiday_calendars (id, name, location, year, description, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            name = EXCLUDED.name,
+            location = EXCLUDED.location,
+            year = EXCLUDED.year,
+            description = EXCLUDED.description
+        """,
+        (cal_id, name, location, year, description, created_at)
+    )
+    conn.commit()
+    conn.close()
+    return cal_id
+
+
+def delete_holiday_calendar(cal_id: str) -> bool:
+    """Deletes a holiday calendar and all associated dates."""
+    conn = get_db_connection()
+    conn.execute("DELETE FROM holiday_dates WHERE calendar_id = ?", (cal_id,))
+    conn.execute("DELETE FROM holiday_calendars WHERE id = ?", (cal_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_holiday_dates(cal_id: str) -> List[Dict[str, Any]]:
+    """Returns all holiday dates for a calendar."""
+    conn = get_db_connection()
+    rows = conn.execute("SELECT * FROM holiday_dates WHERE calendar_id = ? ORDER BY date_str ASC", (cal_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def save_holiday_dates_batch(cal_id: str, dates_list: List[Dict[str, Any]]) -> int:
+    """Batch inserts/updates holiday dates for a given calendar."""
+    if not cal_id or not dates_list:
+        return 0
+
+    conn = get_db_connection()
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    inserted = 0
+    for item in dates_list:
+        raw_date = (item.get("date_str") or item.get("date") or "").strip()
+        h_name = (item.get("holiday_name") or item.get("name") or "Festival Holiday").strip()
+        if not raw_date:
+            continue
+
+        try:
+            dt = datetime.datetime.strptime(raw_date[:10], "%Y-%m-%d")
+            clean_date = dt.strftime("%Y-%m-%d")
+            dow = dt.strftime("%A")
+        except Exception:
+            clean_date = raw_date
+            dow = item.get("day_of_week") or ""
+
+        date_id = item.get("id") or f"hd_{cal_id}_{clean_date.replace('-', '_')}"
+
+        conn.execute(
+            """
+            INSERT INTO holiday_dates (id, calendar_id, date_str, holiday_name, day_of_week, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                date_str = EXCLUDED.date_str,
+                holiday_name = EXCLUDED.holiday_name,
+                day_of_week = EXCLUDED.day_of_week
+            """,
+            (date_id, cal_id, clean_date, h_name, dow, now_str)
+        )
+        inserted += 1
+
+    conn.commit()
+    conn.close()
+    return inserted
+
+
+def delete_holiday_date(date_id: str) -> bool:
+    """Deletes a specific holiday date by ID."""
+    conn = get_db_connection()
+    conn.execute("DELETE FROM holiday_dates WHERE id = ?", (date_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_employee_holiday_map(emp_identifier: str) -> Dict[str, str]:
+    """
+    Looks up the employee's assigned holiday calendar and returns a dict mapping date_str -> holiday_name.
+    Example: { '2026-11-01': 'Diwali', '2026-01-26': 'Republic Day' }
+    """
+    if not emp_identifier:
+        return {}
+
+    clean_id = emp_identifier.split(" (")[0].strip().lower()
+    conn = get_db_connection()
+
+    # 1. Lookup employee/user record to get holiday_calendar_id
+    cal_id = None
+    row = conn.execute(
+        "SELECT holiday_calendar_id FROM employees WHERE LOWER(email) = ? OR LOWER(name) = ? LIMIT 1",
+        (clean_id, clean_id)
+    ).fetchone()
+    if row and row["holiday_calendar_id"]:
+        cal_id = row["holiday_calendar_id"]
+
+    if not cal_id:
+        row_u = conn.execute(
+            "SELECT holiday_calendar_id FROM users WHERE LOWER(email) = ? OR LOWER(name) = ? LIMIT 1",
+            (clean_id, clean_id)
+        ).fetchone()
+        if row_u and row_u["holiday_calendar_id"]:
+            cal_id = row_u["holiday_calendar_id"]
+
+    if not cal_id:
+        conn.close()
+        return {}
+
+    # 2. Fetch all holiday dates for this calendar
+    dates = conn.execute("SELECT date_str, holiday_name FROM holiday_dates WHERE calendar_id = ?", (cal_id,)).fetchall()
+    conn.close()
+
+    result = {}
+    for d in dates:
+        result[d["date_str"]] = d["holiday_name"]
+    return result
+
+
+def is_date_holiday(date_str: str, holiday_map: Dict[str, str]) -> Tuple[bool, str]:
+    """Returns (is_holiday, festival_name) for a given date_str and holiday_map."""
+    if not date_str or not holiday_map:
+        return (False, "")
+    clean_d = date_str[:10]
+    if clean_d in holiday_map:
+        return (True, holiday_map[clean_d])
+    return (False, "")
+
 _DB_INITIALIZED = False
 
 def ensure_db_initialized():
@@ -2177,5 +2369,6 @@ def ensure_db_initialized():
     _DB_INITIALIZED = True
 
 ensure_db_initialized()
+
 
 

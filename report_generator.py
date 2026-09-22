@@ -133,7 +133,10 @@ def generate_xlsx_report(
                 det_strip = sanitize_str(details.strip())
                 det_lower = det_strip.lower()
                 cell.value = det_strip
-                if "week off" in det_lower or "weekoff" in det_lower or det_strip.startswith("🏖️"):
+                if "holiday" in det_lower or det_strip.startswith("🎉"):
+                    cell.font = Font(name="Calibri", size=9.5, bold=True, color="7E22CE")
+                    cell.fill = PatternFill(start_color="F3E8FF", end_color="F3E8FF", fill_type="solid")
+                elif "week off" in det_lower or "weekoff" in det_lower or det_strip.startswith("🏖️"):
                     cell.font = Font(name="Calibri", size=9.5, bold=True, color="0369A1")
                     cell.fill = PatternFill(start_color="E0F2FE", end_color="E0F2FE", fill_type="solid")
                 elif "on leave" in det_lower or det_strip.startswith("🌴") or "leave" in det_lower:
@@ -198,8 +201,8 @@ def generate_pdf_report(
         'SubStyle',
         parent=styles['Normal'],
         fontName='Helvetica-BoldOblique',
-        fontSize=8.5,
-        leading=11,
+        fontSize=9,
+        leading=12,
         textColor=colors.HexColor("#475569"),
         alignment=2
     )
@@ -217,7 +220,7 @@ def generate_pdf_report(
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
         fontSize=8.5,
-        leading=10,
+        leading=11,
         textColor=colors.HexColor("#334155"),
         alignment=1
     )
@@ -230,7 +233,7 @@ def generate_pdf_report(
         textColor=colors.HexColor("#0F172A")
     )
     weekoff_text_style = ParagraphStyle(
-        'WeekOffTextStyle',
+        'WeekoffTextStyle',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
         fontSize=8,
@@ -244,6 +247,14 @@ def generate_pdf_report(
         fontSize=8,
         leading=10,
         textColor=colors.HexColor("#B45309")
+    )
+    holiday_text_style = ParagraphStyle(
+        'HolidayTextStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#7E22CE")
     )
     pending_text_style = ParagraphStyle(
         'PendingTextStyle',
@@ -306,7 +317,10 @@ def generate_pdf_report(
                 det_lower = det_strip.lower()
                 safe_details = html.escape(det_strip).replace("\n", "<br/>")
                 
-                if "week off" in det_lower or "weekoff" in det_lower or det_strip.startswith("🏖️"):
+                if "holiday" in det_lower or det_strip.startswith("🎉"):
+                    row.append(Paragraph(f"<b>🎉 {safe_details}</b>", holiday_text_style))
+                    t_style.append(('BACKGROUND', (col_num, row_num), (col_num, row_num), colors.HexColor("#F3E8FF")))
+                elif "week off" in det_lower or "weekoff" in det_lower or det_strip.startswith("🏖️"):
                     row.append(Paragraph(f"<b>🏖️ {safe_details}</b>", weekoff_text_style))
                     t_style.append(('BACKGROUND', (col_num, row_num), (col_num, row_num), colors.HexColor("#E0F2FE")))
                 elif "on leave" in det_lower or det_strip.startswith("🌴") or "leave" in det_lower:
@@ -317,7 +331,6 @@ def generate_pdf_report(
                     t_style.append(('BACKGROUND', (col_num, row_num), (col_num, row_num), colors.HexColor("#F0FDF4")))
             else:
                 row.append(Paragraph("Data Not Available", pending_text_style))
-                t_style.append(('BACKGROUND', (col_num, row_num), (col_num, row_num), colors.HexColor("#FFFBEB")))
         table_data.append(row)
 
     printable_width = 744

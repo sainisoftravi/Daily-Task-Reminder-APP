@@ -863,7 +863,7 @@
             </li>
 
             <!-- Settings Accordion Dropdown -->
-            {% set is_settings_active = active_page in ['settings', 'shifts', 'teams', 'locations', 'templates', 'quotes', 'logs'] %}
+            {% set is_settings_active = active_page in ['settings', 'shifts', 'teams', 'locations', 'templates', 'quotes', 'logs', 'holidays', 'bulk_upload'] %}
             <li class="nav-dropdown nav-admin nav-manager {% if is_settings_active %}open active-parent{% endif %}" id="settings-dropdown">
                 <div class="nav-dropdown-header" onclick="toggleSettingsDropdown()">
                     <div style="display: flex; align-items: center; gap: 10px;">
@@ -883,6 +883,9 @@
                         <a href="/teams"><i class="fa-solid fa-sitemap"></i> Teams Management</a>
                     </li>
                     {% if current_role in ['admin', 'manager'] %}
+                    <li class="nav-item {% if active_page == 'holidays' %}active{% endif %}">
+                        <a href="/holidays"><i class="fa-solid fa-calendar-alt"></i> Holiday Calendars</a>
+                    </li>
                     <li class="nav-item {% if active_page == 'bulk_upload' %}active{% endif %}">
                         <a href="/bulk-upload"><i class="fa-solid fa-file-excel"></i> Bulk Import Log Hours</a>
                     </li>

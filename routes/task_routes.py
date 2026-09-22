@@ -571,9 +571,10 @@ def get_user_template():
     start_date_str = first_day.strftime("%Y-%m-%d")
     end_date_str = last_day.strftime("%Y-%m-%d")
 
-    # Fetch working days roster for employee
+    # Fetch working days roster & holiday calendar for employee
     working_days = database.get_employee_working_days(emp_email or emp_name)
     w_days_str = ", ".join(working_days) if working_days else "Mon, Tue, Wed, Thu, Fri"
+    holiday_map = database.get_employee_holiday_map(emp_email or emp_name)
 
     existing_logs = database.get_task_logs(start_date=start_date_str, end_date=end_date_str)
     existing_map = {}
@@ -646,8 +647,10 @@ def get_user_template():
     pr_fill = PatternFill(start_color="F0FDF4", end_color="F0FDF4", fill_type="solid")  # Soft mint green
     pr_font = Font(name="Calibri", size=10, color="0F172A")
 
+    hol_fill = PatternFill(start_color="F3E8FF", end_color="F3E8FF", fill_type="solid")  # Soft purple
+    hol_font = Font(name="Calibri", size=10, bold=True, color="7E22CE")  # Deep purple
+
     default_font = Font(name="Calibri", size=10, color="334155")
-    subtle_font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
 
     curr_dt = first_day
     r_idx = 4
@@ -655,13 +658,17 @@ def get_user_template():
         d_str = curr_dt.strftime("%Y-%m-%d")
         day_name = curr_dt.strftime("%A")
         is_wo = database.is_date_week_off(curr_dt, working_days)
+        is_hol, hol_name = database.is_date_holiday(d_str, holiday_map)
 
         existing = existing_map.get(d_str) or {}
         if existing:
             w_status = existing.get("work_status") or ("On Leave" if existing.get("is_leave") else "Present")
             t_details = existing.get("task_details") or ""
         else:
-            if is_wo:
+            if is_hol:
+                w_status = "Holiday"
+                t_details = f"HOLIDAY: {hol_name}"
+            elif is_wo:
                 w_status = "Week Off"
                 t_details = "WEEK OFF"
             else:
@@ -692,7 +699,12 @@ def get_user_template():
         # Apply conditional formatting matching Report output
         w_lower = w_status.lower()
         t_lower = t_details.lower()
-        if "week" in w_lower or "week" in t_lower:
+        if "holiday" in w_lower or "holiday" in t_lower:
+            c_status.fill = hol_fill
+            c_status.font = hol_font
+            c_task.fill = hol_fill
+            c_task.font = hol_font
+        elif "week" in w_lower or "week" in t_lower:
             c_status.fill = wo_fill
             c_status.font = wo_font
             c_task.fill = wo_fill
@@ -797,11 +809,12 @@ def import_excel_logs():
         status_lower = raw_status.lower()
         task_lower = raw_task.lower()
 
+        is_holiday = "holiday" in status_lower or "holiday" in task_lower
         is_wo = "week" in status_lower or "week" in task_lower
         is_leave = "leave" in status_lower or "leave" in task_lower
 
         # Skip only if row has no date, OR has empty task when it is a normal working day
-        if not raw_date or (not raw_task and not is_leave and not is_wo):
+        if not raw_date or (not raw_task and not is_leave and not is_wo and not is_holiday):
             skipped += 1
             continue
 
@@ -831,7 +844,11 @@ def import_excel_logs():
         team_id = emp_match.get("teamId") if emp_match else "team_infra"
         team_name = emp_match.get("teamName") if emp_match else "Infra Team"
 
-        if is_wo:
+        if is_holiday:
+            w_status = "Holiday"
+            w_task = raw_task if raw_task else "HOLIDAY"
+            is_leave_val = 0
+        elif is_wo:
             w_status = "Week Off"
             w_task = raw_task if raw_task else "WEEK OFF"
             is_leave_val = 0
@@ -856,6 +873,7 @@ def import_excel_logs():
             "work_status": w_status
         })
         date_set.add(clean_date)
+
 
     if not payloads:
         return jsonify({"success": False, "error": f"No valid task log rows could be extracted. Skipped {skipped} empty or unparsed rows."}), 400

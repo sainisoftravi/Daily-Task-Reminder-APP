@@ -26,49 +26,112 @@
         </div>
     </div>
 
-    <!-- Summary Metrics Row -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
-        <div class="glass-panel" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
-            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fbbf24;">
-                <i class="fa-solid fa-umbrella-beach"></i>
+    <!-- Navigation Tabs: Leave Logs vs Regional Holiday Calendar -->
+    <div style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--card-border); padding-bottom: 12px;">
+        <button id="tab-leaves-btn" class="btn" onclick="switchLeaveViewTab('leaves')" style="padding: 10px 20px; font-weight: 700; border-radius: 10px; background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);">
+            <i class="fa-solid fa-plane-departure" style="margin-right: 6px;"></i> 🌴 Leave Records & Applications
+        </button>
+        <button id="tab-holidays-btn" class="btn" onclick="switchLeaveViewTab('holidays')" style="padding: 10px 20px; font-weight: 600; border-radius: 10px; background: rgba(168, 85, 247, 0.1); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3);">
+            <i class="fa-solid fa-calendar-days" style="margin-right: 6px;"></i> 🗓️ Location Holiday Calendar
+        </button>
+    </div>
+
+    <!-- Section 1: Leave Records & Applications -->
+    <div id="section-leaves">
+        <!-- Summary Metrics Row -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px;">
+            <div class="glass-panel" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fbbf24;">
+                    <i class="fa-solid fa-umbrella-beach"></i>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Total Leave Records</div>
+                    <div style="font-size: 22px; font-weight: 700; color: #fbbf24;" id="stat-leave-count">0</div>
+                </div>
             </div>
-            <div>
-                <div style="font-size: 12px; color: var(--text-muted);">Total Leave Records</div>
-                <div style="font-size: 22px; font-weight: 700; color: #fbbf24;" id="stat-leave-count">0</div>
+
+            <div class="glass-panel" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #22d3ee;">
+                    <i class="fa-solid fa-bell-slash"></i>
+                </div>
+                <div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Reminders Suppressed</div>
+                    <div style="font-size: 22px; font-weight: 700; color: #22d3ee;" id="stat-suppressed-count">0 Days</div>
+                </div>
             </div>
         </div>
 
-        <div class="glass-panel" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
-            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #22d3ee;">
-                <i class="fa-solid fa-bell-slash"></i>
-            </div>
-            <div>
-                <div style="font-size: 12px; color: var(--text-muted);">Reminders Suppressed</div>
-                <div style="font-size: 22px; font-weight: 700; color: #22d3ee;" id="stat-suppressed-count">0 Days</div>
-            </div>
+        <!-- Leave Records Table -->
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px; text-align: center;">
+                            <input type="checkbox" id="select-all-leaves" onchange="toggleSelectAllLeaves(this)" style="width: 17px; height: 17px; cursor: pointer; accent-color: #f43f5e;" title="Select / Deselect All">
+                        </th>
+                        <th style="width: 140px;">LEAVE DATE</th>
+                        <th>STAFF MEMBER</th>
+                        <th>TEAM WORKSPACE</th>
+                        <th>LEAVE REASON / NOTE</th>
+                        <th style="width: 200px;">REMINDER STATUS</th>
+                        <th style="width: 100px; text-align: right;">ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody id="leave-logs-tbody">
+                    <!-- JS Populated -->
+                </tbody>
+            </table>
         </div>
     </div>
 
-    <!-- Leave Records Table -->
-    <div class="table-responsive">
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 40px; text-align: center;">
-                        <input type="checkbox" id="select-all-leaves" onchange="toggleSelectAllLeaves(this)" style="width: 17px; height: 17px; cursor: pointer; accent-color: #f43f5e;" title="Select / Deselect All">
-                    </th>
-                    <th style="width: 140px;">LEAVE DATE</th>
-                    <th>STAFF MEMBER</th>
-                    <th>TEAM WORKSPACE</th>
-                    <th>LEAVE REASON / NOTE</th>
-                    <th style="width: 200px;">REMINDER STATUS</th>
-                    <th style="width: 100px; text-align: right;">ACTIONS</th>
-                </tr>
-            </thead>
-            <tbody id="leave-logs-tbody">
-                <!-- JS Populated -->
-            </tbody>
-        </table>
+    <!-- Section 2: Regional Holiday Calendar View (Visible to ALL roles) -->
+    <div id="section-holidays" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 16px; background: rgba(168, 85, 247, 0.06); padding: 16px; border-radius: 14px; border: 1px solid rgba(168, 85, 247, 0.2);">
+            <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                <div>
+                    <label style="font-size: 12px; font-weight: 700; color: #c084fc; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">
+                        Select Regional Location Calendar
+                    </label>
+                    <select id="leave-holiday-cal-select" class="form-control" style="min-width: 260px; font-weight: 600; border-color: rgba(168, 85, 247, 0.4);" onchange="loadHolidayCalendarView(this.value)">
+                        <option value="">Loading Location Calendars...</option>
+                    </select>
+                </div>
+                <div id="assigned-cal-badge" style="margin-top: 18px; font-size: 12.5px; padding: 6px 12px; background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 20px; font-weight: 600;">
+                    <i class="fa-solid fa-location-dot"></i> Assigned Calendar
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="holiday-search-input" class="form-control" placeholder="🔍 Search festival / holiday..." style="max-width: 220px; padding: 8px 12px; font-size: 13px;" onkeyup="filterHolidayTable()">
+                <button type="button" class="btn btn-secondary" onclick="downloadSelectedHolidaySyntax()" style="padding: 8px 16px; font-size: 13px; color: #c084fc; border-color: rgba(168, 85, 247, 0.4);">
+                    <i class="fa-solid fa-download"></i> Download Year Holiday Calendar
+                </button>
+                {% if current_role in ['admin', 'manager'] %}
+                <a href="/holidays" class="btn btn-primary" style="padding: 8px 16px; font-size: 13px; text-decoration: none; background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);">
+                    <i class="fa-solid fa-gear"></i> Manage Calendars
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Holiday Dates Table -->
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 140px;">HOLIDAY DATE</th>
+                        <th style="width: 140px;">DAY OF WEEK</th>
+                        <th>FESTIVAL / HOLIDAY NAME</th>
+                        <th style="width: 180px; text-align: center;">WORK STATUS</th>
+                    </tr>
+                </thead>
+                <tbody id="holiday-view-tbody">
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 30px;">Select a Location Holiday Calendar above to view dates.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -560,6 +623,179 @@
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+    }
+
+    let allHolidayCalendars = [];
+    let activeHolidayDates = [];
+
+    function switchLeaveViewTab(tab) {
+        const leavesBtn = document.getElementById('tab-leaves-btn');
+        const holidaysBtn = document.getElementById('tab-holidays-btn');
+        const leavesSec = document.getElementById('section-leaves');
+        const holidaysSec = document.getElementById('section-holidays');
+
+        if (tab === 'holidays') {
+            leavesBtn.style.background = 'rgba(255, 255, 255, 0.05)';
+            leavesBtn.style.color = 'var(--text-muted)';
+            leavesBtn.style.border = '1px solid var(--card-border)';
+            leavesBtn.style.fontWeight = '600';
+
+            holidaysBtn.style.background = 'rgba(168, 85, 247, 0.2)';
+            holidaysBtn.style.color = '#c084fc';
+            holidaysBtn.style.border = '1px solid rgba(168, 85, 247, 0.4)';
+            holidaysBtn.style.fontWeight = '700';
+
+            leavesSec.style.display = 'none';
+            holidaysSec.style.display = 'block';
+
+            if (allHolidayCalendars.length === 0) {
+                initHolidayCalendarTab();
+            }
+        } else {
+            holidaysBtn.style.background = 'rgba(255, 255, 255, 0.05)';
+            holidaysBtn.style.color = 'var(--text-muted)';
+            holidaysBtn.style.border = '1px solid var(--card-border)';
+            holidaysBtn.style.fontWeight = '600';
+
+            leavesBtn.style.background = 'rgba(245, 158, 11, 0.2)';
+            leavesBtn.style.color = '#fbbf24';
+            leavesBtn.style.border = '1px solid rgba(245, 158, 11, 0.4)';
+            leavesBtn.style.fontWeight = '700';
+
+            holidaysSec.style.display = 'none';
+            leavesSec.style.display = 'block';
+        }
+    }
+
+    async function initHolidayCalendarTab() {
+        try {
+            const res = await fetch('/api/holiday-calendars');
+            const data = await res.json();
+            if (data.success) {
+                allHolidayCalendars = data.calendars || [];
+                renderHolidayCalDropdown();
+            }
+        } catch (err) {
+            console.error('Failed to load holiday calendars:', err);
+        }
+    }
+
+    function renderHolidayCalDropdown() {
+        const select = document.getElementById('leave-holiday-cal-select');
+        const badge = document.getElementById('assigned-cal-badge');
+        if (!select) return;
+
+        if (!allHolidayCalendars || allHolidayCalendars.length === 0) {
+            select.innerHTML = '<option value="">No Location Calendars Configured</option>';
+            badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> No Calendar Assigned';
+            return;
+        }
+
+        let userCalId = "";
+        if (loggedInUser && loggedInUser.holiday_calendar_id) {
+            userCalId = loggedInUser.holiday_calendar_id;
+        }
+
+        let html = '';
+        allHolidayCalendars.forEach(c => {
+            const isAssigned = userCalId && (c.id === userCalId);
+            html += `<option value="${c.id}" ${isAssigned ? 'selected' : ''}>${escapeHtml(c.name)} ${c.location ? '(' + escapeHtml(c.location) + ')' : ''} ${isAssigned ? '★ Assigned' : ''}</option>`;
+        });
+
+        select.innerHTML = html;
+
+        let activeId = select.value || (allHolidayCalendars[0] ? allHolidayCalendars[0].id : '');
+        if (userCalId) {
+            const match = allHolidayCalendars.find(c => c.id === userCalId);
+            if (match) {
+                badge.innerHTML = `<i class="fa-solid fa-location-dot"></i> Assigned: ${escapeHtml(match.name)}`;
+            } else {
+                badge.innerHTML = `<i class="fa-solid fa-calendar"></i> Location Calendar`;
+            }
+        } else {
+            badge.innerHTML = `<i class="fa-solid fa-calendar"></i> Location Calendar`;
+        }
+
+        if (activeId) {
+            loadHolidayCalendarView(activeId);
+        }
+    }
+
+    async function loadHolidayCalendarView(calId) {
+        if (!calId) return;
+        const tbody = document.getElementById('holiday-view-tbody');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 30px;"><i class="fa-solid fa-spinner fa-spin"></i> Loading location holiday dates...</td></tr>';
+
+        try {
+            const res = await fetch(`/api/holiday-calendars/${calId}/dates`);
+            const data = await res.json();
+            if (data.success) {
+                activeHolidayDates = data.dates || [];
+                renderHolidayDatesTable(activeHolidayDates);
+            } else {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 30px;">${escapeHtml(data.error || 'Failed to load dates.')}</td></tr>`;
+            }
+        } catch (err) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 30px;">Error connecting to server.</td></tr>';
+        }
+    }
+
+    function renderHolidayDatesTable(dates) {
+        const tbody = document.getElementById('holiday-view-tbody');
+        if (!dates || dates.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 30px;">No holiday dates configured for this location calendar.</td></tr>';
+            return;
+        }
+
+        let html = '';
+        dates.forEach(d => {
+            let weekdayStr = '';
+            try {
+                const dt = new Date(d.date_str + 'T00:00:00');
+                weekdayStr = dt.toLocaleDateString('en-US', { weekday: 'long' });
+            } catch (e) {
+                weekdayStr = '—';
+            }
+
+            html += `
+                <tr class="holiday-row">
+                    <td style="font-weight: 700; color: var(--text-main);">${escapeHtml(d.date_str)}</td>
+                    <td style="color: var(--text-muted); font-size: 13px;">${escapeHtml(weekdayStr.toUpperCase())}</td>
+                    <td style="font-weight: 600; color: #c084fc;">
+                        <i class="fa-solid fa-gift" style="margin-right: 6px; color: #a855f7;"></i> ${escapeHtml(d.holiday_name)}
+                    </td>
+                    <td style="text-align: center;">
+                        <span style="display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 11.5px; font-weight: 700; background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3);">
+                            🎉 Official Holiday
+                        </span>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
+
+    function filterHolidayTable() {
+        const q = (document.getElementById('holiday-search-input').value || '').toLowerCase().trim();
+        if (!activeHolidayDates) return;
+        if (!q) {
+            renderHolidayDatesTable(activeHolidayDates);
+            return;
+        }
+        const filtered = activeHolidayDates.filter(d => {
+            return (d.date_str && d.date_str.toLowerCase().includes(q)) ||
+                   (d.holiday_name && d.holiday_name.toLowerCase().includes(q));
+        });
+        renderHolidayDatesTable(filtered);
+    }
+
+    function downloadSelectedHolidaySyntax() {
+        const calId = document.getElementById('leave-holiday-cal-select').value;
+        if (!calId) {
+            window.location.href = '/api/holiday-calendars/download-template';
+        } else {
+            window.location.href = `/api/holiday-calendars/${calId}/download-template`;
+        }
     }
 
     loadData();
