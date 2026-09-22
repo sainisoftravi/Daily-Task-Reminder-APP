@@ -882,6 +882,11 @@
                     <li class="nav-item {% if active_page == 'teams' %}active{% endif %}">
                         <a href="/teams"><i class="fa-solid fa-sitemap"></i> Teams Management</a>
                     </li>
+                    {% if current_role in ['admin', 'manager'] %}
+                    <li class="nav-item {% if active_page == 'bulk_upload' %}active{% endif %}">
+                        <a href="/bulk-upload"><i class="fa-solid fa-file-excel"></i> Bulk Import Log Hours</a>
+                    </li>
+                    {% endif %}
                     {% if current_role == 'admin' %}
                     <li class="nav-item {% if active_page == 'locations' %}active{% endif %}">
                         <a href="/locations"><i class="fa-solid fa-earth-americas"></i> Locations Management</a>

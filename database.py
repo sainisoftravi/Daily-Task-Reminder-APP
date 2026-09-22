@@ -1845,7 +1845,8 @@ def save_task_logs_batch(payload_list: List[Dict[str, Any]]) -> bool:
             work_status = "Present"
 
         emp_id = data.get("employeeId") or data.get("employee_id", "")
-        log_id = data.get("id") or f"log_{emp_name.lower().replace(' ', '_')}_{date_str}"
+        clean_user_key = email.split("@")[0].lower().replace(" ", "_") if email else emp_name.lower().replace(" ", "_")
+        log_id = data.get("id") or f"log_{clean_user_key}_{date_str}"
 
         rows_to_insert.append((log_id, emp_id, emp_name, email, team_id, team_name, date_str, task_details, now_str, is_leave, work_status))
 

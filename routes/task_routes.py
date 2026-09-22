@@ -524,3 +524,355 @@ def delete_task_log_route(log_id):
     log_event(f"Deleted Task Log ID: {log_id}")
     return jsonify({"success": True})
 
+
+@task_bp.route("/bulk-upload")
+def bulk_upload_page():
+    if not session.get("user"):
+        return redirect(url_for("auth_bp.login_page"))
+    user_role = session["user"].get("role", "employee")
+    if user_role not in ["admin", "manager"]:
+        return redirect(url_for("task_bp.task_entry_page"))
+
+    employees = database.get_all_employees()
+    return render_template("bulk_upload.html", active_page="bulk_upload", employees=employees)
+
+
+@task_bp.route("/api/task-logs/user-template")
+def get_user_template():
+    if not session.get("user"):
+        return jsonify({"success": False, "error": "Authentication required"}), 401
+    user_role = session["user"].get("role", "employee")
+    if user_role not in ["admin", "manager"]:
+        return jsonify({"success": False, "error": "Forbidden: Only Admin or Manager can download templates."}), 403
+
+    target_email = request.args.get("email", "").strip()
+    target_month = request.args.get("month", "").strip()
+
+    if not target_email or not target_month:
+        return jsonify({"success": False, "error": "Missing target employee email or month (YYYY-MM)."}), 400
+
+    employees = database.get_all_employees()
+    emp_match = next((e for e in employees if (e.get("email") or "").strip().lower() == target_email.lower() or (e.get("name") or "").strip().lower() == target_email.lower()), None)
+
+    emp_name = emp_match.get("name") if emp_match else target_email.split("@")[0].title()
+    emp_email = emp_match.get("email") if emp_match else target_email
+
+    try:
+        parts = target_month.split("-")
+        year, month = int(parts[0]), int(parts[1])
+        first_day = datetime.date(year, month, 1)
+        if month == 12:
+            last_day = datetime.date(year, 12, 31)
+        else:
+            last_day = datetime.date(year, month + 1, 1) - datetime.timedelta(days=1)
+    except Exception:
+        return jsonify({"success": False, "error": "Invalid month format. Please use YYYY-MM."}), 400
+
+    start_date_str = first_day.strftime("%Y-%m-%d")
+    end_date_str = last_day.strftime("%Y-%m-%d")
+
+    # Fetch working days roster for employee
+    working_days = database.get_employee_working_days(emp_email or emp_name)
+    w_days_str = ", ".join(working_days) if working_days else "Mon, Tue, Wed, Thu, Fri"
+
+    existing_logs = database.get_task_logs(start_date=start_date_str, end_date=end_date_str)
+    existing_map = {}
+    for log in existing_logs:
+        l_email = (log.get("email") or "").strip().lower()
+        l_name = (log.get("employee_name") or "").strip().lower()
+        if l_email == emp_email.lower() or l_name == emp_name.lower():
+            existing_map[log.get("date_str")] = log
+
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    import io
+    from flask import send_file
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Log Template"
+    ws.views.sheetView[0].showGridLines = True
+
+    thin_border = Border(
+        left=Side(style='thin', color='CBD5E1'),
+        right=Side(style='thin', color='CBD5E1'),
+        top=Side(style='thin', color='CBD5E1'),
+        bottom=Side(style='thin', color='CBD5E1')
+    )
+
+    center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    # 1. Top Title Banner (Merged Row 1)
+    ws.merge_cells("A1:F1")
+    b_cell = ws["A1"]
+    b_cell.value = f"MONTHLY TASK LOG TEMPLATE — {emp_name.upper()} ({target_month})"
+    b_cell.font = Font(name="Calibri", size=12, bold=True, color="FFFFFF")
+    b_cell.fill = PatternFill(start_color="0F172A", end_color="0F172A", fill_type="solid")
+    b_cell.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[1].height = 28
+
+    # 2. Sub-Header Row (Merged Row 2)
+    ws.merge_cells("A2:F2")
+    sub_cell = ws["A2"]
+    sub_cell.value = f"Employee Email: {emp_email}   |   Working Days: {w_days_str}   |   Month: {target_month}"
+    sub_cell.font = Font(name="Calibri", size=9.5, italic=True, bold=True, color="475569")
+    sub_cell.fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
+    sub_cell.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[2].height = 20
+
+    # 3. Table Headers (Row 3)
+    headers = ["Date (YYYY-MM-DD)", "Day of Week", "Employee Email", "Employee Name", "Work Status", "Task Details / Log Hours"]
+    ws.append(headers)
+
+    header_fill = PatternFill(start_color="1E1B4B", end_color="1E1B4B", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+
+    for col_num in range(1, 7):
+        cell = ws.cell(row=3, column=col_num)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_align
+        cell.border = thin_border
+    ws.row_dimensions[3].height = 24
+
+    # Fills & Fonts for report-style conditional formatting
+    wo_fill = PatternFill(start_color="E0F2FE", end_color="E0F2FE", fill_type="solid")  # Sky blue
+    wo_font = Font(name="Calibri", size=10, bold=True, color="0369A1")
+
+    lv_fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")  # Light amber
+    lv_font = Font(name="Calibri", size=10, bold=True, color="B45309")
+
+    pr_fill = PatternFill(start_color="F0FDF4", end_color="F0FDF4", fill_type="solid")  # Soft mint green
+    pr_font = Font(name="Calibri", size=10, color="0F172A")
+
+    default_font = Font(name="Calibri", size=10, color="334155")
+    subtle_font = Font(name="Calibri", size=10, italic=True, color="94A3B8")
+
+    curr_dt = first_day
+    r_idx = 4
+    while curr_dt <= last_day:
+        d_str = curr_dt.strftime("%Y-%m-%d")
+        day_name = curr_dt.strftime("%A")
+        is_wo = database.is_date_week_off(curr_dt, working_days)
+
+        existing = existing_map.get(d_str) or {}
+        if existing:
+            w_status = existing.get("work_status") or ("On Leave" if existing.get("is_leave") else "Present")
+            t_details = existing.get("task_details") or ""
+        else:
+            if is_wo:
+                w_status = "Week Off"
+                t_details = "WEEK OFF"
+            else:
+                w_status = "Present"
+                t_details = ""
+
+        ws.append([d_str, day_name, emp_email, emp_name, w_status, t_details])
+        ws.row_dimensions[r_idx].height = 24
+
+        c_date = ws.cell(row=r_idx, column=1)
+        c_day = ws.cell(row=r_idx, column=2)
+        c_email = ws.cell(row=r_idx, column=3)
+        c_name = ws.cell(row=r_idx, column=4)
+        c_status = ws.cell(row=r_idx, column=5)
+        c_task = ws.cell(row=r_idx, column=6)
+
+        c_date.alignment = center_align
+        c_day.alignment = center_align
+        c_email.alignment = left_align
+        c_name.alignment = left_align
+        c_status.alignment = center_align
+        c_task.alignment = left_align
+
+        for c_i in range(1, 7):
+            ws.cell(row=r_idx, column=c_i).border = thin_border
+            ws.cell(row=r_idx, column=c_i).font = default_font
+
+        # Apply conditional formatting matching Report output
+        w_lower = w_status.lower()
+        t_lower = t_details.lower()
+        if "week" in w_lower or "week" in t_lower:
+            c_status.fill = wo_fill
+            c_status.font = wo_font
+            c_task.fill = wo_fill
+            c_task.font = wo_font
+        elif "leave" in w_lower or "leave" in t_lower:
+            c_status.fill = lv_fill
+            c_status.font = lv_font
+            c_task.fill = lv_fill
+            c_task.font = lv_font
+        elif t_details.strip():
+            c_status.fill = pr_fill
+            c_status.font = pr_font
+            c_task.fill = pr_fill
+            c_task.font = pr_font
+
+        curr_dt += datetime.timedelta(days=1)
+        r_idx += 1
+
+    ws.column_dimensions['A'].width = 18
+    ws.column_dimensions['B'].width = 15
+    ws.column_dimensions['C'].width = 30
+    ws.column_dimensions['D'].width = 24
+    ws.column_dimensions['E'].width = 16
+    ws.column_dimensions['F'].width = 65
+
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+
+    clean_emp_filename = "".join(c for c in emp_name if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")
+    file_name = f"Log_Template_{clean_emp_filename}_{target_month}.xlsx"
+    return send_file(
+        out,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=file_name
+    )
+
+
+@task_bp.route("/api/task-logs/import-excel", methods=["POST"])
+def import_excel_logs():
+    if not session.get("user"):
+        return jsonify({"success": False, "error": "Authentication required"}), 401
+    user_role = session["user"].get("role", "employee")
+    if user_role not in ["admin", "manager"]:
+        return jsonify({"success": False, "error": "Forbidden: Only Admin or Manager can import Excel log files."}), 403
+
+    if 'file' not in request.files:
+        return jsonify({"success": False, "error": "No file uploaded."}), 400
+
+    file = request.files['file']
+    if not file or not file.filename:
+        return jsonify({"success": False, "error": "No file selected."}), 400
+
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({"success": False, "error": "Invalid file type. Only .xlsx or .xls Excel files are accepted."}), 400
+
+    import openpyxl
+
+    try:
+        wb = openpyxl.load_workbook(file, data_only=True)
+        ws = wb.active
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Failed to read Excel file: {str(e)}"}), 400
+
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows or len(rows) < 2:
+        return jsonify({"success": False, "error": "The uploaded Excel file contains no data rows."}), 400
+
+    # Locate table header row (skipping top title banner / sub-headers if present)
+    header_row_idx = 0
+    for idx, r in enumerate(rows[:10]):
+        row_strs = [str(c or "").strip().lower() for c in r if c is not None]
+        if any("date" in s for s in row_strs) and any("email" in s or "name" in s or "task" in s or "status" in s for s in row_strs):
+            header_row_idx = idx
+            break
+
+    header = [str(c or "").strip().lower() for c in rows[header_row_idx]]
+
+    date_col = next((i for i, h in enumerate(header) if "date" in h), 0)
+    email_col = next((i for i, h in enumerate(header) if "email" in h), 2 if len(header) > 5 else 1)
+    name_col = next((i for i, h in enumerate(header) if any(x in h for x in ["name", "emp", "employee"]) and "email" not in h), 3 if len(header) > 5 else 2)
+    status_col = next((i for i, h in enumerate(header) if "status" in h), 4 if len(header) > 5 else 3)
+    task_col = next((i for i, h in enumerate(header) if any(x in h for x in ["task", "detail", "summary", "hour", "log", "work"]) and "status" not in h), 5 if len(header) > 5 else 4)
+
+    all_employees = database.get_all_employees()
+    payloads = []
+    skipped = 0
+    date_set = set()
+
+    data_rows = rows[header_row_idx + 1:]
+    for r in data_rows:
+        if not any(r):
+            continue
+
+        raw_date = str(r[date_col]).strip() if len(r) > date_col and r[date_col] is not None else ""
+        raw_email = str(r[email_col]).strip() if len(r) > email_col and r[email_col] is not None else ""
+        raw_name = str(r[name_col]).strip() if len(r) > name_col and r[name_col] is not None else ""
+        raw_status = str(r[status_col]).strip() if len(r) > status_col and r[status_col] is not None else "Present"
+        raw_task = str(r[task_col]).strip() if len(r) > task_col and r[task_col] is not None else ""
+
+        status_lower = raw_status.lower()
+        task_lower = raw_task.lower()
+
+        is_wo = "week" in status_lower or "week" in task_lower
+        is_leave = "leave" in status_lower or "leave" in task_lower
+
+        # Skip only if row has no date, OR has empty task when it is a normal working day
+        if not raw_date or (not raw_task and not is_leave and not is_wo):
+            skipped += 1
+            continue
+
+        clean_date = ""
+        if isinstance(r[date_col], (datetime.datetime, datetime.date)):
+            clean_date = r[date_col].strftime("%Y-%m-%d")
+        else:
+            for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%d-%b-%Y"):
+                try:
+                    dt = datetime.datetime.strptime(raw_date.split(" ")[0], fmt)
+                    clean_date = dt.strftime("%Y-%m-%d")
+                    break
+                except Exception:
+                    continue
+
+        if not clean_date:
+            skipped += 1
+            continue
+
+        clean_email = raw_email.lower()
+        clean_name = raw_name.lower()
+        emp_match = next((e for e in all_employees if (e.get("email") or "").strip().lower() == clean_email or (e.get("name") or "").strip().lower() == clean_name), None)
+
+        emp_id = emp_match.get("id") if emp_match else f"emp_{abs(hash(clean_email or clean_name))}"
+        emp_name_final = emp_match.get("name") if emp_match else (raw_name or raw_email.split("@")[0].title())
+        emp_email_final = emp_match.get("email") if emp_match else raw_email
+        team_id = emp_match.get("teamId") if emp_match else "team_infra"
+        team_name = emp_match.get("teamName") if emp_match else "Infra Team"
+
+        if is_wo:
+            w_status = "Week Off"
+            w_task = raw_task if raw_task else "WEEK OFF"
+            is_leave_val = 0
+        elif is_leave:
+            w_status = "On Leave"
+            w_task = raw_task if raw_task else "ON LEAVE"
+            is_leave_val = 1
+        else:
+            w_status = raw_status if raw_status else "Present"
+            w_task = raw_task
+            is_leave_val = 0
+
+        payloads.append({
+            "employee_id": emp_id,
+            "employee_name": emp_name_final,
+            "email": emp_email_final,
+            "team_id": team_id,
+            "team_name": team_name,
+            "date_str": clean_date,
+            "task_details": w_task,
+            "is_leave": is_leave_val,
+            "work_status": w_status
+        })
+        date_set.add(clean_date)
+
+    if not payloads:
+        return jsonify({"success": False, "error": f"No valid task log rows could be extracted. Skipped {skipped} empty or unparsed rows."}), 400
+
+    database.save_task_logs_batch(payloads)
+    log_event(f"Admin/Manager imported {len(payloads)} historical task log entries from Excel.")
+
+    sorted_dates = sorted(list(date_set))
+    d_range = f"{sorted_dates[0]} to {sorted_dates[-1]}" if sorted_dates else "N/A"
+
+    return jsonify({
+        "success": True,
+        "total_processed": len(payloads) + skipped,
+        "imported_count": len(payloads),
+        "skipped_count": skipped,
+        "date_range": d_range,
+        "message": f"Successfully imported {len(payloads)} historical log entries ({d_range})."
+    })
+
+

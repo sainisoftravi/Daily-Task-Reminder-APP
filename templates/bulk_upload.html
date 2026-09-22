@@ -1,0 +1,236 @@
+{% extends "layout.html" %}
+
+{% block title %}Bulk Import Log Hours | Settings | Daily Task Reminder{% endblock %}
+{% block page_title %}Bulk Import Historical Task Logs{% endblock %}
+
+{% block content %}
+<div class="glass-panel" style="padding: 24px; margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div>
+            <div style="font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 10px;">
+                <i class="fa-solid fa-file-excel" style="color: #22c55e;"></i> Bulk Import Historical Task Logs
+            </div>
+            <div style="font-size: 13.5px; color: var(--text-muted); margin-top: 4px;">
+                Select a team member and month to download their pre-filled Excel template, update log hours, and batch import past data.
+            </div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <a href="/task-entry" class="btn btn-secondary">
+                <i class="fa-solid fa-list-check"></i> View Task Log Portal
+            </a>
+        </div>
+    </div>
+
+    <!-- 2-Step Grid Layout -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 20px;">
+        
+        <!-- STEP 1: Download User Template -->
+        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); padding: 22px; border-radius: var(--radius-md); display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <div style="font-size: 15px; font-weight: 700; color: var(--text-main); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+                    <span style="background: var(--primary); color: #fff; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">1</span>
+                    Step 1: Select User & Target Month
+                </div>
+                <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px;">
+                    Choose an employee and a target month to generate a pre-filled Excel spreadsheet containing every day of that month pre-populated with user details and existing logs.
+                </p>
+
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label class="form-label" style="font-size: 12px; font-weight: 600;">Target Employee / User</label>
+                    <select id="bulk-emp-select" class="form-control" style="font-size: 13.5px;">
+                        {% for emp in employees %}
+                            <option value="{{ emp.email or emp.name }}">
+                                👤 {{ emp.name }} ({{ emp.email }}) — {{ emp.teamName or 'Infra Team' }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 18px;">
+                    <label class="form-label" style="font-size: 12px; font-weight: 600;">Target Month & Year</label>
+                    <input type="month" id="bulk-month-select" class="form-control" style="font-size: 13.5px;">
+                </div>
+            </div>
+
+            <button class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 14px; font-weight: 600; justify-content: center;" onclick="downloadUserTemplate()">
+                <i class="fa-solid fa-file-arrow-down"></i> 📥 Download Pre-Filled User Template (.xlsx)
+            </button>
+        </div>
+
+        <!-- STEP 2: Upload Completed File -->
+        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--card-border); padding: 22px; border-radius: var(--radius-md); display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <div style="font-size: 15px; font-weight: 700; color: var(--text-main); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+                    <span style="background: #22c55e; color: #fff; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;">2</span>
+                    Step 2: Upload & Process Excel File
+                </div>
+                <p style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px;">
+                    Fill out the log hours in the downloaded Excel template, save the file, and upload it here to batch update the database.
+                </p>
+
+                <!-- Dropzone File Picker -->
+                <div id="file-dropzone" style="border: 2px dashed rgba(99, 102, 241, 0.4); border-radius: var(--radius-md); padding: 24px; text-align: center; cursor: pointer; transition: all 0.25s ease; background: rgba(99, 102, 241, 0.03);" onclick="document.getElementById('excel-file-input').click()">
+                    <i class="fa-solid fa-cloud-arrow-up" style="font-size: 36px; color: var(--primary); margin-bottom: 10px;"></i>
+                    <div style="font-size: 14px; font-weight: 600; color: var(--text-main);" id="dropzone-title">Click to Browse or Drag & Drop Excel File</div>
+                    <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;" id="dropzone-sub">Supports .xlsx and .xls format files</div>
+                    <input type="file" id="excel-file-input" accept=".xlsx, .xls" style="display: none;" onchange="handleFileSelected(event)">
+                </div>
+
+                <!-- Selected File Pill -->
+                <div id="selected-file-pill" style="display: none; margin-top: 12px; padding: 10px 14px; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 6px; font-size: 13px; color: #4ade80; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+                        <i class="fa-solid fa-file-excel"></i>
+                        <span id="selected-file-name" style="font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">...</span>
+                    </div>
+                    <button type="button" style="background: none; border: none; color: #fca5a5; cursor: pointer; font-size: 14px;" onclick="clearSelectedFile(event)">&times;</button>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="upload-btn" style="width: 100%; padding: 12px; font-size: 14px; font-weight: 600; justify-content: center; margin-top: 18px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);" onclick="uploadExcelLogs()" disabled>
+                <i class="fa-solid fa-rocket"></i> 🚀 Upload & Batch Save Log Hours
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Import Progress & Results Card -->
+<div class="glass-panel" id="import-results-card" style="padding: 24px; display: none;">
+    <div style="font-size: 16px; font-weight: 700; color: var(--text-main); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+        <i class="fa-solid fa-circle-check" style="color: #22c55e;"></i> Import Execution Summary
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px;">
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); padding: 14px; border-radius: var(--radius-md); text-align: center;">
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Total Processed</div>
+            <div style="font-size: 22px; font-weight: 700; color: var(--text-main);" id="res-total">0</div>
+        </div>
+        <div style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); padding: 14px; border-radius: var(--radius-md); text-align: center;">
+            <div style="font-size: 11px; color: #4ade80; text-transform: uppercase;">Imported Logs</div>
+            <div style="font-size: 22px; font-weight: 700; color: #4ade80;" id="res-imported">0</div>
+        </div>
+        <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); padding: 14px; border-radius: var(--radius-md); text-align: center;">
+            <div style="font-size: 11px; color: #fbbf24; text-transform: uppercase;">Skipped / Blank</div>
+            <div style="font-size: 22px; font-weight: 700; color: #fbbf24;" id="res-skipped">0</div>
+        </div>
+        <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); padding: 14px; border-radius: var(--radius-md); text-align: center;">
+            <div style="font-size: 11px; color: #818cf8; text-transform: uppercase;">Date Range</div>
+            <div style="font-size: 13px; font-weight: 700; color: #818cf8; margin-top: 6px;" id="res-range">N/A</div>
+        </div>
+    </div>
+
+    <div id="res-msg-box" style="padding: 12px 16px; background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 6px; font-size: 13.5px; color: #4ade80;">
+        Successfully imported log entries.
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Pre-fill month picker with current year-month (YYYY-MM)
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        document.getElementById('bulk-month-select').value = `${yyyy}-${mm}`;
+
+        // Setup Drag & Drop
+        const dropzone = document.getElementById('file-dropzone');
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = '#6366f1';
+            dropzone.style.background = 'rgba(99, 102, 241, 0.1)';
+        });
+
+        dropzone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = 'rgba(99, 102, 241, 0.4)';
+            dropzone.style.background = 'rgba(99, 102, 241, 0.03)';
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = 'rgba(99, 102, 241, 0.4)';
+            dropzone.style.background = 'rgba(99, 102, 241, 0.03)';
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                document.getElementById('excel-file-input').files = e.dataTransfer.files;
+                handleFileSelected({ target: document.getElementById('excel-file-input') });
+            }
+        });
+    });
+
+    function downloadUserTemplate() {
+        const emp = document.getElementById('bulk-emp-select').value;
+        const month = document.getElementById('bulk-month-select').value;
+        if (!emp || !month) {
+            showToast('Please select both an employee and a target month.', 'error');
+            return;
+        }
+
+        const downloadUrl = `/api/task-logs/user-template?email=${encodeURIComponent(emp)}&month=${encodeURIComponent(month)}`;
+        window.location.href = downloadUrl;
+        showToast('Downloading pre-filled Excel template...');
+    }
+
+    let selectedFile = null;
+
+    function handleFileSelected(e) {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            selectedFile = files[0];
+            document.getElementById('selected-file-name').innerText = selectedFile.name;
+            document.getElementById('selected-file-pill').style.display = 'flex';
+            document.getElementById('upload-btn').disabled = false;
+        }
+    }
+
+    function clearSelectedFile(e) {
+        if (e) e.stopPropagation();
+        selectedFile = null;
+        document.getElementById('excel-file-input').value = '';
+        document.getElementById('selected-file-pill').style.display = 'none';
+        document.getElementById('upload-btn').disabled = true;
+    }
+
+    async function uploadExcelLogs() {
+        if (!selectedFile) {
+            showToast('Please select or drop an Excel file to upload.', 'error');
+            return;
+        }
+
+        const uploadBtn = document.getElementById('upload-btn');
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing & Importing Logs...';
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        try {
+            const res = await fetch('/api/task-logs/import-excel', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message || 'Logs imported successfully!');
+                
+                document.getElementById('import-results-card').style.display = 'block';
+                document.getElementById('res-total').innerText = data.total_processed || 0;
+                document.getElementById('res-imported').innerText = data.imported_count || 0;
+                document.getElementById('res-skipped').innerText = data.skipped_count || 0;
+                document.getElementById('res-range').innerText = data.date_range || 'N/A';
+                document.getElementById('res-msg-box').innerText = data.message;
+
+                clearSelectedFile();
+            } else {
+                showToast(data.error || 'Failed to import Excel logs.', 'error');
+            }
+        } catch (err) {
+            showToast('Network error during file import: ' + err.message, 'error');
+        } finally {
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<i class="fa-solid fa-rocket"></i> 🚀 Upload & Batch Save Log Hours';
+        }
+    }
+</script>
+{% endblock %}
