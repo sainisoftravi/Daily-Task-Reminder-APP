@@ -314,6 +314,38 @@ A multi-region holiday calendar management engine designed for multi-national an
 
 ---
 
+### Feature 14: Universal Multi-Table User Account Synchronization & Cascade Cleanup
+
+#### Overview
+A resilient multi-table identity synchronization engine ensuring that all user accounts (Admins 🛡️, Managers 👔, Employees 👤, and test accounts) are 100% visible, manageable, and editable on the User Accounts portal (`/users`) across all deployment environments (Local SQLite, Docker, Vercel Serverless, and Supabase PostgreSQL).
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                   UNIVERSAL USER ROSTER AGGREGATION & SYNC                       │
+│                                                                                  │
+│   ┌─────────────────────┐    Auto-Sync    ┌─────────────────────┐               │
+│   │    users Table      │ ──────────────> │   employees Table   │               │
+│   │ (Auth & Passwords)  │                 │  (Roster Profiles)  │               │
+│   └─────────────────────┘                 └─────────────────────┘               │
+│              │                                       │                          │
+│              └─────────────────┬─────────────────────┘                          │
+│                                │                                                │
+│                                ▼                                                │
+│                     ┌─────────────────────┐                                     │
+│                     │  User Portal Table  │                                     │
+│                     │  All 14+ Accounts   │                                     │
+│                     └─────────────────────┘                                     │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Key Capabilities:
+1. **Automatic Multi-Table Account Aggregation**: `get_all_employees()` cross-references `users`, `employees`, and `managers` tables and automatically synthesizes missing roster records into `employees` table so all registered user accounts display in the User Accounts portal.
+2. **Cascade Deletion Cleanup**: Deleting an account (`DELETE /api/employees/<id>`) purges its record by ID and email across `employees`, `users`, and `managers` tables simultaneously, completely freeing the email address for future reuse.
+3. **Self-Matching Account Validation**: `check_email_exists(email, exclude_id)` checks and excludes all linked prefix IDs (`u_...`, `emp_...`, `mgr_...`) and existing account emails, enabling seamless password updates and profile edits without false `Email address is already registered` duplicate errors.
+4. **Guaranteed Core Account Seeding**: `_seed_users()` guarantees default Admin (`admin@company.com`) and Manager (`Ravi@d2backoffice.onmicrosoft.com`) accounts are seeded into both `users` and `employees` tables on application boot across all serverless and container environments.
+
+---
+
 ## 💼 Sales & Marketing Quick-Reference Pitch
 
 ### 3-Minute Elevator Pitch
