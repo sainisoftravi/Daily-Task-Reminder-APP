@@ -688,24 +688,86 @@ def _migrate_plaintext_passwords(conn):
 
 def _seed_users(conn: sqlite3.Connection):
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users")
-    if cursor.fetchone()[0] == 0:
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # Default Admin Account
-        cursor.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # 1. Default Admin Account (users + employees)
+    admin_u = cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", ("admin@company.com",)).fetchone()
+    if not admin_u:
+        cursor.execute("INSERT INTO users (id, name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                        ("u_admin", "System Administrator", "admin@company.com", hash_password("admin123"), "admin", now_str))
-        # Default Manager Account
-        cursor.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+
+    admin_e = cursor.execute("SELECT id FROM employees WHERE LOWER(email) = ?", ("admin@company.com",)).fetchone()
+    if not admin_e:
+        cursor.execute("""
+            INSERT INTO employees (id, name, email, role, location, timezone, working_days, shift_id, shift_name, reminders, team_id, team_name, sheet_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("emp_admin", "System Administrator", "admin@company.com", "admin", "India", "Asia/Kolkata", "Mon,Tue,Wed,Thu,Fri", "shift_general", "General Shift (9:00 - 18:00)", "18:30,18:45,19:00", "team_infra", "Infra Team", "Sheet1"))
+
+    # 2. Default Manager Account (users + employees + managers)
+    mgr_u = cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", ("ravi@d2backoffice.onmicrosoft.com",)).fetchone()
+    if not mgr_u:
+        cursor.execute("INSERT INTO users (id, name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                        ("u_mgr_1", "Ravi Saini", "Ravi@d2backoffice.onmicrosoft.com", hash_password("manager123"), "manager", now_str))
 
-        # Seed Employee Accounts from employee roster
-        cursor.execute("SELECT name, email, team_id FROM employees")
-        emps = cursor.fetchall()
-        for idx, emp in enumerate(emps):
-            e_dict = dict(emp)
-            u_id = f"u_emp_{idx+1}"
-            cursor.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, team_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                           (u_id, e_dict.get("name"), e_dict.get("email"), hash_password("emp123"), "employee", e_dict.get("team_id", ""), now_str))
+    mgr_e = cursor.execute("SELECT id FROM employees WHERE LOWER(email) = ?", ("ravi@d2backoffice.onmicrosoft.com",)).fetchone()
+    if not mgr_e:
+        cursor.execute("""
+            INSERT INTO employees (id, name, email, role, location, timezone, working_days, shift_id, shift_name, reminders, team_id, team_name, sheet_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, ("emp_mgr_1", "Ravi Saini", "Ravi@d2backoffice.onmicrosoft.com", "manager", "India", "Asia/Kolkata", "Mon,Tue,Wed,Thu,Fri", "shift_general", "General Shift (9:00 - 18:00)", "18:30,18:45,19:00", "team_infra", "Infra Team", "Sheet1"))
+
+    mgr_m = cursor.execute("SELECT id FROM managers WHERE LOWER(email) = ?", ("ravi@d2backoffice.onmicrosoft.com",)).fetchone()
+    if not mgr_m:
+        cursor.execute("""
+            INSERT INTO managers (id, name, email, team_id, team_name)
+            VALUES (?, ?, ?, ?, ?)
+        """, ("mgr_1", "Ravi Saini", "Ravi@d2backoffice.onmicrosoft.com", "team_infra", "Infra Team"))
+
+    # 3. Seed Employee Accounts from employee roster into users table if missing
+    cursor.execute("SELECT id, name, email, team_id, role FROM employees")
+    emps = cursor.fetchall()
+    for idx, emp in enumerate(emps):
+        e_dict = dict(emp)
+        e_email = (e_dict.get("email") or "").strip().lower()
+        if e_email:
+            u_exists = cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (e_email,)).fetchone()
+            if not u_exists:
+                u_id = f"u_{e_dict.get('id') or (idx+1)}"
+                cursor.execute("INSERT OR IGNORE INTO users (id, name, email, password, role, team_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                               (u_id, e_dict.get("name"), e_email, hash_password("emp123"), e_dict.get("role") or "employee", e_dict.get("team_id", ""), now_str))
+
+    # 4. Auto-sync any users table accounts into employees table if missing
+    _sync_users_to_employees(conn)
+    conn.commit()
+
+
+def _sync_users_to_employees(conn: sqlite3.Connection):
+    try:
+        cursor = conn.cursor()
+        users = cursor.execute("SELECT * FROM users").fetchall()
+        for u in users:
+            u_dict = dict(u)
+            u_email = (u_dict.get("email") or "").strip().lower()
+            if not u_email:
+                continue
+            emp_exists = cursor.execute("SELECT id FROM employees WHERE LOWER(email) = ?", (u_email,)).fetchone()
+            if not emp_exists:
+                u_id = str(u_dict.get("id") or f"emp_{int(time.time()*1000)}")
+                emp_id = u_id if u_id.startswith("emp_") else f"emp_{u_id}"
+                role_val = (u_dict.get("role") or "employee").lower()
+                cursor.execute("""
+                    INSERT INTO employees (id, name, email, location, timezone, working_days, shift_id, shift_name, reminders, team_id, team_name, sheet_name, role, dob, phone, holiday_calendar_id, must_change_password, pwd_expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    emp_id, u_dict.get("name") or u_email.split("@")[0].title(), u_email,
+                    "India", "Asia/Kolkata", "Mon,Tue,Wed,Thu,Fri", "shift_general", "General Shift (9:00 - 18:00)", "18:30,18:45,19:00",
+                    u_dict.get("team_id", ""), "Infra Team", "Sheet1", role_val,
+                    u_dict.get("dob", ""), u_dict.get("phone", ""), u_dict.get("holiday_calendar_id", ""),
+                    u_dict.get("must_change_password", 0), u_dict.get("pwd_expires_at", "")
+                ))
+        conn.commit()
+    except Exception as err:
+        print(f"[DB SYNC WARNING] Failed syncing users to employees: {err}")
 
 # --- User Authentication & Management Helpers ---
 
@@ -865,6 +927,9 @@ def get_all_employees(force_refresh: bool = False) -> List[Dict[str, Any]]:
         return _EMPLOYEES_CACHE
 
     conn = get_db_connection()
+    # Auto-sync any users table accounts into employees table so all accounts are visible on portal
+    _sync_users_to_employees(conn)
+
     rows = conn.execute("SELECT * FROM employees ORDER BY name ASC").fetchall()
     conn.close()
     result = []
@@ -895,30 +960,45 @@ def get_all_employees(force_refresh: bool = False) -> List[Dict[str, Any]]:
 
 def check_email_exists(email: str, exclude_id: str = "") -> bool:
     """Checks if an email address is already assigned to another active account in users or employees table."""
-    if not email:
+    if not email or not email.strip():
         return False
     email_clean = email.strip().lower()
     ex_id = (exclude_id or "").strip()
-    u_ex_id = f"u_{ex_id}" if ex_id and not ex_id.startswith("u_") else ex_id
 
     conn = get_db_connection()
-    try:
-        row1 = conn.execute(
-            "SELECT id FROM users WHERE LOWER(email) = ? AND id != ? AND id != ?",
-            (email_clean, ex_id, u_ex_id)
-        ).fetchone()
-        if row1:
-            conn.close()
-            return True
-        row2 = conn.execute(
-            "SELECT id FROM employees WHERE LOWER(email) = ? AND id != ? AND id != ?",
-            (email_clean, ex_id, u_ex_id)
-        ).fetchone()
-        if row2:
-            conn.close()
-            return True
-    except Exception:
-        pass
+    cursor = conn.cursor()
+
+    exclude_emails = set()
+    exclude_ids = {ex_id, f"u_{ex_id}", f"emp_{ex_id}", f"mgr_{ex_id}", ex_id.replace("u_", "").replace("emp_", "").replace("mgr_", "")}
+
+    if ex_id:
+        for tbl in ("employees", "users", "managers"):
+            try:
+                rows = cursor.execute(f"SELECT id, email FROM {tbl} WHERE id = ? OR LOWER(email) = ?", (ex_id, ex_id.lower())).fetchall()
+                for r in rows:
+                    if r[0]:
+                        exclude_ids.add(str(r[0]))
+                    if r[1]:
+                        exclude_emails.add(str(r[1]).strip().lower())
+            except Exception:
+                pass
+
+    if email_clean in exclude_emails:
+        conn.close()
+        return False
+
+    for tbl in ("users", "employees"):
+        try:
+            rows = cursor.execute(f"SELECT id, email FROM {tbl} WHERE LOWER(email) = ?", (email_clean,)).fetchall()
+            for r in rows:
+                row_id = str(r[0])
+                row_email = str(r[1]).strip().lower()
+                if row_id not in exclude_ids and row_email not in exclude_emails:
+                    conn.close()
+                    return True
+        except Exception:
+            pass
+
     conn.close()
     return False
 
@@ -1116,7 +1196,44 @@ def update_user_password(email: str, old_password: str, new_password: str, is_fo
 
 def delete_employee_record(emp_id: str) -> bool:
     conn = get_db_connection()
-    conn.execute("DELETE FROM employees WHERE id = ?", (emp_id,))
+    cursor = conn.cursor()
+
+    target_email = ""
+    target_ids = {emp_id, f"u_{emp_id}", f"emp_{emp_id}", f"mgr_{emp_id}", emp_id.replace("u_", "").replace("emp_", "").replace("mgr_", "")}
+
+    emp_row = cursor.execute("SELECT id, email FROM employees WHERE id = ? OR LOWER(email) = ?", (emp_id, emp_id.strip().lower())).fetchone()
+    if emp_row:
+        if emp_row[0]:
+            target_ids.add(str(emp_row[0]))
+        if emp_row[1]:
+            target_email = str(emp_row[1]).strip().lower()
+
+    if not target_email:
+        user_row = cursor.execute("SELECT id, email FROM users WHERE id = ? OR LOWER(email) = ?", (emp_id, emp_id.strip().lower())).fetchone()
+        if user_row:
+            if user_row[0]:
+                target_ids.add(str(user_row[0]))
+            if user_row[1]:
+                target_email = str(user_row[1]).strip().lower()
+
+    if not target_email:
+        mgr_row = cursor.execute("SELECT id, email FROM managers WHERE id = ? OR LOWER(email) = ?", (emp_id, emp_id.strip().lower())).fetchone()
+        if mgr_row:
+            if mgr_row[0]:
+                target_ids.add(str(mgr_row[0]))
+            if mgr_row[1]:
+                target_email = str(mgr_row[1]).strip().lower()
+
+    for id_val in target_ids:
+        cursor.execute("DELETE FROM employees WHERE id = ?", (id_val,))
+        cursor.execute("DELETE FROM users WHERE id = ?", (id_val,))
+        cursor.execute("DELETE FROM managers WHERE id = ?", (id_val,))
+
+    if target_email:
+        cursor.execute("DELETE FROM employees WHERE LOWER(email) = ?", (target_email,))
+        cursor.execute("DELETE FROM users WHERE LOWER(email) = ?", (target_email,))
+        cursor.execute("DELETE FROM managers WHERE LOWER(email) = ?", (target_email,))
+
     conn.commit()
     conn.close()
     invalidate_employees_cache()
@@ -1289,11 +1406,7 @@ def save_manager_record(mgr_data: Dict[str, Any]) -> bool:
     return True
 
 def delete_manager_record(mgr_id: str) -> bool:
-    conn = get_db_connection()
-    conn.execute("DELETE FROM managers WHERE id = ?", (mgr_id,))
-    conn.commit()
-    conn.close()
-    return True
+    return delete_employee_record(mgr_id)
 
 # Templates
 def get_all_templates() -> Dict[str, Dict[str, str]]:
