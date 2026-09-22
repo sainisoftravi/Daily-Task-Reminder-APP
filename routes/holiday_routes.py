@@ -67,25 +67,16 @@ def api_download_holiday_template(cal_id=None):
             cal_name = cal.get("name", "Holiday Calendar")
             existing_dates = cal.get("dates", [])
 
-    # Title Header Block
-    ws.merge_cells("A1:C1")
-    ws["A1"] = f"TICKTASK — {cal_name.upper()} (IMPORT & UPDATE SYNTAX FILE)"
-    ws["A1"].font = TITLE_FONT
-
-    ws.merge_cells("A2:C2")
-    ws["A2"] = "Instructions: Edit or add date rows below, then upload this file in TickTask under Holiday Calendars. Required columns: Date (YYYY-MM-DD) & Festival / Holiday Name."
-    ws["A2"].font = SUBTITLE_FONT
-
-    # Header Row (Row 4)
+    # Header Row (Row 1) - Clean format starting directly at Row 1
     headers = ["Date (YYYY-MM-DD)", "Day of Week", "Festival / Holiday Name"]
     for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=4, column=col_num, value=header)
+        cell = ws.cell(row=1, column=col_num, value=header)
         cell.fill = HEADER_FILL
         cell.font = HEADER_FONT
         cell.alignment = Alignment(horizontal="center" if col_num <= 2 else "left", vertical="center")
 
-    # Data Rows
-    start_row = 5
+    # Data Rows (Starting at Row 2)
+    start_row = 2
     if existing_dates:
         for idx, d in enumerate(existing_dates):
             r = start_row + idx
@@ -263,16 +254,31 @@ def api_import_holiday_excel(cal_id):
     if not rows or len(rows) < 2:
         return jsonify({"success": False, "error": "The uploaded Excel file contains no holiday date rows."}), 400
 
-    header_row_idx = 0
-    for idx, r in enumerate(rows[:5]):
+    header_row_idx = 3 # Default to row 4 (0-indexed 3)
+    found_header = False
+    for idx, r in enumerate(rows[:10]):
+        if not any(r):
+            continue
         row_strs = [str(c or "").strip().lower() for c in r if c is not None]
-        if any("date" in s for s in row_strs) and any("name" in s or "festival" in s or "holiday" in s for s in row_strs):
+        # Skip merged title/instruction rows with only 1 filled cell
+        if len(row_strs) < 2:
+            continue
+
+        has_date_hdr = any(s.startswith("date") or "date (" in s or s == "date" for s in row_strs) or any("date" in s for s in row_strs)
+        has_name_hdr = any(any(k in s for k in ["festival", "holiday name", "holiday", "event", "name"]) for s in row_strs)
+
+        if has_date_hdr and has_name_hdr:
             header_row_idx = idx
+            found_header = True
             break
 
     header = [str(c or "").strip().lower() for c in rows[header_row_idx]]
     date_col = next((i for i, h in enumerate(header) if "date" in h), 0)
-    name_col = next((i for i, h in enumerate(header) if any(x in h for x in ["name", "festival", "holiday", "event"])), 1)
+    
+    # Ensure name_col is distinct from date_col
+    name_col = next((i for i, h in enumerate(header) if i != date_col and any(x in h for x in ["festival", "holiday", "name", "event", "description"])), -1)
+    if name_col == -1 or name_col == date_col:
+        name_col = 2 if len(header) > 2 else 1
 
     dates_list = []
     for r in rows[header_row_idx + 1:]:
@@ -280,7 +286,7 @@ def api_import_holiday_excel(cal_id):
             continue
 
         raw_date = str(r[date_col]).strip() if len(r) > date_col and r[date_col] is not None else ""
-        raw_name = str(r[name_col]).strip() if len(r) > name_col and r[name_col] is not None else "Festival Holiday"
+        raw_name = str(r[name_col]).strip() if len(r) > name_col and r[name_col] is not None else ""
 
         if not raw_date:
             continue
@@ -299,6 +305,15 @@ def api_import_holiday_excel(cal_id):
 
         if not clean_date:
             continue
+
+        # Fallback if raw_name accidentally matches clean_date or is empty
+        if not raw_name or raw_name == clean_date or raw_name == raw_date:
+            # Check if there is another column with a string
+            other_name = next((str(r[i]).strip() for i in range(len(r)) if i != date_col and r[i] and str(r[i]).strip() != clean_date and str(r[i]).strip() != raw_date), "")
+            if other_name:
+                raw_name = other_name
+            else:
+                raw_name = "Festival Holiday"
 
         dates_list.append({
             "date_str": clean_date,
