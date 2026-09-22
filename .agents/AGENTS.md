@@ -13,3 +13,8 @@ Whenever you complete changes to the codebase, UI layouts, backend logic, API en
      - List of Modified Files & Components (with clickable markdown file links)
      - Functional & Visual Outcome
    - Update any other relevant sections of `README.md` (such as Section 2 Sitemap or Section 3 REST API Reference) if new routes or features were introduced.
+
+2. **Automatically Update `FEATURE_EXPLANATION.md`**:
+   - Update `FEATURE_EXPLANATION.md` whenever new features, UI workflows, API endpoints, permissions, or system capabilities are added or updated.
+   - Keep sales pitches, feature deep-dives, step-by-step processes, and business advantages aligned with the codebase for marketing, sales, and customer onboarding.
+
