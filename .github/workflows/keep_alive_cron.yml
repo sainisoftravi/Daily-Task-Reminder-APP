@@ -1,0 +1,15 @@
+name: TickTask Keep-Alive & Reminder Cron
+
+on:
+  schedule:
+    # Runs every 5 minutes 24/7/365 on GitHub free runners
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping_ticktask:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping TickTask Keep-Alive & Trigger Reminders
+        run: |
+          curl -s -X GET "https://ticktask-silk.vercel.app/api/keep-alive"

@@ -30,6 +30,8 @@ EXEMPT_ROUTES = {
     '/api/request-password-reset',
     '/api/export/task-report',
     '/api/health',
+    '/api/keep-alive',
+    '/api/cron/trigger-reminders',
     '/api/managers'
 }
 
@@ -110,6 +112,56 @@ def health_check():
         "app": "TickTask Daily Task Log System",
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }), 200
+
+
+@app.route('/api/keep-alive', methods=['GET', 'POST'])
+@app.route('/api/cron/trigger-reminders', methods=['GET', 'POST'])
+def serverless_keep_alive_trigger():
+    """Serverless Keep-Alive & Reminder Evaluation Endpoint.
+    Warms up Vercel serverless function container and evaluates shift reminder rules for all active employees.
+    """
+    try:
+        config = database.get_system_settings()
+        employees_raw = database.get_all_employees()
+        emp_objects = []
+        if employees_raw:
+            for e in employees_raw:
+                emp_objects.append(daily_reminder.Employee(
+                    name=e["name"],
+                    email=e["email"],
+                    location=e["location"],
+                    timezone_str=e["timezone"],
+                    working_days=",".join(e.get("workingDays", [])),
+                    sheet_name=e.get("sheetName", "Technical Infra Team-Aug-2026"),
+                    manager_cc=e.get("managerCc") or e.get("manager_cc") or "Ravi@d2backoffice.onmicrosoft.com",
+                    reminders=e.get("reminders")
+                ))
+
+            class Args:
+                pass
+            args = Args()
+            args.config = database.DB_FILE
+            args.test_employee = None
+            args.dry_run = config.get("dry_run", False)
+            args.force_time = request.args.get("force_time")
+            args.force_date = request.args.get("force_date")
+            args.excel_file = config.get("excel_file_path", "Daily Task and Update Sheet.xlsx")
+            args.sharepoint_url = config.get("sharepoint_url")
+
+            daily_reminder.run_reminder_cycle(args, emp_objects)
+
+        return jsonify({
+            "status": "active",
+            "message": "Keep-Alive Ping Received & Reminder Evaluation Executed",
+            "timestamp": datetime.datetime.now().isoformat(),
+            "active_users": len(emp_objects)
+        }), 200
+    except Exception as err:
+        return jsonify({
+            "status": "error",
+            "message": f"Keep-Alive Reminder Evaluation Error: {err}",
+            "timestamp": datetime.datetime.now().isoformat()
+        }), 500
 
 
 def log_event(msg: str, level: str = "INFO"):
