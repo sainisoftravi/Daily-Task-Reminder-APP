@@ -346,6 +346,40 @@ A resilient multi-table identity synchronization engine ensuring that all user a
 
 ---
 
+### Feature 15: Serverless Keep-Alive Pinger & Automated Reminder Suite
+
+#### Overview
+A zero-downtime serverless warmup and reminder automation engine designed specifically to bypass Vercel serverless function freezing. It ensures that Vercel serverless functions remain warm (0ms response latency) and shift email reminders (18:30, 18:45, 19:00) execute reliably on schedule 24/7/365 without needing active user web browsing.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│              SERVERLESS KEEP-ALIVE & AUTOMATED REMINDER WORKFLOW                 │
+│                                                                                  │
+│   ┌────────────────────────┐                   ┌─────────────────────────────┐   │
+│   │ 1-Click Windows Daemon │                   │ Free GitHub Actions Cloud   │   │
+│   │  run_keep_alive.bat    │                   │  keep_alive_cron.yml        │   │
+│   └────────────────────────┘                   └─────────────────────────────┘   │
+│                │                                              │                  │
+│                └──────────────────────┬───────────────────────┘                  │
+│                                       │ Pings every 60s/5m                       │
+│                                       ▼                                          │
+│                    ┌──────────────────────────────────────┐                      │
+│                    │ GET /api/keep-alive (Vercel Portal)  │                      │
+│                    │  1. Warms Vercel Lambda Container    │                      │
+│                    │  2. Evaluates Shift Reminder Rules   │                      │
+│                    │  3. Dispatches SMTP Emails on Schedule│                      │
+│                    └──────────────────────────────────────┘                      │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Key Components & Execution Options:
+1. **Serverless Reminder Execution Endpoint (`GET /api/keep-alive`)**: Exempt from session login checks. When pinged, it warms up Vercel container RAM and evaluates shift reminder cycles (`daily_reminder.run_reminder_cycle()`) for all active employees.
+2. **1-Click Local Windows Launcher (`run_keep_alive.bat`)**: Standalone batch script that launches [`keep_alive_app.py`](file:///e:/Daily-Update-Email/keep_alive_app.py) to continuously ping Vercel every 60 seconds with live console latency and active user metrics.
+3. **Free 24/7 GitHub Actions Cloud Cron (`.github/workflows/keep_alive_cron.yml`)**: Automated cloud workflow running every 5 minutes on GitHub's free runners, eliminating the need to keep local PCs turned on.
+4. **Third-Party Webhook Compatibility**: Compatible with free pingers like UptimeRobot and Cron-Job.org targeting `https://ticktask-silk.vercel.app/api/keep-alive`.
+
+---
+
 ## 💼 Sales & Marketing Quick-Reference Pitch
 
 ### 3-Minute Elevator Pitch
