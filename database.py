@@ -467,6 +467,37 @@ def init_db():
             except Exception:
                 pass
 
+    # Automatically enable Row Level Security (RLS) & revoke public PostgREST API access on Supabase PostgreSQL
+    if USE_POSTGRES:
+        rls_tables = [
+            "users", "employees", "managers", "shifts", "teams", "templates",
+            "settings", "locations", "logs", "reminder_history", "quotes",
+            "task_logs", "holiday_calendars", "holiday_dates"
+        ]
+        for tbl in rls_tables:
+            try:
+                cursor.execute(f"ALTER TABLE public.{tbl} ENABLE ROW LEVEL SECURITY;")
+                conn.commit()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+
+        for revoke_cmd in [
+            "REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;",
+            "REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;",
+            "REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated;"
+        ]:
+            try:
+                cursor.execute(revoke_cmd)
+                conn.commit()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+
     # --- SEED INITIAL DATA IF TABLES ARE EMPTY ---
     _seed_from_json(conn)
     conn.close()
